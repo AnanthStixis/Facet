@@ -1,0 +1,353 @@
+"""The public respondent endpoint (Module B).
+
+This is the only unauthenticated, internet-facing surface that touches tenant
+data, so the rules it plays by are stricter than anywhere else in the app.
+
+**Tenant binding.** Resolving the link has the same bootstrapping problem as
+login: a tenant-scoped row must be found before any tenant is bound. It is
+solved the same way — one SECURITY DEFINER function (`facet_public_link`,
+migration 0005) returns only enough to identify the link's organization. The
+handler then binds *that* organization and does everything else under ordinary
+row level security. A bug in this file can therefore only ever reach the tenant
+the presented token already belonged to.
+
+**No enumeration.** Every failure — unknown token, expired link, already
+submitted, campaign closed, revoked — returns the same 404 shape with a
+deliberately unhelpful message. Distinguishing them would let anyone with a
+list of guesses learn which tokens exist and which customers are running
+campaigns.
+
+**No account.** The respondent never authenticates, never sets a password, and
+is never left holding a dormant credential when the engagement ends. That is
+the product promise from the functional spec, and it is also the safest option:
+credentials that do not exist cannot be reused or breached.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime
+from typing import Any
+
+from fastapi import APIRouter, Request, Response
+from sqlalchemy import select, text
+
+from app.api.deps import DbSession
+from app.core.config import settings
+from app.core.errors import NotFound
+from app.core.logging import get_logger
+from app.core.ratelimit import Limit, limiter
+from app.core.security import hash_token
+from app.db.tenancy import TenantContext, bind_tenant
+from app.models.campaign import CampaignRecipient
+from app.models.catalog import Contact, FeedbackTarget, FeedbackTemplateVersion
+from app.models.cycle import FeedbackResponse, ReviewCycle
+from app.models.enums import AuditAction, CycleStatus, RecipientStatus, Relationship
+from app.models.organization import Organization
+from app.schemas.common import MessageResponse
+from app.schemas.cycle import SubmitResponseRequest
+from app.services import audit
+from app.services.forms import form_payload, validate_answers, validate_definition
+
+log = get_logger("facet.public")
+
+router = APIRouter(prefix="/public", tags=["public"])
+
+# Tight limits. A legitimate respondent opens their link a handful of times;
+# anything beyond that is someone walking the token space.
+LINK_PER_IP = Limit(times=40, seconds=300)
+LINK_PER_TOKEN = Limit(times=20, seconds=300)
+SUBMIT_PER_IP = Limit(times=10, seconds=300)
+
+# One message for every failure mode, so the endpoint reveals nothing about
+# which tokens exist.
+DEAD_LINK = (
+    "This feedback link is no longer valid. It may have already been used, "
+    "expired, or been withdrawn. Please ask your contact for a new one."
+)
+
+
+class _Link:
+    __slots__ = ("recipient_id", "org_id", "cycle_id", "target_id", "contact_id")
+
+    def __init__(self, row: Any) -> None:
+        self.recipient_id: uuid.UUID = row["recipient_id"]
+        self.org_id: uuid.UUID = row["org_id"]
+        self.cycle_id: uuid.UUID = row["cycle_id"]
+        self.target_id: uuid.UUID = row["target_id"]
+        self.contact_id: uuid.UUID = row["contact_id"]
+
+
+async def _resolve(session: DbSession, token: str, request: Request) -> _Link:
+    """Turn a raw token into a bound tenant context, or raise a flat 404."""
+    await limiter.hit(f"link:ip:{audit.client_ip(request) or 'unknown'}", LINK_PER_IP)
+
+    if not token or len(token) < 20 or len(token) > 128:
+        raise NotFound(DEAD_LINK)
+
+    token_hash = hash_token(token)
+    await limiter.hit(f"link:tok:{token_hash[:16]}", LINK_PER_TOKEN)
+
+    row = (
+        await session.execute(
+            text("SELECT * FROM facet_public_link(:token_hash)"),
+            {"token_hash": token_hash},
+        )
+    ).mappings().first()
+
+    if row is None:
+        raise NotFound(DEAD_LINK)
+
+    now = datetime.now(UTC)
+    status = RecipientStatus(row["status"])
+    if (
+        status
+        in {
+            RecipientStatus.SUBMITTED,
+            RecipientStatus.REVOKED,
+            RecipientStatus.EXPIRED,
+            RecipientStatus.UNSUBSCRIBED,
+        }
+        or row["expires_at"] <= now
+        or CycleStatus(row["cycle_status"]) != CycleStatus.OPEN
+    ):
+        raise NotFound(DEAD_LINK)
+
+    # From here on the request behaves like any other: one tenant bound, RLS
+    # doing the enforcing.
+    await bind_tenant(
+        session, TenantContext(org_id=row["org_id"], is_super_admin=False)
+    )
+    return _Link(row)
+
+
+def _harden(response: Response) -> None:
+    """Headers for a page that renders tenant-supplied text to strangers."""
+    response.headers["x-robots-tag"] = "noindex, nofollow"
+    response.headers["cache-control"] = "no-store"
+    response.headers["referrer-policy"] = "no-referrer"
+
+
+@router.get("/feedback/{token}")
+async def open_link(
+    token: str, request: Request, response: Response, session: DbSession
+) -> dict[str, Any]:
+    """Render the branded form for a valid link."""
+    link = await _resolve(session, token, request)
+    _harden(response)
+
+    recipient = (
+        await session.execute(
+            select(CampaignRecipient).where(CampaignRecipient.id == link.recipient_id)
+        )
+    ).scalar_one()
+    cycle = (
+        await session.execute(select(ReviewCycle).where(ReviewCycle.id == link.cycle_id))
+    ).scalar_one()
+    target = (
+        await session.execute(
+            select(FeedbackTarget).where(FeedbackTarget.id == link.target_id)
+        )
+    ).scalar_one()
+    contact = (
+        await session.execute(select(Contact).where(Contact.id == link.contact_id))
+    ).scalar_one()
+    org = (
+        await session.execute(
+            select(Organization).where(Organization.id == link.org_id)
+        )
+    ).scalar_one()
+    version = (
+        await session.execute(
+            select(FeedbackTemplateVersion).where(
+                FeedbackTemplateVersion.id == cycle.template_version_id
+            )
+        )
+    ).scalar_one()
+
+    now = datetime.now(UTC)
+    if recipient.first_opened_at is None:
+        recipient.first_opened_at = now
+    recipient.open_count += 1
+    recipient.last_ip = audit.client_ip(request)
+    if recipient.status == RecipientStatus.SENT:
+        recipient.status = RecipientStatus.OPENED
+    await session.commit()
+
+    form = validate_definition(version.definition)
+    return {
+        "organization": {
+            "name": org.name,
+            "accent_color": org.branding.accent_color if org.branding else "#B4633A",
+            "logo_url": (
+                f"{settings.public_api_url}/api/v1/public/logo/{token}"
+                if org.branding and org.branding.logo_path
+                else None
+            ),
+        },
+        "recipient": {
+            # Only the recipient's own details, so a leaked link exposes the
+            # person who already had it and nobody else.
+            "full_name": contact.full_name,
+            "company": contact.company,
+        },
+        "subject": {"label": target.label, "type": str(target.target_type)},
+        "campaign": {"name": cycle.name, "closes_at": cycle.closes_at},
+        "is_anonymous": cycle.is_anonymous,
+        "form": form_payload(form),
+    }
+
+
+@router.get("/logo/{token}")
+async def branded_logo(
+    token: str, request: Request, session: DbSession
+) -> Response:
+    """Serve the tenant logo to an unauthenticated respondent.
+
+    Reached only by presenting a valid link, so it does not expose branding to
+    anyone who was not already invited.
+    """
+    link = await _resolve(session, token, request)
+    org = (
+        await session.execute(
+            select(Organization).where(Organization.id == link.org_id)
+        )
+    ).scalar_one()
+    if org.branding is None or not org.branding.logo_path:
+        raise NotFound("No logo.")
+
+    from app.services import storage
+
+    result = storage.read_logo(org.branding.logo_path)
+    if result is None:
+        raise NotFound("No logo.")
+    data, content_type = result
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "cache-control": "private, max-age=300",
+            "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
+            "x-content-type-options": "nosniff",
+            "x-robots-tag": "noindex, nofollow",
+        },
+    )
+
+
+@router.post("/feedback/{token}", response_model=MessageResponse)
+async def submit_link(
+    token: str,
+    payload: SubmitResponseRequest,
+    request: Request,
+    response: Response,
+    session: DbSession,
+) -> MessageResponse:
+    """Accept one submission and burn the link."""
+    await limiter.hit(
+        f"submit:ip:{audit.client_ip(request) or 'unknown'}", SUBMIT_PER_IP
+    )
+    link = await _resolve(session, token, request)
+    _harden(response)
+
+    recipient = (
+        await session.execute(
+            select(CampaignRecipient).where(CampaignRecipient.id == link.recipient_id)
+        )
+    ).scalar_one()
+    cycle = (
+        await session.execute(select(ReviewCycle).where(ReviewCycle.id == link.cycle_id))
+    ).scalar_one()
+    version = (
+        await session.execute(
+            select(FeedbackTemplateVersion).where(
+                FeedbackTemplateVersion.id == cycle.template_version_id
+            )
+        )
+    ).scalar_one()
+
+    form = validate_definition(version.definition)
+    scored = validate_answers(form, payload.answers, payload.comment)
+
+    now = datetime.now(UTC)
+    session.add(
+        FeedbackResponse(
+            org_id=cycle.org_id,
+            cycle_id=cycle.id,
+            target_id=link.target_id,
+            template_version_id=version.id,
+            # Same rule as internal feedback: when the round is anonymous there
+            # is no stored path back to the respondent, external or not.
+            recipient_id=None if cycle.is_anonymous else recipient.id,
+            assignment_id=None,
+            reviewer_user_id=None,
+            is_anonymous=cycle.is_anonymous,
+            relationship_type=Relationship.EXTERNAL,
+            answers=scored.answers,
+            comment=scored.comment,
+            overall_score=scored.overall_score,
+            answered_count=scored.answered_count,
+            submitted_at=now,
+        )
+    )
+
+    # Burning the token is what makes the link single use. It happens in the
+    # same transaction as the response, so a failure cannot leave a spent link
+    # that still works or a burnt link with no answers behind it.
+    recipient.status = RecipientStatus.SUBMITTED
+    recipient.submitted_at = now
+    recipient.token_hash = hash_token(uuid.uuid4().hex + uuid.uuid4().hex)
+
+    await audit.record(
+        session,
+        action=AuditAction.EXTERNAL_RESPONSE,
+        summary=f"An external response was received for '{cycle.name}'",
+        org_id=cycle.org_id,
+        target_type="review_cycle",
+        target_id=cycle.id,
+        target_label=cycle.name,
+        context={"anonymous": cycle.is_anonymous, "batch": recipient.batch},
+        request=request,
+    )
+    await session.commit()
+
+    return MessageResponse(
+        message="Thank you. Your feedback has been received."
+    )
+
+
+@router.post("/unsubscribe/{token}", response_model=MessageResponse)
+async def unsubscribe(
+    token: str, request: Request, session: DbSession
+) -> MessageResponse:
+    """Let a recipient opt out of future requests without contacting anyone.
+
+    An opt-out that requires emailing a human is an opt-out that gets ignored,
+    and eventually reported as spam.
+    """
+    link = await _resolve(session, token, request)
+    contact = (
+        await session.execute(select(Contact).where(Contact.id == link.contact_id))
+    ).scalar_one()
+    recipient = (
+        await session.execute(
+            select(CampaignRecipient).where(CampaignRecipient.id == link.recipient_id)
+        )
+    ).scalar_one()
+
+    contact.unsubscribed_at = datetime.now(UTC)
+    recipient.status = RecipientStatus.UNSUBSCRIBED
+
+    await audit.record(
+        session,
+        action=AuditAction.CONTACT_UNSUBSCRIBED,
+        summary=f"{contact.email} unsubscribed from feedback requests",
+        org_id=link.org_id,
+        target_type="contact",
+        target_id=contact.id,
+        target_label=contact.email,
+        request=request,
+    )
+    await session.commit()
+    return MessageResponse(
+        message="You will not receive further feedback requests from this organization."
+    )

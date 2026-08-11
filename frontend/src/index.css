@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Overridden per tenant at runtime from their branding, which is what
+       makes the whole app feel like the customer's own tool rather than ours. */
+    --accent: #b4633a;
+    --accent-soft: rgba(180, 99, 58, 0.12);
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-ink-200 dark:border-ink-700;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-800 dark:bg-ink-950 dark:text-ink-100;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01', 'tnum' 0;
+  }
+
+  /* Numerals in tables must line up column to column. */
+  table, .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-offset-1 ring-offset-white dark:ring-offset-ink-950;
+    --tw-ring-color: var(--accent);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded bg-ink-300 dark:bg-ink-700;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-lg border border-ink-200 bg-white shadow-card
+           dark:border-ink-800 dark:bg-ink-900;
+  }
+
+  .hairline {
+    @apply border-ink-200 dark:border-ink-800;
+  }
+
+  .label-caps {
+    @apply text-2xs font-semibold uppercase tracking-[0.09em] text-ink-400 dark:text-ink-500;
+  }
+
+  .field {
+    @apply w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-base
+           text-ink-900 placeholder:text-ink-400 transition
+           focus:border-transparent
+           dark:border-ink-700 dark:bg-ink-900 dark:text-ink-50
+           dark:placeholder:text-ink-500;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2
+           text-base font-medium transition-colors disabled:cursor-not-allowed
+           disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn text-white;
+    background-color: var(--accent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(0.93);
+  }
+
+  .btn-secondary {
+    @apply btn border border-ink-200 bg-white text-ink-700 hover:bg-ink-50
+           dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200 dark:hover:bg-ink-800;
+  }
+
+  .btn-ghost {
+    @apply btn text-ink-500 hover:bg-ink-100 hover:text-ink-800
+           dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100;
+  }
+
+  .btn-danger {
+    @apply btn border border-critical/30 bg-critical/5 text-critical
+           hover:bg-critical/10;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-2xs
+           font-semibold uppercase tracking-[0.06em];
+  }
+
+  /* One visual grammar for every table in the product. */
+  .data-table {
+    @apply w-full text-left text-base;
+  }
+  .data-table thead th {
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-ink-200 bg-ink-50/95
+           px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.08em]
+           text-ink-500 backdrop-blur
+           dark:border-ink-800 dark:bg-ink-900/95 dark:text-ink-400;
+  }
+  .data-table tbody td {
+    @apply border-b border-ink-100 px-3 py-2.5 align-top dark:border-ink-800/70;
+  }
+  .data-table tbody tr:hover {
+    @apply bg-ink-50/70 dark:bg-ink-800/40;
+  }
+}
+
+@layer utilities {
+  .accent-text {
+    color: var(--accent);
+  }
+  .accent-bg {
+    background-color: var(--accent);
+  }
+  .accent-border {
+    border-color: var(--accent);
+  }
+  .accent-soft-bg {
+    background-color: var(--accent-soft);
+  }
+
+  /* The signature grid used behind the sign-in artwork. */
+  .grid-etch {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
+
+  .skeleton {
+    @apply rounded bg-ink-100 dark:bg-ink-800;
+    background-image: linear-gradient(
+      90deg,
+      transparent 0,
+      rgba(255, 255, 255, 0.5) 50%,
+      transparent 100%
+    );
+    background-repeat: no-repeat;
+    @apply animate-shimmer;
+  }
+}

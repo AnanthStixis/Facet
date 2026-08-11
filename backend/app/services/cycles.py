@@ -1,0 +1,245 @@
+"""Review cycle logic: assignment generation and completion accounting."""
+
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass
+from datetime import datetime
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.errors import Conflict, ValidationFailed
+from app.models.catalog import FeedbackTarget
+from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
+from app.models.enums import (
+    AssignmentStatus,
+    CycleStatus,
+    Relationship,
+    TargetType,
+    UserRole,
+    UserStatus,
+)
+from app.models.user import User
+
+# A 360 with thirty reviewers per person is a survey nobody finishes. Capping
+# peers keeps the ask proportionate and the results comparable between people.
+MAX_PEERS_PER_TARGET = 6
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationPlan:
+    include_self: bool = True
+    include_manager: bool = True
+    include_upward: bool = True
+    include_peers: bool = True
+    max_peers: int = MAX_PEERS_PER_TARGET
+
+
+@dataclass(slots=True)
+class GenerationResult:
+    created: int
+    skipped_existing: int
+    by_relationship: dict[str, int]
+    warnings: list[str]
+
+
+async def ensure_person_target(
+    session: AsyncSession, *, org_id: uuid.UUID, user: User
+) -> FeedbackTarget:
+    """Find or create the feedback target that represents a person.
+
+    People are targets like any product or proposal — that uniformity is what
+    lets one aggregation path serve every domain instead of one per module.
+    """
+    reference = f"user:{user.email}"
+    existing = (
+        await session.execute(
+            select(FeedbackTarget).where(
+                FeedbackTarget.org_id == org_id,
+                FeedbackTarget.subject_user_id == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return existing
+
+    target = FeedbackTarget(
+        org_id=org_id,
+        target_type=(
+            TargetType.MANAGER if user.role == UserRole.MANAGER else TargetType.EMPLOYEE
+        ),
+        label=user.full_name,
+        reference=reference,
+        subject_user_id=user.id,
+    )
+    session.add(target)
+    await session.flush()
+    return target
+
+
+async def generate_assignments(
+    session: AsyncSession,
+    *,
+    cycle: ReviewCycle,
+    reviewee_ids: list[uuid.UUID],
+    plan: GenerationPlan,
+    due_at: datetime | None = None,
+) -> GenerationResult:
+    """Build the reviewer set for each reviewee from the org chart.
+
+    Idempotent: re-running adds only what is missing. The unique constraint on
+    (cycle, target, reviewer) is the backstop, but skipping in code keeps the
+    result readable rather than surfacing as a constraint violation.
+    """
+    if cycle.status not in {CycleStatus.DRAFT, CycleStatus.OPEN}:
+        raise Conflict("Assignments can only be generated for a draft or open cycle.")
+    if not reviewee_ids:
+        raise ValidationFailed("Select at least one person to be reviewed.")
+
+    people = (
+        (
+            await session.execute(
+                select(User).where(
+                    User.org_id == cycle.org_id, User.status == UserStatus.ACTIVE
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_id = {person.id: person for person in people}
+
+    reports: dict[uuid.UUID, list[User]] = {}
+    for person in people:
+        if person.manager_id:
+            reports.setdefault(person.manager_id, []).append(person)
+
+    existing_pairs = {
+        (row.target_id, row.reviewer_user_id)
+        for row in (
+            await session.execute(
+                select(
+                    FeedbackAssignment.target_id, FeedbackAssignment.reviewer_user_id
+                ).where(FeedbackAssignment.cycle_id == cycle.id)
+            )
+        ).all()
+    }
+
+    created = 0
+    skipped = 0
+    counts: dict[str, int] = {}
+    warnings: list[str] = []
+
+    for reviewee_id in reviewee_ids:
+        reviewee = by_id.get(reviewee_id)
+        if reviewee is None:
+            warnings.append("A selected person is not an active member of this organization.")
+            continue
+
+        target = await ensure_person_target(
+            session, org_id=cycle.org_id, user=reviewee
+        )
+
+        pairs: list[tuple[User, Relationship]] = []
+
+        if plan.include_self:
+            pairs.append((reviewee, Relationship.SELF))
+
+        if plan.include_manager:
+            manager = by_id.get(reviewee.manager_id) if reviewee.manager_id else None
+            if manager is not None:
+                pairs.append((manager, Relationship.MANAGER))
+            else:
+                warnings.append(
+                    f"{reviewee.full_name} has no manager on record, so no downward review was created."
+                )
+
+        if plan.include_upward:
+            direct_reports = reports.get(reviewee.id, [])
+            for report in direct_reports:
+                pairs.append((report, Relationship.UPWARD))
+            if not direct_reports and reviewee.role == UserRole.MANAGER:
+                warnings.append(
+                    f"{reviewee.full_name} is a manager with no direct reports recorded."
+                )
+
+        if plan.include_peers and reviewee.manager_id:
+            siblings = [
+                person
+                for person in reports.get(reviewee.manager_id, [])
+                if person.id != reviewee.id
+            ]
+            # Deterministic ordering, so re-running the generator does not pick
+            # a different sample of peers and skew a comparison between cycles.
+            siblings.sort(key=lambda person: str(person.id))
+            for sibling in siblings[: plan.max_peers]:
+                pairs.append((sibling, Relationship.PEER))
+
+        for reviewer, relationship in pairs:
+            if (target.id, reviewer.id) in existing_pairs:
+                skipped += 1
+                continue
+            existing_pairs.add((target.id, reviewer.id))
+            session.add(
+                FeedbackAssignment(
+                    org_id=cycle.org_id,
+                    cycle_id=cycle.id,
+                    target_id=target.id,
+                    reviewer_user_id=reviewer.id,
+                    relationship_type=relationship,
+                    status=AssignmentStatus.PENDING,
+                    due_at=due_at or cycle.closes_at,
+                )
+            )
+            created += 1
+            counts[relationship.value] = counts.get(relationship.value, 0) + 1
+
+    await session.flush()
+    # Deduplicate while preserving order, so the caller sees each distinct
+    # problem once rather than once per reviewee.
+    seen: set[str] = set()
+    unique_warnings = [w for w in warnings if not (w in seen or seen.add(w))]
+
+    return GenerationResult(
+        created=created,
+        skipped_existing=skipped,
+        by_relationship=counts,
+        warnings=unique_warnings,
+    )
+
+
+async def cycle_progress(
+    session: AsyncSession, cycle_id: uuid.UUID
+) -> dict[str, int]:
+    rows = (
+        await session.execute(
+            select(FeedbackAssignment.status, func.count())
+            .where(FeedbackAssignment.cycle_id == cycle_id)
+            .group_by(FeedbackAssignment.status)
+        )
+    ).all()
+    counts = {str(status): count for status, count in rows}
+    total = sum(counts.values())
+    submitted = counts.get(str(AssignmentStatus.SUBMITTED), 0)
+    return {
+        "total": total,
+        "submitted": submitted,
+        "pending": counts.get(str(AssignmentStatus.PENDING), 0),
+        "in_progress": counts.get(str(AssignmentStatus.IN_PROGRESS), 0),
+        "declined": counts.get(str(AssignmentStatus.DECLINED), 0),
+        "completion_pct": round(100 * submitted / total) if total else 0,
+    }
+
+
+async def response_counts_by_target(
+    session: AsyncSession, cycle_id: uuid.UUID
+) -> dict[uuid.UUID, int]:
+    rows = (
+        await session.execute(
+            select(FeedbackResponse.target_id, func.count())
+            .where(FeedbackResponse.cycle_id == cycle_id)
+            .group_by(FeedbackResponse.target_id)
+        )
+    ).all()
+    return {target_id: count for target_id, count in rows}
