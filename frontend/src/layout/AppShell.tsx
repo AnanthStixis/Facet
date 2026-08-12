@@ -14,6 +14,7 @@ import {
   IconLayers,
   IconLogout,
   IconMoon,
+  IconRefresh,
   IconSend,
   IconSettings,
   IconShield,
@@ -21,9 +22,15 @@ import {
   IconSun,
   IconUsers,
 } from '../components/icons'
+import { triggerManualRefresh } from '../hooks/useRefetchOnFocus'
 import { useAuth } from '../store/auth'
 
 const PRODUCT = 'Facet'
+
+// Temporary kill switch — flip back to true to bring the Insights nav item
+// back. The page and its API routes are untouched; this only hides the entry
+// point until it's ready to be shown again.
+const INSIGHTS_ENABLED = false
 
 interface NavItem {
   to: string
@@ -37,12 +44,16 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Overview',
     items: [
       { to: '/', label: 'Dashboard', icon: IconGauge },
-      {
-        to: '/insights',
-        label: 'Insights',
-        icon: IconSpark,
-        roles: ['super_admin', 'client_admin', 'manager'],
-      },
+      ...(INSIGHTS_ENABLED
+        ? [
+            {
+              to: '/insights',
+              label: 'Insights',
+              icon: IconSpark,
+              roles: ['super_admin', 'client_admin', 'manager'],
+            },
+          ]
+        : []),
     ],
   },
   {
@@ -222,15 +233,22 @@ export function AppShell() {
               <p className="truncate text-base font-semibold text-ink-900 dark:text-ink-50">
                 {tenantName}
               </p>
-              <p className="truncate text-2xs text-ink-400">
-                {user.role === 'super_admin'
-                  ? 'Platform administration'
-                  : (organization?.timezone ?? '')}
-              </p>
+              {user.role === 'super_admin' && (
+                <p className="truncate text-2xs text-ink-400">Platform administration</p>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={triggerManualRefresh}
+              className="btn-ghost p-2"
+              aria-label="Refresh this page's data"
+              title="Refresh"
+            >
+              <IconRefresh />
+            </button>
             <button
               type="button"
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}

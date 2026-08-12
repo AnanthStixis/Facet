@@ -1,5 +1,14 @@
 import { useEffect } from 'react'
 
+// Dispatched by the manual refresh button in the app header. Any page using
+// this hook picks it up automatically — one button, every page, no per-page
+// wiring needed.
+export const REFRESH_EVENT = 'app:refresh'
+
+export function triggerManualRefresh() {
+  window.dispatchEvent(new Event(REFRESH_EVENT))
+}
+
 /**
  * Re-runs `load` whenever this tab becomes the active one again, and on a
  * background interval while it stays visible.
@@ -20,12 +29,14 @@ export function useRefetchOnFocus(load: () => void, pollMs = 20_000) {
     }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
+    window.addEventListener(REFRESH_EVENT, load)
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') load()
     }, pollMs)
     return () => {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onFocus)
+      window.removeEventListener(REFRESH_EVENT, load)
       window.clearInterval(interval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -78,7 +78,7 @@ class MfaEnrolConfirmResponse(BaseModel):
     recovery_codes: list[str]
 
 
-PASSWORD_MIN_LENGTH = 8
+PASSWORD_MIN_LENGTH = 6
 
 class PasswordChangeRequest(BaseModel):
     current_password: str

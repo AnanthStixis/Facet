@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useRef, type InputHTMLAttributes, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { IconAlert, IconX } from './icons'
 
@@ -271,7 +272,13 @@ export function Modal({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  return (
+  // Rendered into document.body rather than in place: this component is
+  // used from inside table rows and cards that carry their own entrance
+  // animation (`animate-fade-up`, a transform), and a transformed ancestor
+  // becomes the containing block for any `position: fixed` descendant — so
+  // without the portal, the modal was clipped to that ancestor's box instead
+  // of covering the viewport ("not displaying full page").
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/50 p-4 py-10 backdrop-blur-[1px]"
       onMouseDown={(event) => {
@@ -303,7 +310,8 @@ export function Modal({
         </header>
         <div className="max-h-[75vh] overflow-y-auto p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
