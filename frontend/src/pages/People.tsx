@@ -629,7 +629,9 @@ export function People() {
                               Edit
                             </button>
                             {person.id === user?.id ? (
-                              <span className="text-2xs text-ink-400">You</span>
+                              <span className="flex w-[52px] items-center justify-center px-2 py-1 text-xs text-ink-600 dark:text-ink-300">
+                                You
+                              </span>
                             ) : (
                               person.status !== 'disabled' && (
                                 <button
