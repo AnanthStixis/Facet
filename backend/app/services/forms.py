@@ -191,7 +191,13 @@ class ScoredAnswers:
 def validate_answers(
     form: Form, submitted: Any, comment: Any = None
 ) -> ScoredAnswers:
-    """Check a respondent's answers against the pinned form and score them."""
+    """Check a respondent's answers against the pinned form and score them.
+
+    Problems are collected per-field (keyed by question key, plus
+    "closing_comment" for the closing comment) rather than as one flat list.
+    This lets the client point each message at the exact field it concerns,
+    instead of dumping everything into a single banner.
+    """
     if not isinstance(submitted, dict):
         _fail("Answers must be an object.")
 
@@ -207,7 +213,7 @@ def validate_answers(
         )
 
     cleaned: dict[str, Any] = {}
-    problems: list[str] = []
+    problems: dict[str, list[str]] = {}
     scores: list[int] = []
 
     for key, question in by_key.items():
@@ -215,15 +221,15 @@ def validate_answers(
 
         if value is None or value == "":
             if question.required:
-                problems.append(f"'{question.text}' is required")
+                problems.setdefault(key, []).append(f"'{question.text}' is required")
             continue
 
         if question.type == "scale":
             if isinstance(value, bool) or not isinstance(value, int):
-                problems.append(f"'{question.text}' must be a whole number")
+                problems.setdefault(key, []).append(f"'{question.text}' must be a whole number")
                 continue
             if not form.scale_min <= value <= form.scale_max:
-                problems.append(
+                problems.setdefault(key, []).append(
                     f"'{question.text}' must be between {form.scale_min} and {form.scale_max}"
                 )
                 continue
@@ -232,31 +238,43 @@ def validate_answers(
 
         elif question.type == "choice":
             if str(value) not in question.options:
-                problems.append(f"'{question.text}' has an option that is not offered")
+                problems.setdefault(key, []).append(
+                    f"'{question.text}' has an option that is not offered"
+                )
                 continue
             cleaned[key] = str(value)
 
         elif question.type == "boolean":
             if not isinstance(value, bool):
-                problems.append(f"'{question.text}' must be yes or no")
+                problems.setdefault(key, []).append(f"'{question.text}' must be yes or no")
                 continue
             cleaned[key] = value
 
         else:  # text
             text = str(value).strip()
             if len(text) > MAX_COMMENT:
-                problems.append(f"'{question.text}' is too long")
+                problems.setdefault(key, []).append(f"'{question.text}' is too long")
                 continue
             cleaned[key] = text
 
+    # Closing comment: previously this silently truncated an overlong comment
+    # with no warning at all, losing whatever came after MAX_COMMENT without
+    # telling the respondent. It is now checked and reported the same way a
+    # text-question answer is, instead of being cut quietly.
     cleaned_comment = None
     if comment is not None:
-        cleaned_comment = str(comment).strip()[:MAX_COMMENT] or None
+        raw_comment = str(comment).strip()
+        if len(raw_comment) > MAX_COMMENT:
+            problems.setdefault("closing_comment", []).append(
+                f"Your closing comment is too long (max {MAX_COMMENT} characters)"
+            )
+        else:
+            cleaned_comment = raw_comment or None
     if form.comment_required and not cleaned_comment:
-        problems.append("A closing comment is required")
+        problems.setdefault("closing_comment", []).append("A closing comment is required")
 
     if problems:
-        _fail("Some answers still need attention.", answers=problems)
+        _fail("Some answers still need attention.", **problems)
 
     overall = round(sum(scores) / len(scores), 2) if scores else None
     return ScoredAnswers(
