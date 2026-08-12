@@ -17,7 +17,7 @@ from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
-from app.api.deps import AdminUser, CurrentUser, DbSession, ManagerUser, rebind_tenant
+from app.api.deps import CurrentUser, DbSession, ManagerUser, rebind_tenant
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import (
@@ -33,8 +33,10 @@ from app.models.enums import (
     CycleStatus,
     RecipientStatus,
     TemplateStatus,
+    UserRole,
 )
 from app.models.organization import Organization
+from app.models.user import User
 from app.schemas.campaign import (
     AddSummary,
     CampaignCreateRequest,
@@ -93,6 +95,13 @@ async def _detail(session: DbSession, cycle: ReviewCycle) -> CampaignDetail:
         else None
     )
 
+    creator_name = None
+    if cycle.created_by_id is not None:
+        creator = (
+            await session.execute(select(User).where(User.id == cycle.created_by_id))
+        ).scalar_one_or_none()
+        creator_name = creator.full_name if creator else None
+
     return CampaignDetail(
         id=cycle.id,
         name=cycle.name,
@@ -108,6 +117,8 @@ async def _detail(session: DbSession, cycle: ReviewCycle) -> CampaignDetail:
         target_type=str(target.target_type) if target else None,
         closes_at=cycle.closes_at,
         created_at=cycle.created_at,
+        created_by_id=cycle.created_by_id,
+        created_by_name=creator_name,
         delivery=await campaign_service.campaign_progress(session, cycle.id),
     )
 
@@ -116,14 +127,13 @@ async def _detail(session: DbSession, cycle: ReviewCycle) -> CampaignDetail:
 
 @router.get("", response_model=list[CampaignDetail])
 async def list_campaigns(session: DbSession, actor: ManagerUser) -> list[CampaignDetail]:
+    stmt = select(ReviewCycle).where(ReviewCycle.audience == CycleAudience.EXTERNAL)
+    # Same ownership scoping as review cycles: Client Admin/Super Admin see
+    # every campaign in the org; a Manager sees only the ones they ran.
+    if not actor.user.role.at_least(UserRole.CLIENT_ADMIN):
+        stmt = stmt.where(ReviewCycle.created_by_id == actor.id)
     cycles = (
-        (
-            await session.execute(
-                select(ReviewCycle)
-                .where(ReviewCycle.audience == CycleAudience.EXTERNAL)
-                .order_by(ReviewCycle.created_at.desc())
-            )
-        )
+        (await session.execute(stmt.order_by(ReviewCycle.created_at.desc())))
         .scalars()
         .all()
     )
@@ -135,7 +145,7 @@ async def create_campaign(
     payload: CampaignCreateRequest,
     request: Request,
     session: DbSession,
-    actor: AdminUser,
+    actor: ManagerUser,
 ) -> CampaignDetail:
     if actor.org_id is None:
         raise ValidationFailed("A Super Admin must act within an organization.")
@@ -244,9 +254,10 @@ async def add_recipients(
     payload: RecipientAddRequest,
     request: Request,
     session: DbSession,
-    actor: AdminUser,
+    actor: ManagerUser,
 ) -> AddSummary:
     cycle = await _load(session, campaign_id)
+    actor.assert_owns(cycle.created_by_id)
     result = await campaign_service.add_recipients(
         session,
         cycle=cycle,
@@ -285,9 +296,10 @@ async def add_recipients(
 
 @router.post("/{campaign_id}/open", response_model=CampaignDetail)
 async def open_campaign(
-    campaign_id: uuid.UUID, request: Request, session: DbSession, actor: AdminUser
+    campaign_id: uuid.UUID, request: Request, session: DbSession, actor: ManagerUser
 ) -> CampaignDetail:
     cycle = await _load(session, campaign_id)
+    actor.assert_owns(cycle.created_by_id)
     if cycle.status != CycleStatus.DRAFT:
         raise Conflict(f"This campaign is already {cycle.status}.")
 
@@ -329,10 +341,11 @@ async def send_invitations(
     payload: SendRequest,
     request: Request,
     session: DbSession,
-    actor: AdminUser,
+    actor: ManagerUser,
 ) -> SendSummary:
     """Send or re-send invitations. Single recipient or the whole list."""
     cycle = await _load(session, campaign_id)
+    actor.assert_owns(cycle.created_by_id)
     org = (
         await session.execute(
             select(Organization).where(Organization.id == cycle.org_id)
@@ -378,9 +391,10 @@ async def send_invitations(
 
 @router.post("/{campaign_id}/close", response_model=CampaignDetail)
 async def close_campaign(
-    campaign_id: uuid.UUID, request: Request, session: DbSession, actor: AdminUser
+    campaign_id: uuid.UUID, request: Request, session: DbSession, actor: ManagerUser
 ) -> CampaignDetail:
     cycle = await _load(session, campaign_id)
+    actor.assert_owns(cycle.created_by_id)
     if cycle.status != CycleStatus.OPEN:
         raise Conflict("Only an open campaign can be closed.")
 
@@ -410,20 +424,39 @@ async def close_campaign(
 
 @router.delete("/{campaign_id}", status_code=204, response_model=None)
 async def delete_campaign(
-    campaign_id: uuid.UUID, request: Request, session: DbSession, actor: AdminUser
+    campaign_id: uuid.UUID, request: Request, session: DbSession, actor: ManagerUser
 ) -> None:
     """Delete a campaign that never actually sent anything.
 
-    Restricted to draft — once an invitation has gone out, deleting the
-    campaign would silently orphan a real person's one-time link and any
-    response they already gave. Close it instead; closing is reversible in
-    spirit (the record stays, just stops collecting) where deletion is not.
+    Gated on delivery, not status: a draft is always safe to delete, and so
+    is an *opened* campaign that has recipients added but nothing sent yet —
+    "Create and open" makes that the common case, not an edge case, so tying
+    delete to status alone meant almost nobody could ever use it. What is
+    never safe is deleting after a real invitation went out: that would
+    orphan a real person's one-time link and any response they already gave.
+    Close it instead; closing is reversible in spirit (the record stays,
+    just stops collecting) where deletion is not.
     """
     cycle = await _load(session, campaign_id)
-    if cycle.status != CycleStatus.DRAFT:
+    actor.assert_owns(cycle.created_by_id)
+    if cycle.status == CycleStatus.CLOSED:
+        raise Conflict("A closed campaign is a historical record and cannot be deleted.")
+    sent = int(
+        (
+            await session.execute(
+                select(func.count())
+                .select_from(CampaignRecipient)
+                .where(
+                    CampaignRecipient.cycle_id == cycle.id,
+                    CampaignRecipient.status != RecipientStatus.PENDING,
+                )
+            )
+        ).scalar_one()
+    )
+    if sent > 0:
         raise Conflict(
-            "Only a draft campaign can be deleted — an open or closed one has "
-            "already reached real people. Close it instead."
+            "This campaign has already sent invitations — deleting it would orphan "
+            "real recipients' links. Close it instead."
         )
     name = cycle.name
     await session.delete(cycle)
@@ -452,6 +485,7 @@ async def list_recipients(
     and for an attributable one it belongs on the results page.
     """
     cycle = await _load(session, campaign_id)
+    actor.assert_owns(cycle.created_by_id)
     rows = (
         await session.execute(
             select(CampaignRecipient, Contact, FeedbackTarget)
@@ -486,10 +520,11 @@ async def revoke_link(
     recipient_id: uuid.UUID,
     request: Request,
     session: DbSession,
-    actor: AdminUser,
+    actor: ManagerUser,
 ) -> MessageResponse:
     """Kill one link, for a wrong address or a contact who has left."""
     cycle = await _load(session, campaign_id)
+    actor.assert_owns(cycle.created_by_id)
     recipient = (
         await session.execute(
             select(CampaignRecipient).where(
@@ -724,6 +759,7 @@ async def campaign_results(
     from app.services import results as results_service
 
     cycle = await _load(session, campaign_id)
+    actor.assert_owns(cycle.created_by_id)
     return {
         "campaign": (await _detail(session, cycle)).model_dump(mode="json"),
         "rows": await results_service.cycle_overview(session, cycle=cycle),

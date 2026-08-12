@@ -65,6 +65,8 @@ const LOSS_REASONS = [
   { value: 'other', label: 'Other' },
 ]
 
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'AED', 'AUD', 'CAD', 'SGD']
+
 const money = (amount: string | null, currency = 'USD') =>
   amount === null
     ? '—'
@@ -228,6 +230,7 @@ function CreateProposal({ onCreated }: { onCreated: (message: string) => void })
   const [form, setForm] = useState({
     title: '',
     client_name: '',
+    currency: 'USD',
     value_amount: '',
     estimated_effort_days: '',
     prospect_contact_id: '',
@@ -262,6 +265,7 @@ function CreateProposal({ onCreated }: { onCreated: (message: string) => void })
             await api.post('/proposals', {
               title: form.title,
               client_name: form.client_name,
+              currency: form.currency,
               value_amount: form.value_amount || null,
               estimated_effort_days: form.estimated_effort_days
                 ? Number(form.estimated_effort_days)
@@ -273,6 +277,7 @@ function CreateProposal({ onCreated }: { onCreated: (message: string) => void })
             setForm({
               title: '',
               client_name: '',
+              currency: 'USD',
               value_amount: '',
               estimated_effort_days: '',
               prospect_contact_id: '',
@@ -304,14 +309,32 @@ function CreateProposal({ onCreated }: { onCreated: (message: string) => void })
             onChange={(event) => setForm({ ...form, client_name: event.target.value })}
             required
           />
-          <Field
-            label="Value"
-            type="number"
-            min={0}
-            step="1000"
-            value={form.value_amount}
-            onChange={(event) => setForm({ ...form, value_amount: event.target.value })}
-          />
+          <div>
+            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+              Value
+            </span>
+            <div className="flex gap-1.5">
+              <select
+                className="field w-24 shrink-0"
+                value={form.currency}
+                onChange={(event) => setForm({ ...form, currency: event.target.value })}
+              >
+                {CURRENCIES.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min={0}
+                step="1000"
+                className="field"
+                value={form.value_amount}
+                onChange={(event) => setForm({ ...form, value_amount: event.target.value })}
+              />
+            </div>
+          </div>
           <Field
             label="Effort (days)"
             type="number"
@@ -378,6 +401,16 @@ export function Proposals() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [outcomeFor, setOutcomeFor] = useState<string | null>(null)
+
+  // The dismiss button is easy to miss, and a confirmation that only goes
+  // away on a manual click (or a reload) reads as "did that actually work?"
+  // after a few seconds. Auto-clear it; the dismiss button still works for
+  // anyone who wants it gone sooner.
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 6000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
 
