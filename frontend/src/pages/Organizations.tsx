@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { Banner, Card, Chip, EmptyState, Field, Skeleton, Spinner } from '../components/ui'
@@ -265,8 +265,71 @@ function ProvisionForm({
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/
+
+  const validators = {
+    name: (v: string) => {
+      if (!v.trim()) return 'Organization name is required.'
+      if (v.trim().length < 2) return 'Must be at least 2 characters.'
+      return null
+    },
+    slug: (v: string) => {
+      if (!v) return null
+      if (!SLUG_RE.test(v)) return 'Lowercase letters, digits and hyphens, 3-64 characters.'
+      return null
+    },
+    contact_name: (v: string) => {
+      if (!v.trim()) return 'Primary contact name is required.'
+      if (v.trim().length < 2) return 'Must be at least 2 characters.'
+      return null
+    },
+    contact_email: (v: string) => {
+      if (!v.trim()) return 'Primary contact email is required.'
+      if (!EMAIL_RE.test(v.trim())) return 'Enter a valid email address.'
+      return null
+    },
+    admin_full_name: (v: string) => {
+      if (!v.trim()) return 'Client admin name is required.'
+      if (v.trim().length < 2) return 'Must be at least 2 characters.'
+      return null
+    },
+    admin_email: (v: string) => {
+      if (!v.trim()) return 'Client admin email is required.'
+      if (!EMAIL_RE.test(v.trim())) return 'Enter a valid email address.'
+      return null
+    },
+  } satisfies Record<string, (value: string) => string | null>
+
+  type ValidatedField = keyof typeof validators
+
+  const validateField = (field: ValidatedField, value: string) => {
+    const message = validators[field](value)
+    setFieldErrors((current) => {
+      if (!message) {
+        if (!(field in current)) return current
+        const next = { ...current }
+        delete next[field]
+        return next
+      }
+      return { ...current, [field]: message }
+    })
+  }
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
+
+    const errors: Record<string, string> = {}
+    for (const field of Object.keys(validators) as ValidatedField[]) {
+      const message = validators[field](form[field])
+      if (message) errors[field] = message
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      setError('Some fields need attention before this can be submitted.')
+      return
+    }
+
     setBusy(true)
     setError(null)
     setFieldErrors({})
@@ -308,7 +371,7 @@ function ProvisionForm({
 
   return (
     <Card className="mb-5" title="Provision an organization" hint="For a tenant that has already been vetted directly — this skips the approval queue and activates immediately.">
-      <form onSubmit={submit}>
+      <form onSubmit={submit} noValidate>
         {error && (
           <Banner tone="error" className="mb-3">
             {error}
@@ -318,17 +381,29 @@ function ProvisionForm({
           <Field
             label="Organization name"
             value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
+            onChange={(event) => {
+              const value = event.target.value
+              setForm({ ...form, name: value })
+              if (fieldErrors.name) validateField('name', value)
+            }}
+            onBlur={(event) => validateField('name', event.target.value)}
             error={fieldErrors.name}
             required
             autoFocus
+            maxLength={200}
           />
           <Field
             label="Slug (optional)"
             value={form.slug}
-            onChange={(event) => setForm({ ...form, slug: event.target.value })}
+            onChange={(event) => {
+              const value = event.target.value
+              setForm({ ...form, slug: value })
+              if (fieldErrors.slug) validateField('slug', value)
+            }}
+            onBlur={(event) => validateField('slug', event.target.value)}
             error={fieldErrors.slug}
             placeholder="auto-generated from the name"
+            maxLength={80}
           />
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
@@ -349,15 +424,26 @@ function ProvisionForm({
           <Field
             label="Primary contact name"
             value={form.contact_name}
-            onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
+            onChange={(event) => {
+              const value = event.target.value
+              setForm({ ...form, contact_name: value })
+              if (fieldErrors.contact_name) validateField('contact_name', value)
+            }}
+            onBlur={(event) => validateField('contact_name', event.target.value)}
             error={fieldErrors.contact_name}
             required
+            maxLength={150}
           />
           <Field
             label="Primary contact email"
             type="email"
             value={form.contact_email}
-            onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
+            onChange={(event) => {
+              const value = event.target.value
+              setForm({ ...form, contact_email: value })
+              if (fieldErrors.contact_email) validateField('contact_email', value)
+            }}
+            onBlur={(event) => validateField('contact_email', event.target.value)}
             error={fieldErrors.contact_email}
             required
           />
@@ -365,20 +451,32 @@ function ProvisionForm({
             label="Phone (optional)"
             value={form.contact_phone}
             onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
+            maxLength={40}
           />
           <Field
             label="Client admin name"
             value={form.admin_full_name}
-            onChange={(event) => setForm({ ...form, admin_full_name: event.target.value })}
+            onChange={(event) => {
+              const value = event.target.value
+              setForm({ ...form, admin_full_name: value })
+              if (fieldErrors.admin_full_name) validateField('admin_full_name', value)
+            }}
+            onBlur={(event) => validateField('admin_full_name', event.target.value)}
             error={fieldErrors.admin_full_name}
             required
             hint="Receives the single-use activation link."
+            maxLength={150}
           />
           <Field
             label="Client admin email"
             type="email"
             value={form.admin_email}
-            onChange={(event) => setForm({ ...form, admin_email: event.target.value })}
+            onChange={(event) => {
+              const value = event.target.value
+              setForm({ ...form, admin_email: value })
+              if (fieldErrors.admin_email) validateField('admin_email', value)
+            }}
+            onBlur={(event) => validateField('admin_email', event.target.value)}
             error={fieldErrors.admin_email}
             required
           />
@@ -495,6 +593,8 @@ function ReasonForm({
 const PAGE_SIZE = 15
 
 export function Organizations() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [params, setParams] = useSearchParams()
   const status = params.get('status') ?? ''
   const [search, setSearch] = useState('')
@@ -555,6 +655,8 @@ export function Organizations() {
     <>
       <PageHeader
         title="Organizations"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Every tenant on the platform. Self-registered organizations stay blocked until they are approved here."
         actions={
           !provisioning && (
@@ -574,9 +676,13 @@ export function Organizations() {
           <div>
             {notice}
             {/* Development convenience only; withheld in production, where
-                the link is a bearer credential. */}
+                the link is a bearer credential. Shown as a labelled link
+                rather than the raw URL, so the token itself is not sitting
+                in plain text on screen. */}
             {inviteLink && (
-              <p className="mt-1 break-all font-mono text-2xs opacity-80">{inviteLink}</p>
+              <p className="mt-1">
+                <button type="button" onClick={() => window.open(inviteLink, '_blank', 'noopener,noreferrer')} className="text-2xs font-medium underline">View invitation</button>
+              </p>
             )}
           </div>
         </Banner>

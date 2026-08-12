@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { IconCheck, IconClock, IconLock, IconShield } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton, Spinner } from '../components/ui'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
@@ -330,8 +331,9 @@ function FeedbackFormView({
     </form>
   )
 }
-
 export function MyFeedback() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [assignments, setAssignments] = useState<Assignment[] | null>(null)
   const [active, setActive] = useState<AssignmentForm | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -380,6 +382,8 @@ export function MyFeedback() {
     <>
       <PageHeader
         title="My feedback"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Feedback you have been asked to give. Nothing here is visible to the person concerned until enough people have responded."
       />
 

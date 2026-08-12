@@ -23,6 +23,13 @@ export const IconGauge = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export const IconArrowLeft = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M19 12H5" />
+    <path d="m12 19-7-7 7-7" />
+  </svg>
+)
+
 export const IconBuilding = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16" />

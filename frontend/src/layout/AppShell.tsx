@@ -1,8 +1,9 @@
 import clsx from 'clsx'
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { FacetMark } from '../components/Logo'
 import {
+  IconArrowLeft,
   IconBuilding,
   IconClock,
   IconFile,
@@ -301,22 +302,38 @@ export function PageHeader({
   title,
   description,
   actions,
+  backTo,
+  backLabel = 'Back',
 }: {
   title: string
   description?: string
   actions?: React.ReactNode
+  backTo?: string
+  backLabel?: string
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-3xl font-semibold text-ink-900 dark:text-white">{title}</h1>
-        {description && (
-          <p className="mt-1 max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-            {description}
-          </p>
-        )}
+    <div className="mb-5">
+      {backTo && (
+        <Link
+          to={backTo}
+            className="mb-3 -ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100"
+
+        >
+          <IconArrowLeft width={14} height={14} />
+          {backLabel}
+        </Link>
+      )}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-semibold text-ink-900 dark:text-white">{title}</h1>
+          {description && (
+            <p className="mt-1 max-w-2xl text-sm text-ink-500 dark:text-ink-400">
+              {description}
+            </p>
+          )}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   )
 }

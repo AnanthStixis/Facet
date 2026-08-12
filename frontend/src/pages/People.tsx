@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { Fragment, useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { Banner, Card, Chip, EmptyState, Field, Skeleton, Spinner } from '../components/ui'
@@ -388,6 +389,8 @@ function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
 const PAGE_SIZE = 15
 
 export function People() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -424,6 +427,8 @@ export function People() {
     <>
       <PageHeader
         title="People"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Everyone with access to this workspace. External respondents are not listed here — they never hold an account."
         actions={
           canManage && (
@@ -464,9 +469,11 @@ export function People() {
           <div>
             {notice}
             {/* Development convenience only; the API withholds this in production,
-                where the link is a bearer credential. */}
+                where the link is a bearer credential. Shown as a labelled
+                link rather than the raw URL, so the token itself is not
+                sitting in plain text on screen. */}
             {inviteLink && (
-              <p className="mt-1 break-all font-mono text-2xs opacity-80">{inviteLink}</p>
+              <p className="mt-1"><a href={inviteLink} target="_blank" rel="noopener noreferrer" className="text-2xs font-medium underline">View invitation</a></p>
             )}
           </div>
         </Banner>

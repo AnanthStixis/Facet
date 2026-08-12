@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { IconCheck, IconClock, IconLock, IconSearch, IconUsers } from '../components/icons'
@@ -779,6 +780,8 @@ function RecipientList({ campaign }: { campaign: Campaign }) {
 const PAGE_SIZE = 15
 
 export function Campaigns() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -843,6 +846,8 @@ export function Campaigns() {
     <>
       <PageHeader
         title="Client campaigns"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Ask clients, customers and prospects for feedback by email. Each person gets a personal one-time link — no account, no password."
         actions={
           <CreateCampaign

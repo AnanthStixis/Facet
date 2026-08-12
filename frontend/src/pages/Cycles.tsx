@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { LookupFilter } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { IconClock, IconLayers, IconLock } from '../components/icons'
@@ -351,6 +352,8 @@ function AssignmentPlanner({
 const PAGE_SIZE = 15
 
 export function Cycles() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [cycles, setCycles] = useState<Cycle[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -395,6 +398,8 @@ export function Cycles() {
     <>
       <PageHeader
         title="Review cycles"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="A cycle asks a set of people for feedback about a set of colleagues, using one pinned questionnaire version."
         actions={
           <CreateCycle

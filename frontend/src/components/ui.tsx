@@ -46,22 +46,22 @@ export function StatTile({
   sub,
   tone = 'neutral',
   to,
+  state,
   onClick,
 }: {
   label: string
   value: ReactNode
   sub?: ReactNode
   tone?: 'neutral' | 'accent' | 'caution' | 'critical'
-  /** Navigate here on click/Enter. A KPI that names a count of things should
-   * take you to those things — a number with nowhere to go is a dead end. */
   to?: string
+  state?: Record<string, unknown>
   onClick?: () => void
 }) {
   const navigate = useNavigate()
   const interactive = Boolean(to || onClick)
   const activate = () => {
     if (onClick) onClick()
-    else if (to) navigate(to)
+    else if (to) navigate(to, state ? { state } : undefined)
   }
 
   return (
