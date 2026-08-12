@@ -161,6 +161,7 @@ class UserUpdateRequest(BaseModel):
 class UserDetail(ORMModel):
     id: uuid.UUID
     org_id: uuid.UUID | None
+    org_name: str | None = None
     email: str
     full_name: str
     job_title: str | None
