@@ -63,7 +63,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # --- Cookie plumbing --------------------------------------------------------
 
 def _set_session_cookies(response: Response, issued: auth_service.IssuedSession) -> None:
-    max_age = settings.refresh_token_ttl_days * 24 * 3600
+    max_age = int(settings.refresh_token_ttl_seconds)
     common = {
         "max_age": max_age,
         "secure": settings.cookie_secure,

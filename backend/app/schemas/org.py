@@ -119,9 +119,6 @@ class OrgDetail(ORMModel):
     created_at: datetime
     user_count: int = 0
     branding: BrandingDetail | None = None
-    # Set only by provision/approve, and only outside production — see
-    # InviteResult.invite_url for why this is never populated in prod.
-    invite_url: str | None = None
 
 
 class UserCreateRequest(BaseModel):
