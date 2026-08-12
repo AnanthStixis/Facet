@@ -1,9 +1,7 @@
 import clsx from 'clsx'
 import { Fragment, useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { LookupFilter, SearchBox } from '../components/filters'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import { SearchBox } from '../components/filters'
+import { LookupFilter, SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
 import { IconUsers } from '../components/icons'
@@ -164,13 +162,11 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
 function EditUserForm({
   person,
   canChangeRole,
-  colSpan,
   onCancel,
   onDone,
 }: {
   person: User
   canChangeRole: boolean
-  colSpan: number
   onCancel: () => void
   onDone: () => void
 }) {
@@ -235,9 +231,6 @@ function EditUserForm({
   return (
     <Modal title={person.full_name} hint="Everything about this person, in one place." onClose={onCancel}>
       <form onSubmit={submit}>
-    <tr>
-      <td colSpan={colSpan} className="bg-ink-50 p-0 dark:bg-ink-900/60">
-        <form onSubmit={submit} className="p-4">
           {error && (
             <Banner tone="error" className="mb-3">
               {error}
@@ -762,7 +755,6 @@ export function People() {
                     <EditUserForm
                       person={person}
                       canChangeRole={person.id !== user?.id}
-                      colSpan={5 + (isPlatform ? 1 : 0) + (canManage ? 1 : 0)}
                       onCancel={() => setEditingId(null)}
                       onDone={() => {
                         setEditingId(null)
