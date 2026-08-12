@@ -63,7 +63,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # --- Cookie plumbing --------------------------------------------------------
 
 def _set_session_cookies(response: Response, issued: auth_service.IssuedSession) -> None:
-    max_age = settings.refresh_token_ttl_days * 24 * 3600
+    max_age = int(settings.refresh_token_ttl_seconds)
     common = {
         "max_age": max_age,
         "secure": settings.cookie_secure,
@@ -384,6 +384,11 @@ async def change_password(
 ) -> MessageResponse:
     if not verify_password(payload.current_password, actor.user.password_hash):
         raise InvalidCredentials("Your current password is incorrect.")
+    if payload.new_password == payload.current_password:
+        raise ValidationFailed(
+            "Your new password must be different from your current password.",
+            password=["must be different from your current password"],
+        )
 
     await auth_service.set_password(session, actor.user, new_password=payload.new_password)
 

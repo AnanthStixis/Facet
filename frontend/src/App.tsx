@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { FacetMark } from './components/Logo'
+import { Modal } from './components/ui'
 import { AppShell } from './layout/AppShell'
 import { Campaigns } from './pages/Campaigns'
 import { Cycles } from './pages/Cycles'
@@ -69,13 +70,33 @@ function NotFound() {
   )
 }
 
+function SessionExpiredModal() {
+  const { dismissSessionExpiredNotice } = useAuth()
+  return (
+    <Modal title="Session expired" onClose={dismissSessionExpiredNotice}>
+      <p className="text-sm text-ink-600 dark:text-ink-300">
+        Your session has expired. Please sign in again.
+      </p>
+      <div className="mt-5 flex justify-end">
+        <button
+          type="button"
+          className="btn-primary px-4 py-1.5"
+          onClick={dismissSessionExpiredNotice}
+        >
+          OK
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 // Routes an unauthenticated stranger is meant to reach. Attempting a session
 // restore on these is pointless: the visitor has no account, and it costs a
 // wasted request plus a 401 in their console.
 const PUBLIC_PREFIXES = ['/f/', '/register', '/accept-invite', '/reset-password']
 
 export default function App() {
-  const { phase, boot } = useAuth()
+  const { phase, boot, sessionExpiredNotice } = useAuth()
   const location = useLocation()
   const isPublic = PUBLIC_PREFIXES.some((prefix) =>
     location.pathname.startsWith(prefix),
@@ -92,7 +113,9 @@ export default function App() {
   if (phase === 'booting' && !isPublic) return <Booting />
 
   return (
-    <Routes>
+    <>
+      {sessionExpiredNotice && <SessionExpiredModal />}
+      <Routes>
       <Route
         path="/login"
         element={phase === 'authenticated' ? <Navigate to="/" replace /> : <Login />}
@@ -193,6 +216,7 @@ export default function App() {
         <Route path="security" element={<Security />} />
         <Route path="*" element={<NotFound />} />
       </Route>
-    </Routes>
+      </Routes>
+    </>
   )
 }

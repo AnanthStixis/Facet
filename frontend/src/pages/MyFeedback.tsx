@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { IconCheck, IconClock, IconLock, IconShield } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton, Spinner } from '../components/ui'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
@@ -153,7 +154,7 @@ function QuestionField({
 
       {question.type === 'text' && (
         <textarea
-          className="field min-h-20 resize-y"
+          className={clsx('field min-h-20 resize-y', error && 'border-critical')}
           value={(value as string) ?? ''}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Your answer"
@@ -179,7 +180,7 @@ function FeedbackFormView({
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [problems, setProblems] = useState<string[]>([])
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const allQuestions = form.sections.flatMap((section) => section.questions)
   const required = allQuestions.filter((question) => question.required)
@@ -193,7 +194,7 @@ function FeedbackFormView({
     event.preventDefault()
     setBusy(true)
     setError(null)
-    setProblems([])
+    setFieldErrors({})
     try {
       const result = await api.post<{ message: string }>(
         `/assignments/${assignment.id}/submit`,
@@ -202,8 +203,13 @@ function FeedbackFormView({
       onDone(result.message)
     } catch (caught) {
       if (caught instanceof ApiError) {
-        setError(caught.message)
-        setProblems(caught.details?.answers ?? [])
+        const fields = caught.fieldErrors()
+        // When a problem is tied to a specific field, show it there instead
+        // of repeating it in the banner too — see the password-change fix
+        // for the same reasoning. The banner stays for anything that isn't
+        // attributable to one field (e.g. "unknown question" on a stale form).
+        setError(Object.keys(fields).length > 0 ? null : caught.message)
+        setFieldErrors(fields)
       } else {
         setError('Your feedback could not be submitted.')
       }
@@ -249,16 +255,7 @@ function FeedbackFormView({
 
       {error && (
         <Banner tone="error" className="mb-5">
-          <div>
-            {error}
-            {problems.length > 0 && (
-              <ul className="mt-1 list-disc pl-4">
-                {problems.map((problem) => (
-                  <li key={problem}>{problem}</li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {error}
         </Banner>
       )}
 
@@ -277,6 +274,7 @@ function FeedbackFormView({
                 question={question}
                 form={form}
                 value={answers[question.key]}
+                error={fieldErrors[question.key]}
                 onChange={(value) =>
                   setAnswers((current) => ({ ...current, [question.key]: value }))
                 }
@@ -287,14 +285,21 @@ function FeedbackFormView({
 
         <Card title="Closing comment">
           <textarea
-            className="field min-h-28 resize-y"
+            className={clsx(
+              'field min-h-28 resize-y',
+              fieldErrors.closing_comment && 'border-critical',
+            )}
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder={form.closing.comment_prompt}
           />
-          <p className="mt-1.5 text-xs text-ink-400">
-            Specific examples are far more useful than general praise.
-          </p>
+          {fieldErrors.closing_comment ? (
+            <p className="mt-1.5 text-xs text-critical">{fieldErrors.closing_comment}</p>
+          ) : (
+            <p className="mt-1.5 text-xs text-ink-400">
+              Specific examples are far more useful than general praise.
+            </p>
+          )}
         </Card>
       </div>
 
@@ -330,8 +335,9 @@ function FeedbackFormView({
     </form>
   )
 }
-
 export function MyFeedback() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [assignments, setAssignments] = useState<Assignment[] | null>(null)
   const [active, setActive] = useState<AssignmentForm | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -380,6 +386,8 @@ export function MyFeedback() {
     <>
       <PageHeader
         title="My feedback"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Feedback you have been asked to give. Nothing here is visible to the person concerned until enough people have responded."
       />
 

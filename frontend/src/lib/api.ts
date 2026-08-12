@@ -48,6 +48,10 @@ export class ApiError extends Error {
 let accessToken: string | null = null
 let csrfToken: string | null = null
 let refreshInFlight: Promise<SessionResponse | null> | null = null
+let onSessionExpired: (() => void) | null = null
+export function setSessionExpiredHandler(handler: () => void) {
+  onSessionExpired = handler
+}
 
 export const setTokens = (access: string | null, csrf?: string | null) => {
   accessToken = access
@@ -92,6 +96,7 @@ export async function refreshSession(): Promise<SessionResponse | null> {
       })
       if (!response.ok) {
         setTokens(null, null)
+        onSessionExpired?.()
         return null
       }
       const session = (await response.json()) as SessionResponse
@@ -127,6 +132,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     headers,
     credentials: 'same-origin',
     body: body === undefined ? undefined : JSON.stringify(body),
+    cache: 'no-store',
   })
 
   if (response.status === 401 && retry) {
@@ -137,10 +143,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       .catch(() => undefined)
     // Reuse detection means the session was deliberately destroyed. Retrying
     // would be pointless and would mask a security event from the user.
-    if (code !== 'token_reuse_detected') {
+    // if (code !== 'token_reuse_detected') {
+    //   const session = await refreshSession()
+    //   if (session) return request<T>(path, { ...options, retry: false })
+    // }
+      if (code === 'session_expired' || code === 'unauthenticated') {
       const session = await refreshSession()
       if (session) return request<T>(path, { ...options, retry: false })
-    }
+     }
   }
 
   return parse<T>(response)

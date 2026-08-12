@@ -104,6 +104,7 @@ export function Dashboard() {
               value={data.platform.orgs_total}
               sub={`${data.platform.orgs_active} active`}
               to="/organizations"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="Awaiting approval"
@@ -111,6 +112,7 @@ export function Dashboard() {
               tone={data.platform.orgs_pending > 0 ? 'caution' : 'neutral'}
               sub="Self-registered tenants"
               to="/organizations?status=pending"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="Suspended"
@@ -118,13 +120,16 @@ export function Dashboard() {
               tone={data.platform.orgs_suspended > 0 ? 'critical' : 'neutral'}
               sub="Access revoked"
               to="/organizations?status=suspended"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="Client admins"
               value={data.platform.client_admins}
               sub="Across all tenants"
-              to="/organizations"
+              to="/people?role=client_admin"
+              state={{ from: 'dashboard' }}
             />
+          
           </>
         ) : isManagerPlus ? (
           <>
@@ -187,7 +192,10 @@ export function Dashboard() {
             arcs of the same ring, not two products bolted together. */}
         <Card
           title="Feedback coverage"
-          hint="Every relationship this workspace can collect feedback on, in one graph."
+          hint={isPlatform
+      ? 'Platform-wide feedback coverage across all organizations.'
+      : 'Every relationship this workspace can collect feedback on, in one graph.'
+  }
         >
           <div className="flex flex-col items-center gap-5">
             <PerspectiveRing coverage={data.coverage} />
@@ -236,6 +244,7 @@ export function Dashboard() {
                   value={data.attention.open_cycles ?? 0}
                   tone={data.attention.open_cycles ? 'accent' : 'neutral'}
                   to="/cycles"
+                  state={{ from: 'dashboard' }}
                 />
                 <StatTile
                   label="Open campaigns"

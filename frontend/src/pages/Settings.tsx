@@ -65,10 +65,11 @@ function BrandingCard() {
   const [accent, setAccent] = useState(organization?.branding?.accent_color ?? '#B4633A')
   const [footerNote, setFooterNote] = useState('')
   const [busy, setBusy] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [pendingRemove, setPendingRemove] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -90,6 +91,8 @@ function BrandingCard() {
 
   if (!organization) return null
 
+  const effectiveLogoUrl = pendingFile ? preview : pendingRemove ? null : branding?.logo_url ?? null
+
   const applyLocally = (next: BrandingDetail) => {
     setBranding(next)
     updateOrganization({
@@ -107,12 +110,24 @@ function BrandingCard() {
     setBusy(true)
     setError(null)
     try {
+      // The logo change commits first, in the same submit, so "Save
+      // branding" is the single moment anything actually reaches the
+      // server — not the moment a file was picked or Remove was clicked.
+      if (pendingFile) {
+        await uploadFile<BrandingDetail>(`/orgs/${organization.id}/logo`, pendingFile)
+      } else if (pendingRemove) {
+        await api.delete<BrandingDetail>(`/orgs/${organization.id}/logo`)
+      }
       const result = await api.put<BrandingDetail>(`/orgs/${organization.id}/branding`, {
         accent_color: accent,
         email_footer_note: footerNote || null,
       })
       applyLocally(result)
-      setNotice('Branding updated. Your dashboard, emails and feedback forms now use this colour.')
+      if (preview) URL.revokeObjectURL(preview)
+      setPreview(null)
+      setPendingFile(null)
+      setPendingRemove(false)
+      setNotice('Branding saved. Your dashboard, emails and feedback forms now reflect these changes.')
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not save branding.')
     } finally {
@@ -121,28 +136,27 @@ function BrandingCard() {
   }
 
   const uploadLogo = async (file: File) => {
-    // Shown instantly, before the upload even starts, so the admin sees what
-    // they picked rather than staring at the old logo until the round trip
-    // finishes. Replaced by the server's URL once the upload succeeds.
-    const localPreview = URL.createObjectURL(file)
-    setPreview(localPreview)
-    setUploading(true)
-    setError(null)
-    try {
-      const result = await uploadFile<BrandingDetail>(
-        `/orgs/${organization.id}/logo`,
-        file,
-      )
-      applyLocally(result)
-      setNotice('Logo updated everywhere it appears — dashboard, emails, and feedback forms.')
-    } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not upload the logo.')
-    } finally {
-      setUploading(false)
-      setPreview(null)
-      URL.revokeObjectURL(localPreview)
-    }
+    // Staged locally only. Nothing reaches the server until "Save branding"
+    // is clicked — picking a file here must not be indistinguishable from
+    // actually saving it.
+    if (preview) URL.revokeObjectURL(preview)
+    setPreview(URL.createObjectURL(file))
+    setPendingFile(file)
+    setPendingRemove(false)
   }
+
+  const stageRemoveLogo = () => {
+    if (pendingFile) {
+      // Undo an as-yet-unsaved pick — nothing was ever sent to the server.
+      if (preview) URL.revokeObjectURL(preview)
+      setPreview(null)
+      setPendingFile(null)
+      return
+    }
+    setPendingRemove(true)
+  }
+
+  const undoRemoveLogo = () => setPendingRemove(false)
 
   return (
     <Card
@@ -164,14 +178,11 @@ function BrandingCard() {
         <div>
           <p className="mb-1.5 text-sm font-medium text-ink-700 dark:text-ink-200">Logo</p>
           <div className="flex h-20 w-40 items-center justify-center rounded-lg border border-dashed border-ink-300 bg-ink-50 dark:border-ink-700 dark:bg-ink-900">
-            {preview || branding?.logo_url ? (
+            {effectiveLogoUrl ? (
               <img
-                src={preview ?? branding?.logo_url ?? undefined}
+                src={effectiveLogoUrl}
                 alt={organization.name}
-                className={clsx(
-                  'max-h-16 max-w-[130px] object-contain',
-                  uploading && 'opacity-60',
-                )}
+                className={clsx('max-h-16 max-w-[130px] object-contain', busy && 'opacity-60')}
               />
             ) : (
               <span className="text-2xs text-ink-400">No logo yet</span>
@@ -191,15 +202,40 @@ function BrandingCard() {
           <button
             type="button"
             className="btn-secondary mt-2 flex items-center gap-1.5 px-3 py-1.5 text-sm"
-            disabled={uploading}
+            disabled={busy}
             onClick={() => fileInput.current?.click()}
           >
-            {uploading ? <Spinner /> : <IconUpload width={14} height={14} />}
-            {branding?.logo_url ? 'Replace logo' : 'Upload logo'}
+            <IconUpload width={14} height={14} />
+            {effectiveLogoUrl ? 'Replace logo' : 'Upload logo'}
           </button>
+          {effectiveLogoUrl && (
+            <button
+              type="button"
+              className="btn-ghost mt-2 ml-2 px-3 py-1.5 text-sm text-critical"
+              disabled={busy}
+              onClick={stageRemoveLogo}
+            >
+              Remove logo
+            </button>
+          )}
+          {pendingRemove && (
+            <button
+              type="button"
+              className="btn-ghost mt-2 ml-2 px-3 py-1.5 text-sm"
+              disabled={busy}
+              onClick={undoRemoveLogo}
+            >
+              Undo remove
+            </button>
+          )}
           <p className="mt-1.5 max-w-[180px] text-2xs text-ink-400">
             PNG, JPEG, WebP or SVG, up to 2 MB. A wide transparent PNG works best.
           </p>
+          {(pendingFile || pendingRemove) && (
+            <p className="mt-1 max-w-[180px] text-2xs text-caution">
+              Not saved yet — click &quot;Save branding&quot; below to apply.
+            </p>
+          )}
         </div>
 
         <form onSubmit={saveColour} className="min-w-[240px] flex-1">

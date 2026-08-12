@@ -26,7 +26,7 @@ function ApprovalForm({
   onCancel,
 }: {
   org: OrgDetail
-  onDone: (inviteUrl: string | null) => void
+  onDone: () => void
   onCancel: () => void
 }) {
   const [fullName, setFullName] = useState(org.contact_name)
@@ -40,12 +40,12 @@ function ApprovalForm({
     setBusy(true)
     setError(null)
     try {
-      const result = await api.post<OrgDetail>(`/orgs/${org.id}/approve`, {
+      await api.post<OrgDetail>(`/orgs/${org.id}/approve`, {
         admin_full_name: fullName,
         admin_email: email,
         seat_limit: seatLimit ? Number(seatLimit) : null,
       })
-      onDone(result.invite_url ?? null)
+      onDone()
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Approval failed.')
     } finally {
@@ -244,7 +244,7 @@ function ProvisionForm({
   onDone,
   onCancel,
 }: {
-  onDone: (name: string, inviteUrl: string | null) => void
+  onDone: (name: string) => void
   onCancel: () => void
 }) {
   const [form, setForm] = useState({
@@ -293,7 +293,7 @@ function ProvisionForm({
           // ignored — see comment above
         }
       }
-      onDone(form.name, created.invite_url ?? null)
+      onDone(form.name)
     } catch (caught) {
       if (caught instanceof ApiError) {
         setError(caught.message)
@@ -504,7 +504,6 @@ export function Organizations() {
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<Pending>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [provisioning, setProvisioning] = useState(false)
   const [editOrgId, setEditOrgId] = useState<string | null>(null)
   const [logoOrgId, setLogoOrgId] = useState<string | null>(null)
@@ -544,10 +543,9 @@ export function Organizations() {
   useEffect(load, [status, search, page])
   useRefetchOnFocus(load)
 
-  const finish = (message: string, inviteUrl?: string | null) => {
+  const finish = (message: string) => {
     setPending(null)
     setNotice(message)
-    setInviteLink(inviteUrl ?? null)
     load()
   }
 
@@ -571,14 +569,7 @@ export function Organizations() {
 
       {notice && (
         <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          <div>
-            {notice}
-            {/* Development convenience only; withheld in production, where
-                the link is a bearer credential. */}
-            {inviteLink && (
-              <p className="mt-1 break-all font-mono text-2xs opacity-80">{inviteLink}</p>
-            )}
-          </div>
+          {notice}
         </Banner>
       )}
       {error && (
@@ -590,10 +581,9 @@ export function Organizations() {
       {provisioning && (
         <ProvisionForm
           onCancel={() => setProvisioning(false)}
-          onDone={(name, inviteUrl) => {
+          onDone={(name) => {
             setProvisioning(false)
             setNotice(`${name} provisioned and active. The client admin has been invited.`)
-            setInviteLink(inviteUrl ?? null)
             load()
           }}
         />
@@ -805,8 +795,8 @@ export function Organizations() {
                   <ApprovalForm
                     org={org}
                     onCancel={() => setPending(null)}
-                    onDone={(inviteUrl) =>
-                      finish(`${org.name} approved and the admin invited.`, inviteUrl)
+                    onDone={() =>
+                      finish(`${org.name} approved and the client admin invited.`)
                     }
                   />
                 )}

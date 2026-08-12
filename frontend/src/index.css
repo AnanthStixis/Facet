@@ -142,6 +142,9 @@
   .accent-soft-bg {
     background-color: var(--accent-soft);
   }
+  .internal-soft-bg {
+    background-color: rgba(61, 122, 140, 0.12);
+  }
 
   /* The signature grid used behind the sign-in artwork. */
   .grid-etch {

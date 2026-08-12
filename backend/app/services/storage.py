@@ -86,3 +86,10 @@ def read_logo(relative_path: str) -> tuple[bytes, str] | None:
         "application/octet-stream",
     )
     return absolute.read_bytes(), content_type
+
+def delete_logo(relative_path: str) -> None:
+    absolute = (settings.storage_path / relative_path).resolve()
+    root = settings.storage_path.resolve()
+    if root not in absolute.parents:
+        return
+    absolute.unlink(missing_ok=True)

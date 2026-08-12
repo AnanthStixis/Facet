@@ -338,7 +338,8 @@ async def start_session(
         org_id=principal.org_id,
         user_agent=(request.headers.get("user-agent") if request else None),
         ip_address=audit.client_ip(request),
-        expires_at=now + timedelta(days=settings.refresh_token_ttl_days),
+        # expires_at=now + timedelta(days=settings.refresh_token_ttl_days),
+        expires_at=now + timedelta(seconds=settings.refresh_token_ttl_seconds),
         last_used_at=now,
     )
     session.add(family)

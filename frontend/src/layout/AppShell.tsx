@@ -1,8 +1,11 @@
 import clsx from 'clsx'
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { createPortal } from 'react-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { FacetMark } from '../components/Logo'
+import { Chip } from '../components/ui'
 import {
+  IconArrowLeft,
   IconBuilding,
   IconClock,
   IconFile,
@@ -194,6 +197,9 @@ export function AppShell() {
           <p className="text-2xs uppercase tracking-[0.1em] text-ink-500">Signed in as</p>
           <p className="truncate text-sm font-medium text-ink-100">{user.full_name}</p>
           <p className="truncate text-2xs text-ink-500">{user.email}</p>
+          <div className="mt-1.5">
+            <Chip value={user.role} />
+          </div>
         </div>
       </aside>
 
@@ -242,46 +248,51 @@ export function AppShell() {
               >
                 <Initials name={user.full_name} />
               </button>
-              {menuOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 z-40 mt-1.5 w-60 rounded-lg border border-ink-200 bg-white p-1.5 shadow-lift dark:border-ink-700 dark:bg-ink-900">
-                    <div className="px-2.5 py-2">
-                      <p className="text-sm font-medium text-ink-900 dark:text-ink-50">
-                        {user.full_name}
-                      </p>
-                      <p className="truncate text-2xs text-ink-400">{user.email}</p>
-                      <p className="mt-1.5 flex items-center gap-1.5 text-2xs">
-                        <span
-                          className={clsx(
-                            'h-1.5 w-1.5 rounded-full',
-                            user.mfa_enabled ? 'bg-positive' : 'bg-caution',
-                          )}
-                        />
-                        {user.mfa_enabled
-                          ? 'Two-factor enabled'
-                          : 'Two-factor not enabled'}
-                      </p>
+              {menuOpen &&
+                createPortal(
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+                    <div className="fixed right-4 top-14 z-40 mt-1.5 w-60 rounded-lg border border-ink-200 bg-white p-1.5 shadow-lift dark:border-ink-700 dark:bg-ink-900 sm:right-6">
+                      <div className="px-2.5 py-2">
+                        <p className="text-sm font-medium text-ink-900 dark:text-ink-50">
+                          {user.full_name}
+                        </p>
+                        <p className="truncate text-2xs text-ink-400">{user.email}</p>
+                        <div className="mt-1.5">
+                          <Chip value={user.role} />
+                        </div>
+                        <p className="mt-1.5 flex items-center gap-1.5 text-2xs">
+                          <span
+                            className={clsx(
+                              'h-1.5 w-1.5 rounded-full',
+                              user.mfa_enabled ? 'bg-positive' : 'bg-caution',
+                            )}
+                          />
+                          {user.mfa_enabled
+                            ? 'Two-factor enabled'
+                            : 'Two-factor not enabled'}
+                        </p>
+                      </div>
+                      <NavLink
+                        to="/security"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
+                      >
+                        <IconShield width={15} height={15} />
+                        Security settings
+                      </NavLink>
+                      <button
+                        type="button"
+                        onClick={() => logout()}
+                        className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
+                      >
+                        <IconLogout width={15} height={15} />
+                        Sign out
+                      </button>
                     </div>
-                    <NavLink
-                      to="/security"
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
-                    >
-                      <IconShield width={15} height={15} />
-                      Security settings
-                    </NavLink>
-                    <button
-                      type="button"
-                      onClick={() => logout()}
-                      className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
-                    >
-                      <IconLogout width={15} height={15} />
-                      Sign out
-                    </button>
-                  </div>
-                </>
-              )}
+                  </>,
+                  document.body,
+                )}
             </div>
           </div>
         </header>
@@ -301,22 +312,37 @@ export function PageHeader({
   title,
   description,
   actions,
+  backTo,
+  backLabel = 'Back',
 }: {
   title: string
   description?: string
   actions?: React.ReactNode
+  backTo?: string
+  backLabel?: string
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-3xl font-semibold text-ink-900 dark:text-white">{title}</h1>
-        {description && (
-          <p className="mt-1 max-w-2xl text-sm text-ink-500 dark:text-ink-400">
-            {description}
-          </p>
-        )}
+    <div className="mb-5">
+      {backTo && (
+        <Link
+          to={backTo}
+          className="mb-3 -ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100"
+        >
+          <IconArrowLeft width={14} height={14} />
+          {backLabel}
+        </Link>
+      )}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-semibold text-ink-900 dark:text-white">{title}</h1>
+          {description && (
+            <p className="mt-1 max-w-2xl text-sm text-ink-500 dark:text-ink-400">
+              {description}
+            </p>
+          )}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   )
 }

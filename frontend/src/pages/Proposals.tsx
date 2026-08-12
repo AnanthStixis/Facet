@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { IconCheck, IconFile, IconSend, IconSpark } from '../components/icons'
@@ -368,6 +369,8 @@ const STAGE_TABS = [
 const PAGE_SIZE = 15
 
 export function Proposals() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [proposals, setProposals] = useState<Proposal[] | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [stage, setStage] = useState('')
@@ -425,6 +428,8 @@ export function Proposals() {
     <>
       <PageHeader
         title="Proposals"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Proposals and SOWs, the prospect's view of them, and what actually happened. The last part is what makes the first two worth collecting."
         actions={<CreateProposal onCreated={(message) => { setNotice(message); load() }} />}
       />

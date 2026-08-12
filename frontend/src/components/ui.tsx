@@ -46,22 +46,22 @@ export function StatTile({
   sub,
   tone = 'neutral',
   to,
+  state,
   onClick,
 }: {
   label: string
   value: ReactNode
   sub?: ReactNode
   tone?: 'neutral' | 'accent' | 'caution' | 'critical'
-  /** Navigate here on click/Enter. A KPI that names a count of things should
-   * take you to those things — a number with nowhere to go is a dead end. */
   to?: string
+  state?: Record<string, unknown>
   onClick?: () => void
 }) {
   const navigate = useNavigate()
   const interactive = Boolean(to || onClick)
   const activate = () => {
     if (onClick) onClick()
-    else if (to) navigate(to)
+    else if (to) navigate(to, state ? { state } : undefined)
   }
 
   return (
@@ -113,7 +113,7 @@ const CHIP_TONES: Record<string, string> = {
   alert: 'bg-critical/10 text-critical',
   notice: 'bg-caution/12 text-caution',
   info: 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',
-  super_admin: 'bg-internal/12 text-internal',
+  super_admin: 'internal-soft-bg text-internal',
   client_admin: 'accent-soft-bg accent-text',
   manager: 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300',
   employee: 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',

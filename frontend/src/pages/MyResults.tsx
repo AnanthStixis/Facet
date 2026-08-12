@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { AiPanel } from '../components/AiPanel'
 import { IconLock, IconSpark } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton, StatTile } from '../components/ui'
@@ -17,6 +18,8 @@ import { RELATIONSHIP_SHORT } from '../lib/cycleTypes'
  * motive and the context to work out who said what.
  */
 export function MyResults() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [cycles, setCycles] = useState<TargetResults[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,6 +39,8 @@ export function MyResults() {
     <>
       <PageHeader
         title="My results"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Feedback other people have given about you, aggregated so no single response can be isolated."
       />
 

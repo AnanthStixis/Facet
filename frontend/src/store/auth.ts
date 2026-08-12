@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api, refreshSession, setTokens } from '../lib/api'
+import { api, refreshSession, setSessionExpiredHandler, setTokens } from '../lib/api'
 import type { Organization, SessionResponse, User } from '../lib/types'
 
 type Phase = 'booting' | 'anonymous' | 'mfa_required' | 'authenticated'
@@ -9,6 +9,7 @@ interface AuthState {
   user: User | null
   organization: Organization | null
   theme: 'light' | 'dark'
+  sessionExpiredNotice: boolean
 
   boot: () => Promise<void>
   login: (email: string, password: string) => Promise<SessionResponse>
@@ -17,6 +18,7 @@ interface AuthState {
   setTheme: (theme: 'light' | 'dark') => void
   applySession: (session: SessionResponse) => void
   updateOrganization: (organization: Organization) => void
+  dismissSessionExpiredNotice: () => void
 }
 
 /** Paint the tenant's accent colour into the CSS custom properties. */
@@ -44,6 +46,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   organization: null,
   theme: initialTheme(),
+  sessionExpiredNotice: false,
 
   applySession(session) {
     setTokens(session.access_token, session.csrf_token)
@@ -52,6 +55,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       phase: session.mfa_required ? 'mfa_required' : 'authenticated',
       user: session.user,
       organization: session.organization,
+      sessionExpiredNotice: false,
     })
   },
 
@@ -104,4 +108,30 @@ export const useAuth = create<AuthState>((set, get) => ({
     applyBranding(organization)
     set({ organization })
   },
+
+  dismissSessionExpiredNotice() {
+    set({ sessionExpiredNotice: false })
+  },
 }))
+
+// A definitively-expired session (refresh cookie rejected) must drop the
+// stored user immediately — otherwise the sidebar keeps showing "Signed in
+// as <old user>" while the app is actually logged out, and RequireAuth in
+// App.tsx has nothing to react to until the person happens to navigate.
+//
+// The notice, though, is only shown if this tab actually had a live session
+// that just died — i.e. phase was already 'authenticated' the moment this
+// fired. If phase was still 'booting' (the very first check on a fresh page
+// load) or already 'anonymous', there was nothing for *this* visit to lose:
+// it's just an old, unrelated cookie being cleaned up quietly, and telling
+// someone who was never logged in this visit that their "session expired"
+// is confusing, not helpful.
+setSessionExpiredHandler(() => {
+  const hadLiveSession = useAuth.getState().phase === 'authenticated'
+  useAuth.setState({
+    phase: 'anonymous',
+    user: null,
+    organization: null,
+    sessionExpiredNotice: hadLiveSession,
+  })
+})
