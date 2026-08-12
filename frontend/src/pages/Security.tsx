@@ -232,13 +232,14 @@ function PasswordSection() {
             setNext('')
           } catch (caught) {
             if (caught instanceof ApiError) {
-              setError(caught.message)
-              setFieldErrors(caught.fieldErrors())
+              const fields = caught.fieldErrors()
+              setError(Object.keys(fields).length > 0 ? null : caught.message)
+              setFieldErrors(fields)
             } else {
               setError('The password could not be changed.')
             }
           } finally {
-            setBusy(false)
+              setBusy(false)
           }
         }}
       >

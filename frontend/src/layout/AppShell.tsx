@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { FacetMark } from '../components/Logo'
 import {
   IconArrowLeft,
@@ -243,46 +244,48 @@ export function AppShell() {
               >
                 <Initials name={user.full_name} />
               </button>
-              {menuOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 z-40 mt-1.5 w-60 rounded-lg border border-ink-200 bg-white p-1.5 shadow-lift dark:border-ink-700 dark:bg-ink-900">
-                    <div className="px-2.5 py-2">
-                      <p className="text-sm font-medium text-ink-900 dark:text-ink-50">
-                        {user.full_name}
-                      </p>
-                      <p className="truncate text-2xs text-ink-400">{user.email}</p>
-                      <p className="mt-1.5 flex items-center gap-1.5 text-2xs">
-                        <span
-                          className={clsx(
-                            'h-1.5 w-1.5 rounded-full',
-                            user.mfa_enabled ? 'bg-positive' : 'bg-caution',
-                          )}
-                        />
-                        {user.mfa_enabled
-                          ? 'Two-factor enabled'
-                          : 'Two-factor not enabled'}
-                      </p>
+              {menuOpen &&
+                createPortal(
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+                    <div className="fixed right-4 top-14 z-40 mt-1.5 w-60 rounded-lg border border-ink-200 bg-white p-1.5 shadow-lift dark:border-ink-700 dark:bg-ink-900 sm:right-6">
+                      <div className="px-2.5 py-2">
+                        <p className="text-sm font-medium text-ink-900 dark:text-ink-50">
+                          {user.full_name}
+                        </p>
+                        <p className="truncate text-2xs text-ink-400">{user.email}</p>
+                        <p className="mt-1.5 flex items-center gap-1.5 text-2xs">
+                          <span
+                            className={clsx(
+                              'h-1.5 w-1.5 rounded-full',
+                              user.mfa_enabled ? 'bg-positive' : 'bg-caution',
+                            )}
+                          />
+                          {user.mfa_enabled
+                            ? 'Two-factor enabled'
+                            : 'Two-factor not enabled'}
+                        </p>
+                      </div>
+                      <NavLink
+                        to="/security"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
+                      >
+                        <IconShield width={15} height={15} />
+                        Security settings
+                      </NavLink>
+                      <button
+                        type="button"
+                        onClick={() => logout()}
+                        className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
+                      >
+                        <IconLogout width={15} height={15} />
+                        Sign out
+                      </button>
                     </div>
-                    <NavLink
-                      to="/security"
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2 rounded px-2.5 py-2 text-sm text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
-                    >
-                      <IconShield width={15} height={15} />
-                      Security settings
-                    </NavLink>
-                    <button
-                      type="button"
-                      onClick={() => logout()}
-                      className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
-                    >
-                      <IconLogout width={15} height={15} />
-                      Sign out
-                    </button>
-                  </div>
-                </>
-              )}
+                  </>,
+                  document.body,
+                )}
             </div>
           </div>
         </header>
