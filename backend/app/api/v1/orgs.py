@@ -60,7 +60,12 @@ async def _unique_slug(session: DbSession, desired: str) -> str:
 
 def _logo_url(org: Organization) -> str | None:
     if org.branding and org.branding.logo_path:
-        return f"{settings.public_api_url}/api/v1/orgs/{org.id}/logo"
+        version = (
+            int(org.branding.logo_updated_at.timestamp())
+            if org.branding.logo_updated_at
+            else 0
+        )
+        return f"{settings.public_api_url}/api/v1/orgs/{org.id}/logo?v={version}"
     return None
 
 
@@ -319,6 +324,47 @@ async def provision_organization(
         detail.invite_url = invite_url
     return detail
 
+@router.delete("/{org_id}/logo", response_model=BrandingDetail)
+async def remove_logo(
+    org_id: uuid.UUID,
+    request: Request,
+    session: DbSession,
+    actor: AdminUser,
+) -> BrandingDetail:
+    actor.assert_can_reach_org(org_id)
+    org = (
+        await session.execute(select(Organization).where(Organization.id == org_id))
+    ).scalar_one_or_none()
+    if org is None:
+        raise NotFound("That organization does not exist.")
+    if org.branding is None or not org.branding.logo_path:
+        raise NotFound("This organization has no logo to remove.")
+
+    storage.delete_logo(org.branding.logo_path)
+    org.branding.logo_path = None
+    org.branding.logo_content_type = None
+    org.branding.logo_updated_at = None
+
+    await audit.record(
+        session,
+        action=AuditAction.ORG_BRANDING_UPDATED,
+        summary=f"{actor.user.full_name} removed the logo for {org.name}",
+        org_id=org.id,
+        actor=actor.user,
+        target_type="organization",
+        target_id=org.id,
+        target_label=org.name,
+        context={"removed": "logo"},
+        request=request,
+    )
+    await session.commit()
+
+    return BrandingDetail(
+        accent_color=org.branding.accent_color,
+        email_footer_note=org.branding.email_footer_note,
+        logo_url=None,
+        logo_updated_at=None,
+    )
 
 @router.get("/{org_id}", response_model=OrgDetail)
 async def get_organization(

@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { FacetMark } from '../components/Logo'
+import { Chip } from '../components/ui'
 import {
   IconArrowLeft,
   IconBuilding,
@@ -195,6 +196,9 @@ export function AppShell() {
           <p className="text-2xs uppercase tracking-[0.1em] text-ink-500">Signed in as</p>
           <p className="truncate text-sm font-medium text-ink-100">{user.full_name}</p>
           <p className="truncate text-2xs text-ink-500">{user.email}</p>
+          <div className="mt-1.5">
+            <Chip value={user.role} />
+          </div>
         </div>
       </aside>
 
@@ -252,6 +256,9 @@ export function AppShell() {
                         {user.full_name}
                       </p>
                       <p className="truncate text-2xs text-ink-400">{user.email}</p>
+                      <div className="mt-1.5">
+                        <Chip value={user.role} />
+                      </div>
                       <p className="mt-1.5 flex items-center gap-1.5 text-2xs">
                         <span
                           className={clsx(
@@ -316,8 +323,7 @@ export function PageHeader({
       {backTo && (
         <Link
           to={backTo}
-            className="mb-3 -ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100"
-
+          className="mb-3 -ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100"
         >
           <IconArrowLeft width={14} height={14} />
           {backLabel}

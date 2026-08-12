@@ -80,6 +80,8 @@ async def request_context(request: Request, call_next):
     response.headers["referrer-policy"] = "strict-origin-when-cross-origin"
     response.headers["x-frame-options"] = "DENY"
     response.headers["permissions-policy"] = "geolocation=(), microphone=(), camera=()"
+    if "cache-control" not in response.headers:
+        response.headers["cache-control"] = "no-store"
     if settings.is_production:
         response.headers["strict-transport-security"] = (
             "max-age=31536000; includeSubDomains"

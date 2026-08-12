@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
 import { Banner, Card, Field, Spinner } from '../components/ui'
 import { IconLock, IconShield } from '../components/icons'
 import { PageHeader } from '../layout/AppShell'
@@ -344,14 +343,10 @@ function SessionsSection() {
 }
 
 export function Security() {
-  const location = useLocation()
-  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   return (
     <>
       <PageHeader
         title="Security"
-        backTo={cameFromDashboard ? '/' : undefined}
-        backLabel="Dashboard"
         description="Your password, second factor, and the devices currently signed in."
       />
       <div className="grid gap-5 lg:grid-cols-2">

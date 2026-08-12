@@ -19,7 +19,7 @@ from app.core.errors import NotFound
 from app.core.ratelimit import LOOKUP_PER_USER, limiter
 from app.models.audit import AuditLog
 from app.models.catalog import Contact, FeedbackTarget
-from app.models.enums import AuditAction, AuditSeverity, UserRole
+from app.models.enums import AuditAction, AuditSeverity, UserRole, UserStatus
 from app.models.organization import Organization
 from app.models.user import User
 from app.reporting.filters import escape_like
@@ -42,7 +42,9 @@ async def lookup(
     term = f"%{escape_like(q.strip())}%" if q.strip() else None
 
     if entity == "users":
-        stmt = select(User.id, User.full_name, User.email, User.job_title)
+        stmt = select(User.id, User.full_name, User.email, User.job_title).where(
+            User.status != UserStatus.DISABLED
+        )
         if term:
             stmt = stmt.where(or_(User.full_name.ilike(term), User.email.ilike(term)))
         stmt = stmt.order_by(User.full_name.asc()).limit(limit)

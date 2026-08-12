@@ -127,6 +127,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     headers,
     credentials: 'same-origin',
     body: body === undefined ? undefined : JSON.stringify(body),
+    cache: 'no-store',
   })
 
   if (response.status === 401 && retry) {
