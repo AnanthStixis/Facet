@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request
 from sqlalchemy import func, select
 
 from app.api.deps import (
+    AdminUser,
     CurrentUser,
     DbSession,
     ManagerUser,
@@ -18,7 +19,6 @@ from app.api.deps import (
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.models.catalog import FeedbackTarget, FeedbackTemplate, FeedbackTemplateVersion
 from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
-from app.models.user import User
 from app.models.enums import (
     AssignmentStatus,
     AuditAction,
@@ -72,12 +72,6 @@ async def _detail(session: DbSession, cycle: ReviewCycle) -> CycleDetail:
         )
     ).first()
     progress = await cycle_service.cycle_progress(session, cycle.id)
-    creator_name = None
-    if cycle.created_by_id is not None:
-        creator = (
-            await session.execute(select(User).where(User.id == cycle.created_by_id))
-        ).scalar_one_or_none()
-        creator_name = creator.full_name if creator else None
     return CycleDetail(
         id=cycle.id,
         name=cycle.name,
@@ -93,8 +87,6 @@ async def _detail(session: DbSession, cycle: ReviewCycle) -> CycleDetail:
         opened_at=cycle.opened_at,
         closed_at=cycle.closed_at,
         created_at=cycle.created_at,
-        created_by_id=cycle.created_by_id,
-        created_by_name=creator_name,
         progress=progress,
     )
 
@@ -106,15 +98,14 @@ async def list_cycles(session: DbSession, actor: ManagerUser) -> list[CycleDetai
     # External rounds are campaigns and live on their own screen. Mixing them
     # in here would show an admin two lists' worth of things with different
     # controls under one heading.
-    stmt = select(ReviewCycle).where(ReviewCycle.audience != CycleAudience.EXTERNAL)
-    # Client Admin and Super Admin see everything in the org, per policy. A
-    # Manager sees only what they themselves are running — not another
-    # manager's cycle, not the Client Admin's — same as a Manager cannot open
-    # another manager's cycle by guessing its id (see assert_owns below).
-    if not actor.user.role.at_least(UserRole.CLIENT_ADMIN):
-        stmt = stmt.where(ReviewCycle.created_by_id == actor.id)
     cycles = (
-        (await session.execute(stmt.order_by(ReviewCycle.created_at.desc())))
+        (
+            await session.execute(
+                select(ReviewCycle)
+                .where(ReviewCycle.audience != CycleAudience.EXTERNAL)
+                .order_by(ReviewCycle.created_at.desc())
+            )
+        )
         .scalars()
         .all()
     )
@@ -126,7 +117,7 @@ async def create_cycle(
     payload: CycleCreateRequest,
     request: Request,
     session: DbSession,
-    actor: ManagerUser,
+    actor: AdminUser,
 ) -> CycleDetail:
     if actor.org_id is None:
         raise ValidationFailed("A Super Admin must act within an organization.")
@@ -202,9 +193,7 @@ async def create_cycle(
 async def get_cycle(
     cycle_id: uuid.UUID, session: DbSession, actor: ManagerUser
 ) -> CycleDetail:
-    cycle = await _load_cycle(session, cycle_id)
-    actor.assert_owns(cycle.created_by_id)
-    return await _detail(session, cycle)
+    return await _detail(session, await _load_cycle(session, cycle_id))
 
 
 @router.post("/{cycle_id}/assignments", response_model=GenerationSummary)
@@ -213,10 +202,9 @@ async def generate(
     payload: AssignmentPlanRequest,
     request: Request,
     session: DbSession,
-    actor: ManagerUser,
+    actor: AdminUser,
 ) -> GenerationSummary:
     cycle = await _load_cycle(session, cycle_id)
-    actor.assert_owns(cycle.created_by_id)
     result = await cycle_service.generate_assignments(
         session,
         cycle=cycle,
@@ -260,10 +248,9 @@ async def generate(
 
 @router.post("/{cycle_id}/open", response_model=CycleDetail)
 async def open_cycle(
-    cycle_id: uuid.UUID, request: Request, session: DbSession, actor: ManagerUser
+    cycle_id: uuid.UUID, request: Request, session: DbSession, actor: AdminUser
 ) -> CycleDetail:
     cycle = await _load_cycle(session, cycle_id)
-    actor.assert_owns(cycle.created_by_id)
     if cycle.status != CycleStatus.DRAFT:
         raise Conflict(f"This cycle is already {cycle.status}.")
 
@@ -303,10 +290,9 @@ async def open_cycle(
 
 @router.post("/{cycle_id}/close", response_model=CycleDetail)
 async def close_cycle(
-    cycle_id: uuid.UUID, request: Request, session: DbSession, actor: ManagerUser
+    cycle_id: uuid.UUID, request: Request, session: DbSession, actor: AdminUser
 ) -> CycleDetail:
     cycle = await _load_cycle(session, cycle_id)
-    actor.assert_owns(cycle.created_by_id)
     if cycle.status != CycleStatus.OPEN:
         raise Conflict("Only an open cycle can be closed.")
 
@@ -334,55 +320,6 @@ async def close_cycle(
     # to be re-applied before _detail reads the assignment counts.
     await rebind_tenant(session, actor)
     return await _detail(session, cycle)
-
-
-@router.delete("/{cycle_id}", status_code=204, response_model=None)
-async def delete_cycle(
-    cycle_id: uuid.UUID, request: Request, session: DbSession, actor: ManagerUser
-) -> None:
-    """Delete a cycle nobody has responded to yet.
-
-    Gated on responses, not status: a draft is always safe, and so is an
-    opened cycle that has assignments but zero submissions — reviewers have
-    something sitting in "My feedback" but haven't acted on it, so nothing is
-    lost. Once even one response exists, deleting would destroy real
-    feedback someone gave in confidence; close it instead.
-    """
-    cycle = await _load_cycle(session, cycle_id)
-    actor.assert_owns(cycle.created_by_id)
-    if cycle.status == CycleStatus.CLOSED:
-        raise Conflict("A closed cycle is a historical record and cannot be deleted.")
-    submitted = int(
-        (
-            await session.execute(
-                select(func.count())
-                .select_from(FeedbackAssignment)
-                .where(
-                    FeedbackAssignment.cycle_id == cycle.id,
-                    FeedbackAssignment.status == AssignmentStatus.SUBMITTED,
-                )
-            )
-        ).scalar_one()
-    )
-    if submitted > 0:
-        raise Conflict(
-            "This cycle already has responses — deleting it would destroy real "
-            "feedback. Close it instead."
-        )
-    name = cycle.name
-    await session.delete(cycle)
-    await audit.record(
-        session,
-        action=AuditAction.CYCLE_DELETED,
-        summary=f"{actor.user.full_name} deleted the cycle '{name}'",
-        org_id=actor.org_id,
-        actor=actor.user,
-        target_type="review_cycle",
-        target_id=cycle_id,
-        target_label=name,
-        request=request,
-    )
-    await session.commit()
 
 
 # --- The reviewer's own queue ----------------------------------------------
@@ -596,7 +533,6 @@ async def cycle_results(
     cycle_id: uuid.UUID, session: DbSession, actor: ManagerUser
 ) -> dict[str, Any]:
     cycle = await _load_cycle(session, cycle_id)
-    actor.assert_owns(cycle.created_by_id)
     return {
         "cycle": (await _detail(session, cycle)).model_dump(mode="json"),
         "rows": await results_service.cycle_overview(session, cycle=cycle),
@@ -627,13 +563,10 @@ async def target_results(
         raise NotFound("That target does not exist.")
 
     is_admin = actor.role in {UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN}
-    # A manager only gets the manager-level view (which bypasses the
-    # anonymity threshold the way an admin's does) on a cycle they themselves
-    # ran — not on a colleague manager's, and not on the Client Admin's.
-    owns_cycle = actor.role == UserRole.MANAGER and cycle.created_by_id == actor.id
+    is_manager = actor.role == UserRole.MANAGER
     is_subject = target.subject_user_id == actor.id
 
-    if not (is_admin or owns_cycle or is_subject):
+    if not (is_admin or is_manager or is_subject):
         raise PermissionDenied("You cannot view these results.")
 
     return await results_service.target_results(

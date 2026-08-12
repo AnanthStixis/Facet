@@ -66,21 +66,6 @@ class Actor:
         if not self.user.role.at_least(minimum):
             raise PermissionDenied()
 
-    def assert_owns(self, created_by_id: uuid.UUID | None) -> None:
-        """Ownership gate for a manager's own cycles/campaigns.
-
-        Client Admin and Super Admin see and act on everything in the org, per
-        policy. A Manager is scoped to what *they* run — not another
-        manager's, not the Client Admin's — so this only bites for the
-        Manager role; everyone above it is exempt. A record with no creator
-        recorded (a pre-existing row, or one seeded before this existed) is
-        treated as visible/actionable rather than orphaned and unreachable.
-        """
-        if self.user.role.at_least(UserRole.CLIENT_ADMIN):
-            return
-        if created_by_id is not None and created_by_id != self.id:
-            raise PermissionDenied()
-
     def assert_can_reach_org(self, org_id: uuid.UUID) -> None:
         """Guard for routes that take an org id in the path.
 

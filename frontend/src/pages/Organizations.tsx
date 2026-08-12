@@ -3,12 +3,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
-import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
+import { Banner, Card, Chip, EmptyState, Field, Skeleton, Spinner } from '../components/ui'
 import { IconBuilding } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, uploadFile } from '../lib/api'
-import { TIMEZONES } from '../lib/timezones'
 import type { OrgDetail, Paged } from '../lib/types'
 
 type Pending = { id: string; action: 'approve' | 'reject' | 'suspend' | 'reactivate' } | null
@@ -104,6 +103,17 @@ function ApprovalForm({
   )
 }
 
+const TIMEZONES = [
+  'UTC',
+  'Asia/Kolkata',
+  'Asia/Dubai',
+  'Asia/Singapore',
+  'Europe/London',
+  'Europe/Berlin',
+  'America/New_York',
+  'America/Los_Angeles',
+]
+
 function EditOrgForm({
   org,
   onCancel,
@@ -155,8 +165,10 @@ function EditOrgForm({
   }
 
   return (
-    <Modal title={org.name} hint="Everything about this organization, in one place." onClose={onCancel}>
-      <form onSubmit={submit}>
+    <form
+      onSubmit={submit}
+      className="mt-3 rounded-lg border border-ink-200 bg-ink-50 p-4 dark:border-ink-700 dark:bg-ink-900/60"
+    >
       {error && (
         <Banner tone="error" className="mb-3">
           {error}
@@ -224,8 +236,7 @@ function EditOrgForm({
           Cancel
         </button>
       </div>
-      </form>
-    </Modal>
+    </form>
   )
 }
 

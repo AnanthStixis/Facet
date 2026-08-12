@@ -42,13 +42,8 @@ async def lookup(
     term = f"%{escape_like(q.strip())}%" if q.strip() else None
 
     if entity == "users":
-        # Active only, not just "not disabled" — an invited-but-not-yet-
-        # activated person cannot log in to review anything, so offering them
-        # here (as a reviewer, a manager, a recipient owner, etc.) across
-        # cycles, campaigns, and every other picker built on this lookup
-        # would let someone get assigned work they cannot see or do yet.
         stmt = select(User.id, User.full_name, User.email, User.job_title).where(
-            User.status == UserStatus.ACTIVE
+            User.status != UserStatus.DISABLED
         )
         if term:
             stmt = stmt.where(or_(User.full_name.ilike(term), User.email.ilike(term)))

@@ -51,8 +51,6 @@ class CycleDetail(ORMModel):
     opened_at: datetime | None
     closed_at: datetime | None
     created_at: datetime
-    created_by_id: uuid.UUID | None = None
-    created_by_name: str | None = None
     progress: dict[str, int] = Field(default_factory=dict)
 
 

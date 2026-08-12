@@ -49,8 +49,6 @@ export interface Cycle {
   opened_at: string | null
   closed_at: string | null
   created_at: string
-  created_by_id: string | null
-  created_by_name: string | null
   progress: CycleProgress
 }
 

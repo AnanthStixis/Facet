@@ -113,25 +113,15 @@ async def dashboard(session: DbSession, actor: CurrentUser) -> dict[str, Any]:
     # now. This replaces a generic "activity over time" chart with counts a
     # reader can act on directly — each one routes straight to the screen that
     # resolves it.
-    # Client Admin and Super Admin see the whole org's open work. A Manager's
-    # dashboard is scoped to what they themselves are running — same
-    # ownership boundary as the cycles/campaigns list endpoints — so this
-    # never shows a manager a colleague manager's (or the Client Admin's)
-    # counts.
-    is_manager_only = actor.role == UserRole.MANAGER
     attention: dict[str, Any] = {}
     if not actor.is_super_admin:
         soon = now + timedelta(days=7)
-        owner_clause = (
-            (ReviewCycle.created_by_id == actor.user.id,) if is_manager_only else ()
-        )
         attention["open_cycles"] = await scalar(
             select(func.count())
             .select_from(ReviewCycle)
             .where(
                 ReviewCycle.status == CycleStatus.OPEN,
                 ReviewCycle.audience != CycleAudience.EXTERNAL,
-                *owner_clause,
             )
         )
         attention["open_campaigns"] = await scalar(
@@ -140,7 +130,6 @@ async def dashboard(session: DbSession, actor: CurrentUser) -> dict[str, Any]:
             .where(
                 ReviewCycle.status == CycleStatus.OPEN,
                 ReviewCycle.audience == CycleAudience.EXTERNAL,
-                *owner_clause,
             )
         )
         attention["closing_soon"] = await scalar(
@@ -150,21 +139,15 @@ async def dashboard(session: DbSession, actor: CurrentUser) -> dict[str, Any]:
                 ReviewCycle.status == CycleStatus.OPEN,
                 ReviewCycle.closes_at.isnot(None),
                 ReviewCycle.closes_at <= soon,
-                *owner_clause,
             )
         )
-        # Proposals are not "owned" by whoever created them the way a cycle
-        # or campaign is, so there is no meaningful per-manager scope for
-        # this one — it is an org-wide pipeline concern, shown only to the
-        # roles that actually manage that pipeline.
-        if not is_manager_only:
-            attention["proposals_awaiting_outcome"] = await scalar(
-                select(func.count())
-                .select_from(Proposal)
-                .where(
-                    Proposal.stage.in_([ProposalStage.SUBMITTED, ProposalStage.SHORTLISTED])
-                )
+        attention["proposals_awaiting_outcome"] = await scalar(
+            select(func.count())
+            .select_from(Proposal)
+            .where(
+                Proposal.stage.in_([ProposalStage.SUBMITTED, ProposalStage.SHORTLISTED])
             )
+        )
 
     # What this specific person has open right now — the numbers an Employee's
     # narrower dashboard actually needs, since they never see org-wide metrics.

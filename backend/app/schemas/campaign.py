@@ -52,8 +52,6 @@ class CampaignDetail(BaseModel):
     target_type: str | None = None
     closes_at: datetime | None
     created_at: datetime
-    created_by_id: uuid.UUID | None = None
-    created_by_name: str | None = None
     delivery: dict[str, int] = Field(default_factory=dict)
 
 

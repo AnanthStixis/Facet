@@ -9,8 +9,6 @@ import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, downloadFile, uploadFile } from '../lib/api'
 import type { Paged } from '../lib/types'
-import type { Cycle } from '../lib/cycleTypes'
-import { CycleResults } from './CycleResults'
 
 interface Delivery {
   total: number
@@ -39,8 +37,6 @@ interface Campaign {
   target_type: string | null
   closes_at: string | null
   created_at: string
-  created_by_id: string | null
-  created_by_name: string | null
   delivery: Delivery
 }
 
@@ -65,6 +61,12 @@ interface Contact {
   full_name: string
   company: string | null
   unsubscribed_at: string | null
+}
+
+interface Target {
+  id: string
+  label: string
+  target_type: string
 }
 
 interface TemplateOption {
@@ -783,23 +785,11 @@ export function Campaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-
-  // The dismiss button is easy to miss, and a confirmation that only goes
-  // away on a manual click (or a reload) reads as "did that actually work?"
-  // after a few seconds. Auto-clear it; the dismiss button still works for
-  // anyone who wants it gone sooner.
-  useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 6000)
-    return () => window.clearTimeout(timer)
-  }, [notice])
-
   const [panel, setPanel] = useState<{ id: string; view: 'recipients' | 'list' } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [sending, setSending] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [viewingResults, setViewingResults] = useState<Campaign | null>(null)
 
   const load = () => {
     api
@@ -812,46 +802,6 @@ export function Campaigns() {
 
   useEffect(load, [])
   useRefetchOnFocus(load)
-
-  // The results endpoint already exists on the backend for campaigns — a
-  // campaign is a ReviewCycle underneath — but there was no button anywhere
-  // to reach it, so nobody could ever see what a recipient actually said.
-  // Reusing CycleResults means the same suppression/anonymity rules apply
-  // instead of a second, divergent results view.
-  if (viewingResults) {
-    const asCycle: Cycle = {
-      id: viewingResults.id,
-      name: viewingResults.name,
-      description: viewingResults.description,
-      status: viewingResults.status as Cycle['status'],
-      is_anonymous: viewingResults.is_anonymous,
-      min_responses_to_reveal: viewingResults.min_responses_to_reveal,
-      template_version_id: '',
-      template_name: viewingResults.template_name,
-      template_version: viewingResults.template_version,
-      opens_at: null,
-      closes_at: viewingResults.closes_at,
-      opened_at: null,
-      closed_at: null,
-      created_at: viewingResults.created_at,
-      created_by_id: viewingResults.created_by_id,
-      created_by_name: viewingResults.created_by_name,
-      progress: {
-        total: viewingResults.delivery.total,
-        submitted: viewingResults.delivery.submitted,
-        pending: viewingResults.delivery.pending,
-        in_progress: 0,
-        declined: 0,
-        completion_pct:
-          viewingResults.delivery.total > 0
-            ? Math.round(
-                (viewingResults.delivery.submitted / viewingResults.delivery.total) * 100,
-              )
-            : 0,
-      },
-    }
-    return <CycleResults cycle={asCycle} onBack={() => setViewingResults(null)} />
-  }
 
   const act = async (campaign: Campaign, action: 'open' | 'close') => {
     setError(null)
@@ -969,32 +919,24 @@ export function Campaigns() {
                         Closes {new Date(campaign.closes_at).toLocaleDateString()}
                       </span>
                     )}
-                    {campaign.created_by_name && (
-                      <span>Created by {campaign.created_by_name}</span>
-                    )}
                   </p>
                 </div>
 
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  {/* Adding recipients to a closed campaign makes no sense —
-                      nothing more can be sent. Delivery/Results still work,
-                      since those are about what already happened. */}
-                  {campaign.status !== 'closed' && (
-                    <button
-                      type="button"
-                      className="btn-secondary px-3 py-1.5 text-sm"
-                      onClick={() =>
-                        setPanel(
-                          panel?.id === campaign.id && panel.view === 'recipients'
-                            ? null
-                            : { id: campaign.id, view: 'recipients' },
-                        )
-                      }
-                    >
-                      <IconUsers width={14} height={14} />
-                      Recipients
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="btn-secondary px-3 py-1.5 text-sm"
+                    onClick={() =>
+                      setPanel(
+                        panel?.id === campaign.id && panel.view === 'recipients'
+                          ? null
+                          : { id: campaign.id, view: 'recipients' },
+                      )
+                    }
+                  >
+                    <IconUsers width={14} height={14} />
+                    Recipients
+                  </button>
                   {campaign.delivery.total > 0 && (
                     <button
                       type="button"
@@ -1008,15 +950,6 @@ export function Campaigns() {
                       }
                     >
                       Delivery
-                    </button>
-                  )}
-                  {campaign.delivery.submitted > 0 && (
-                    <button
-                      type="button"
-                      className="btn-primary px-3 py-1.5 text-sm"
-                      onClick={() => setViewingResults(campaign)}
-                    >
-                      Results
                     </button>
                   )}
 
@@ -1048,7 +981,7 @@ export function Campaigns() {
                       </button>
                     ))}
 
-                  {campaign.status !== 'closed' && campaign.delivery.sent === 0 &&
+                  {campaign.status === 'draft' &&
                     (deleting === campaign.id ? (
                       <span className="flex gap-1.5">
                         <button

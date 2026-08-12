@@ -4,7 +4,6 @@ import { FacetMark } from '../components/Logo'
 import { IconCheck, IconShield } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
 import { ApiError, api } from '../lib/api'
-import { TIMEZONES } from '../lib/timezones'
 
 function PublicFrame({
   title,
@@ -37,6 +36,22 @@ function PublicFrame({
     </div>
   )
 }
+
+// `Intl.supportedValuesOf` covers every IANA zone the browser ships with; the
+// short list below is only a fallback for browsers old enough to lack it.
+const TIMEZONES: string[] =
+  typeof Intl.supportedValuesOf === 'function'
+    ? Intl.supportedValuesOf('timeZone')
+    : [
+        'Asia/Kolkata',
+        'Asia/Dubai',
+        'Europe/London',
+        'Europe/Berlin',
+        'America/New_York',
+        'America/Los_Angeles',
+        'Australia/Sydney',
+        'UTC',
+      ]
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE = /^[+()0-9][0-9()\-.\s]{5,}$/
@@ -286,7 +301,7 @@ function SetPasswordForm({
             error={fieldErrors.password}
             required
             autoFocus
-            hint="At least 6 characters. Length matters more than symbols."
+            hint="At least 8 characters. Length matters more than symbols."
           />
           <Field
             label="Confirm password"

@@ -357,20 +357,8 @@ export function Cycles() {
   const [cycles, setCycles] = useState<Cycle[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-
-  // The dismiss button is easy to miss, and a confirmation that only goes
-  // away on a manual click (or a reload) reads as "did that actually work?"
-  // after a few seconds. Auto-clear it; the dismiss button still works for
-  // anyone who wants it gone sooner.
-  useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 6000)
-    return () => window.clearTimeout(timer)
-  }, [notice])
-
   const [planning, setPlanning] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
   const [viewing, setViewing] = useState<Cycle | null>(null)
   const [page, setPage] = useState(1)
 
@@ -485,7 +473,6 @@ export function Cycles() {
                     <span className="tabular">
                       {cycle.progress.submitted}/{cycle.progress.total} responses
                     </span>
-                    {cycle.created_by_name && <span>Created by {cycle.created_by_name}</span>}
                   </p>
                   {cycle.progress.total > 0 && (
                     <div className="mt-2">
@@ -560,47 +547,6 @@ export function Cycles() {
                         onClick={() => setConfirming(cycle.id)}
                       >
                         Close cycle
-                      </button>
-                    ))}
-
-                  {cycle.status !== 'closed' &&
-                    cycle.progress.submitted === 0 &&
-                    (deleting === cycle.id ? (
-                      <span className="flex gap-1.5">
-                        <button
-                          type="button"
-                          className="btn-danger px-2.5 py-1.5 text-sm"
-                          onClick={async () => {
-                            try {
-                              await api.delete(`/cycles/${cycle.id}`)
-                              setDeleting(null)
-                              setNotice(`'${cycle.name}' deleted.`)
-                              load()
-                            } catch (caught) {
-                              setError(
-                                caught instanceof ApiError ? caught.message : 'Could not delete that cycle.',
-                              )
-                              setDeleting(null)
-                            }
-                          }}
-                        >
-                          Confirm delete
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-secondary px-2.5 py-1.5 text-sm"
-                          onClick={() => setDeleting(null)}
-                        >
-                          Cancel
-                        </button>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn-ghost px-3 py-1.5 text-sm"
-                        onClick={() => setDeleting(cycle.id)}
-                      >
-                        Delete
                       </button>
                     ))}
 

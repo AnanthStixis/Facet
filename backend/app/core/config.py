@@ -23,12 +23,6 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
-        # A stray trailing space on a value (`ENVIRONMENT=staging `, easy to
-        # introduce editing a .env by hand, e.g. over SSH) otherwise fails
-        # validation on any literal/enum field with a confusing pydantic
-        # error instead of just being ignored the way whitespace around an
-        # env var normally is.
-        str_strip_whitespace=True,
     )
 
     # --- Runtime ----------------------------------------------------------
@@ -59,7 +53,7 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 14
     invite_token_ttl_hours: int = 72
     feedback_link_ttl_days: int = 30
-    password_min_length: int = 6
+    password_min_length: int = 8
     mfa_required_for_super_admin: bool = True
     login_max_attempts: int = 8
     login_lockout_seconds: int = 900

@@ -1,9 +1,9 @@
 import clsx from 'clsx'
 import { Fragment, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { LookupFilter, SearchBox } from '../components/filters'
+import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
-import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
+import { Banner, Card, Chip, EmptyState, Field, Skeleton, Spinner } from '../components/ui'
 import { IconUsers } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
@@ -172,7 +172,6 @@ function EditUserForm({
     job_title: person.job_title ?? '',
     department: person.department ?? '',
     role: person.role,
-    manager_id: person.manager_id ?? null,
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -209,7 +208,6 @@ function EditUserForm({
         job_title: form.job_title || null,
         department: form.department || null,
         role: canChangeRole && form.role !== person.role ? form.role : undefined,
-        manager_id: form.manager_id !== (person.manager_id ?? null) ? form.manager_id : undefined,
       })
       onDone()
     } catch (caught) {
@@ -225,8 +223,9 @@ function EditUserForm({
   }
 
   return (
-    <Modal title={person.full_name} hint="Everything about this person, in one place." onClose={onCancel}>
-      <form onSubmit={submit}>
+    <tr>
+      <td colSpan={6} className="bg-ink-50 p-0 dark:bg-ink-900/60">
+        <form onSubmit={submit} className="p-4">
           {error && (
             <Banner tone="error" className="mb-3">
               {error}
@@ -237,19 +236,7 @@ function EditUserForm({
               {resetNotice}
             </Banner>
           )}
-          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-500 dark:text-ink-400">
-            <span>{person.email}</span>
-            <span className="flex items-center gap-1">
-              <Chip value={person.status} />
-            </span>
-            {person.created_at && (
-              <span>Joined {new Date(person.created_at).toLocaleDateString()}</span>
-            )}
-            {person.last_login_at && (
-              <span>Last signed in {new Date(person.last_login_at).toLocaleDateString()}</span>
-            )}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field
               label="Full name"
               value={form.full_name}
@@ -292,16 +279,8 @@ function EditUserForm({
                 <p className="text-xs text-ink-400">You cannot change your own role.</p>
               </div>
             )}
-            <div className="sm:col-span-2">
-              <LookupFilter
-                entity="users"
-                label="Manager"
-                selected={form.manager_id ? [form.manager_id] : []}
-                onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
-              />
-            </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex gap-2">
             <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>
               {busy && <Spinner />}
               Save changes
@@ -325,8 +304,9 @@ function EditUserForm({
               </button>
             )}
           </div>
-      </form>
-    </Modal>
+        </form>
+      </td>
+    </tr>
   )
 }
 
@@ -336,40 +316,10 @@ interface BulkResult {
   total_rows: number
 }
 
-const MAX_BULK_ROWS = 100
-
-// A rough client-side row count — good enough to confirm "how many" and to
-// reject an oversized file before it ever leaves the browser. The server
-// re-parses and re-validates properly; this is just for the confirmation
-// prompt and an early, cheap rejection.
-function countCsvRows(text: string): number {
-  return text
-    .split(/\r?\n/)
-    .slice(1) // header
-    .filter((line) => line.trim().length > 0).length
-}
-
 function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState<{ file: File; rowCount: number } | null>(null)
-
-  const runUpload = async (file: File) => {
-    setBusy(true)
-    setError(null)
-    try {
-      const result = await uploadFile<BulkResult>('/users/bulk', file)
-      onDone(result)
-      setOpen(false)
-      setPending(null)
-    } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'The upload failed.')
-      setPending(null)
-    } finally {
-      setBusy(false)
-    }
-  }
 
   if (!open) {
     return (
@@ -384,90 +334,54 @@ function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
   }
 
   return (
-    <Card className="mb-5" title="Bulk invite from a spreadsheet" hint="Upload a CSV with full_name and email columns (role, job_title, department are optional). Each row is invited exactly like a single invite. Up to 100 rows per file.">
+    <Card className="mb-5" title="Bulk invite from a spreadsheet" hint="Upload a CSV with full_name and email columns (role, job_title, department are optional). Each row is invited exactly like a single invite.">
       {error && (
         <Banner tone="error" className="mb-3">
           {error}
         </Banner>
       )}
-
-      {busy ? (
-        <div className="space-y-2">
-          <div className="h-2 w-full overflow-hidden rounded-full bg-ink-200 dark:bg-ink-800">
-            <div className="accent-bg h-full w-full origin-left animate-pulse" />
-          </div>
-          <p className="text-sm text-ink-500 dark:text-ink-400">
-            Registering {pending?.rowCount ?? ''} user{pending?.rowCount === 1 ? '' : 's'}…
-          </p>
-        </div>
-      ) : pending ? (
-        <div>
-          <p className="mb-3 text-sm text-ink-700 dark:text-ink-200">
-            <strong>{pending.rowCount}</strong> user{pending.rowCount === 1 ? '' : 's'} found in{' '}
-            <span className="font-medium">{pending.file.name}</span>. Invite all of them?
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="btn-primary px-3 py-1.5 text-sm"
-              onClick={() => void runUpload(pending.file)}
-            >
-              Yes, invite {pending.rowCount}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary px-3 py-1.5 text-sm"
-              onClick={() => setPending(null)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            className="btn-secondary px-3 py-1.5 text-sm"
-            onClick={() => downloadFile('/users/bulk/template', 'user_invite_template.csv')}
-          >
-            Download template
-          </button>
-          <label className="btn-primary cursor-pointer px-3 py-1.5 text-sm">
-            Choose CSV file
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={async (event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (!file) return
-                setError(null)
-                const text = await file.text()
-                const rowCount = countCsvRows(text)
-                if (rowCount === 0) {
-                  setError('That file has no data rows.')
-                  return
-                }
-                if (rowCount > MAX_BULK_ROWS) {
-                  setError(
-                    `This file has ${rowCount} rows. Bulk invite is limited to ${MAX_BULK_ROWS} at a time — split it into smaller files.`,
-                  )
-                  return
-                }
-                setPending({ file, rowCount })
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            className="btn-ghost px-3 py-1.5 text-sm"
-            onClick={() => setOpen(false)}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          className="btn-secondary px-3 py-1.5 text-sm"
+          onClick={() => downloadFile('/users/bulk/template', 'user_invite_template.csv')}
+        >
+          Download template
+        </button>
+        <label className="btn-primary cursor-pointer px-3 py-1.5 text-sm">
+          {busy && <Spinner />}
+          Choose CSV file
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            disabled={busy}
+            onChange={async (event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (!file) return
+              setBusy(true)
+              setError(null)
+              try {
+                const result = await uploadFile<BulkResult>('/users/bulk', file)
+                onDone(result)
+                setOpen(false)
+              } catch (caught) {
+                setError(caught instanceof ApiError ? caught.message : 'The upload failed.')
+              } finally {
+                setBusy(false)
+              }
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn-ghost px-3 py-1.5 text-sm"
+          onClick={() => setOpen(false)}
+        >
+          Cancel
+        </button>
+      </div>
     </Card>
   )
 }
@@ -532,24 +446,15 @@ export function People() {
               />
               <BulkInvitePanel
                 onDone={(result) => {
-                  const duplicates = result.skipped.filter(
-                    (row) => row.reason === 'Already exists' || row.reason === 'Duplicate in this file',
+                  setNotice(
+                    `${result.invited} of ${result.total_rows} invited.` +
+                      (result.skipped.length
+                        ? ` ${result.skipped.length} skipped: ${result.skipped
+                            .slice(0, 5)
+                            .map((row) => `row ${row.row} (${row.reason})`)
+                            .join(', ')}${result.skipped.length > 5 ? ', ...' : ''}`
+                        : ''),
                   )
-                  const otherSkipped = result.skipped.filter((row) => !duplicates.includes(row))
-                  let message = `${result.invited} of ${result.total_rows} invited.`
-                  if (duplicates.length) {
-                    message += ` ${duplicates.length} duplicate email${duplicates.length === 1 ? '' : 's'} skipped: ${duplicates
-                      .map((row) => row.email)
-                      .filter(Boolean)
-                      .join(', ')}.`
-                  }
-                  if (otherSkipped.length) {
-                    message += ` ${otherSkipped.length} other row${otherSkipped.length === 1 ? '' : 's'} skipped: ${otherSkipped
-                      .slice(0, 5)
-                      .map((row) => `row ${row.row} (${row.reason})`)
-                      .join(', ')}${otherSkipped.length > 5 ? ', ...' : ''}`
-                  }
-                  setNotice(message)
                   setInviteLink(null)
                   load()
                 }}
@@ -687,26 +592,16 @@ export function People() {
                             </button>
                             {person.id === user?.id ? (
                               <span className="text-2xs text-ink-400">You</span>
-                            ) : person.status === 'disabled' ? (
-                              <button
-                                type="button"
-                                className="btn-secondary px-2 py-1 text-xs"
-                                onClick={async () => {
-                                  await api.post(`/users/${person.id}/enable`)
-                                  setNotice(`${person.email} can sign in again.`)
-                                  load()
-                                }}
-                              >
-                                Enable
-                              </button>
                             ) : (
-                              <button
-                                type="button"
-                                className="btn-ghost px-2 py-1 text-xs"
-                                onClick={() => setConfirmDisable(person.id)}
-                              >
-                                Disable
-                              </button>
+                              person.status !== 'disabled' && (
+                                <button
+                                  type="button"
+                                  className="btn-ghost px-2 py-1 text-xs"
+                                  onClick={() => setConfirmDisable(person.id)}
+                                >
+                                  Disable
+                                </button>
+                              )
                             )}
                           </span>
                         )}
