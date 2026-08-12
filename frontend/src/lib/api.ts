@@ -88,6 +88,7 @@ export async function refreshSession(): Promise<SessionResponse | null> {
       const response = await fetch(`${BASE}/auth/refresh`, {
         method: 'POST',
         credentials: 'same-origin',
+        cache: 'no-store',
         headers: { 'x-facet-csrf': csrfToken ?? readCsrfCookie() ?? '' },
       })
       if (!response.ok) {
@@ -126,8 +127,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     method,
     headers,
     credentials: 'same-origin',
-    body: body === undefined ? undefined : JSON.stringify(body),
+    // Without this, the browser applies its default HTTP caching heuristics
+    // to GET requests — no explicit Cache-Control from the API means it can
+    // still serve a stale response from disk cache on a repeat request to
+    // the same URL. That is exactly "the change doesn't show up until I hard
+    // reload or clear cache": the app was correct, the browser served an old
+    // response instead of making a new request.
     cache: 'no-store',
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
 
   if (response.status === 401 && retry) {
@@ -261,13 +268,21 @@ export async function downloadFile(path: string, fallbackFilename: string): Prom
   const headers: Record<string, string> = {}
   if (accessToken) headers.authorization = `Bearer ${accessToken}`
 
-  let response = await fetch(`${BASE}${path}`, { headers, credentials: 'same-origin' })
+  let response = await fetch(`${BASE}${path}`, {
+    headers,
+    credentials: 'same-origin',
+    cache: 'no-store',
+  })
 
   if (response.status === 401) {
     const session = await refreshSession()
     if (session) {
       headers.authorization = `Bearer ${session.access_token}`
-      response = await fetch(`${BASE}${path}`, { headers, credentials: 'same-origin' })
+      response = await fetch(`${BASE}${path}`, {
+        headers,
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
     }
   }
 

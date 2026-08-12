@@ -268,7 +268,7 @@ function PasswordSection() {
             value={next}
             onChange={(event) => setNext(event.target.value)}
             error={fieldErrors.password}
-            hint="At least 8 characters. A long passphrase beats a short complex one."
+            hint="At least 6 characters. A long passphrase beats a short complex one."
             required
           />
         </div>

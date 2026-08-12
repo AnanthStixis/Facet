@@ -51,12 +51,15 @@ export function Dashboard() {
   }
 
   const isPlatform = data.scope === 'platform'
-  // An Employee's dashboard shows only what is theirs — no org-wide
-  // headcount, no other people's activity, no links to pages they cannot
-  // open. Manager and above see the operational view; Employee sees a
-  // narrower one built from "My feedback" / "My results" instead.
-  const isManagerPlus =
-    user?.role === 'super_admin' || user?.role === 'client_admin' || user?.role === 'manager'
+  // Three distinct dashboards, not two. Client Admin/Super Admin see the
+  // whole org — directory headcount, org-wide activity feed, everyone's
+  // open cycles and campaigns. A Manager runs their own cycles/campaigns and
+  // should see exactly that — not the directory, not other people's
+  // activity, not another manager's (or the Client Admin's) work — which is
+  // what the backend now scopes `attention` to for this role. Employee gets
+  // the narrowest view, built from "My feedback" / "My results".
+  const isAdminPlus = user?.role === 'super_admin' || user?.role === 'client_admin'
+  const isManager = user?.role === 'manager'
   const firstName = user?.full_name.split(' ')[0] ?? ''
 
   return (
@@ -131,7 +134,7 @@ export function Dashboard() {
             />
           
           </>
-        ) : isManagerPlus ? (
+        ) : isAdminPlus ? (
           <>
             <StatTile
               label="People"
@@ -158,6 +161,36 @@ export function Dashboard() {
               value={data.metrics.contacts}
               sub="Clients and prospects"
               to="/campaigns"
+            />
+          </>
+        ) : isManager ? (
+          <>
+            <StatTile
+              label="My open cycles"
+              value={data.attention?.open_cycles ?? 0}
+              tone={data.attention?.open_cycles ? 'accent' : 'neutral'}
+              sub="Review cycles you're running"
+              to="/cycles"
+            />
+            <StatTile
+              label="My open campaigns"
+              value={data.attention?.open_campaigns ?? 0}
+              tone={data.attention?.open_campaigns ? 'accent' : 'neutral'}
+              sub="Campaigns you're running"
+              to="/campaigns"
+            />
+            <StatTile
+              label="Closing within 7 days"
+              value={data.attention?.closing_soon ?? 0}
+              tone={data.attention?.closing_soon ? 'caution' : 'neutral'}
+              sub="Across your cycles"
+              to="/cycles"
+            />
+            <StatTile
+              label="My results"
+              value={data.metrics.my_results}
+              sub="Responses received about you"
+              to="/my-results"
             />
           </>
         ) : (
@@ -236,7 +269,7 @@ export function Dashboard() {
           {/* Counts that route straight to what resolves them, rather than a
               14-day bar chart that tells you activity happened without saying
               whether any of it needs you. */}
-          {!isPlatform && isManagerPlus && data.attention && (
+          {!isPlatform && isAdminPlus && data.attention && (
             <Card title="Needs attention" hint="Open work across your workspace.">
               <div className="grid grid-cols-2 gap-3">
                 <StatTile
@@ -268,7 +301,7 @@ export function Dashboard() {
             </Card>
           )}
 
-          {isManagerPlus ? (
+          {isAdminPlus ? (
             <Card
               title="Recent activity"
               padded={false}
@@ -305,6 +338,25 @@ export function Dashboard() {
                 </ul>
               )}
             </Card>
+          ) : isManager ? (
+            <Card title="Quick links" hint="Run your own cycles and campaigns.">
+              <div className="grid gap-3">
+                <Link
+                  to="/cycles"
+                  className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
+                >
+                  <IconClock width={16} height={16} className="accent-text shrink-0" />
+                  Your review cycles
+                </Link>
+                <Link
+                  to="/campaigns"
+                  className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
+                >
+                  <IconSend width={16} height={16} className="accent-text shrink-0" />
+                  Your campaigns
+                </Link>
+              </div>
+            </Card>
           ) : (
             <Card title="Get started" hint="A couple of places worth a look.">
               <div className="grid gap-3">
@@ -328,14 +380,13 @@ export function Dashboard() {
         </div>
       </div>
 
-      {!isPlatform && isManagerPlus && (
+      {!isPlatform && isAdminPlus && (
         <Card className="mt-5" title="Quick links">
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-3">
             {[
               { title: 'Review cycles', to: '/cycles', icon: IconClock },
               { title: 'Client campaigns', to: '/campaigns', icon: IconSend },
               { title: 'Proposals', to: '/proposals', icon: IconFile },
-              { title: 'Insights', to: '/insights', icon: IconAlert },
             ].map((item) => (
               <Link
                 key={item.title}

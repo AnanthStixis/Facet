@@ -219,6 +219,13 @@ async def bulk_invite_users(
     except BulkRowError as exc:
         raise ValidationFailed(str(exc)) from exc
 
+    max_rows = 100
+    if len(rows) > max_rows:
+        raise ValidationFailed(
+            f"This file has {len(rows)} rows. Bulk invite is limited to "
+            f"{max_rows} at a time — split it into smaller files."
+        )
+
     org = (
         await session.execute(select(Organization).where(Organization.id == actor.org_id))
     ).scalar_one()
@@ -226,6 +233,7 @@ async def bulk_invite_users(
 
     invited: list[str] = []
     skipped: list[dict[str, Any]] = []
+    seen_in_file: set[str] = set()
 
     for index, row in enumerate(rows, start=2):  # row 1 is the header
         email = row.get("email", "").lower()
@@ -233,6 +241,10 @@ async def bulk_invite_users(
         if not email or not full_name:
             skipped.append({"row": index, "reason": "Missing name or email"})
             continue
+        if email in seen_in_file:
+            skipped.append({"row": index, "email": email, "reason": "Duplicate in this file"})
+            continue
+        seen_in_file.add(email)
 
         role_raw = (row.get("role") or "employee").lower()
         try:
@@ -427,6 +439,39 @@ async def disable_user(
     )
     await session.commit()
     return MessageResponse(message=f"{user.email} can no longer sign in.")
+
+
+@router.post("/{user_id}/enable", response_model=MessageResponse)
+async def enable_user(
+    user_id: uuid.UUID,
+    request: Request,
+    session: DbSession,
+    actor: AdminUser,
+) -> MessageResponse:
+    """Reverse a disable — the account was never deleted, just locked out."""
+    user = (
+        await session.execute(select(User).where(User.id == user_id))
+    ).scalar_one_or_none()
+    if user is None:
+        raise NotFound("That user does not exist.")
+    if user.status != UserStatus.DISABLED:
+        raise Conflict("Only a disabled account can be re-enabled.")
+
+    user.status = UserStatus.ACTIVE
+
+    await audit.record(
+        session,
+        action=AuditAction.USER_ENABLED,
+        summary=f"{actor.user.full_name} re-enabled {user.email}",
+        org_id=actor.org_id,
+        actor=actor.user,
+        target_type="user",
+        target_id=user.id,
+        target_label=user.email,
+        request=request,
+    )
+    await session.commit()
+    return MessageResponse(message=f"{user.email} can sign in again.")
 
 
 @router.post("/{user_id}/reset-password")

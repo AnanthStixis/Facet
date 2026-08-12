@@ -24,7 +24,9 @@ export interface User {
   status: string
   mfa_enabled: boolean
   must_change_password: boolean
+  manager_id?: string | null
   last_login_at?: string | null
+  created_at?: string
 }
 
 export interface SessionResponse {
