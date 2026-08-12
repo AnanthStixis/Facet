@@ -20,6 +20,7 @@ export interface User {
   full_name: string
   job_title?: string | null
   department?: string | null
+  org_name?: string | null
   role: Role
   status: string
   mfa_enabled: boolean

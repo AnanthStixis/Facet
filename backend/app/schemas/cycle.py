@@ -77,7 +77,13 @@ class AssignmentForm(BaseModel):
 
 class SubmitResponseRequest(BaseModel):
     answers: dict[str, Any]
-    comment: str | None = Field(default=None, max_length=5000)
+    # This is a technical ceiling, not the business rule: the real 5,000
+    # character limit is enforced (and reported per-field) in
+    # app.services.forms.validate_answers. Keeping this well above that
+    # means Pydantic only ever rejects a genuinely oversized payload, and
+    # never fires first with its own generic message ahead of the proper,
+    # field-specific one.
+    comment: str | None = Field(default=None, max_length=20000)
 
 
 class DeclineRequest(BaseModel):

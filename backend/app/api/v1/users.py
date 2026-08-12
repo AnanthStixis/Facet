@@ -64,12 +64,28 @@ async def list_users(
         .limit(page_size)
     )
     users = (await session.execute(stmt)).scalars().all()
-    return Page[UserDetail](
-        items=[UserDetail.model_validate(user) for user in users],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
+
+    # A Client Admin only ever sees their own org's users (RLS), so the name
+    # would just repeat on every row — not worth a query. A Super Admin's
+    # list spans every tenant at once, and without this a Super Admin has no
+    # way to tell whose employee a given row even is before, say, disabling
+    # the wrong organization's account by mistake.
+    org_names: dict[uuid.UUID, str] = {}
+    if actor.is_super_admin:
+        org_ids = {user.org_id for user in users if user.org_id is not None}
+        if org_ids:
+            rows = await session.execute(
+                select(Organization.id, Organization.name).where(Organization.id.in_(org_ids))
+            )
+            org_names = dict(rows.all())
+
+    items = []
+    for user in users:
+        detail = UserDetail.model_validate(user)
+        detail.org_name = org_names.get(user.org_id) if user.org_id else None
+        items.append(detail)
+
+    return Page[UserDetail](items=items, total=total, page=page, page_size=page_size)
 
 
 @router.post("", response_model=InviteResult, status_code=201)

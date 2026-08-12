@@ -24,6 +24,7 @@ from app.models.enums import (
     CycleStatus,
     OrgStatus,
     ProposalStage,
+    Relationship,
     TargetType,
     UserRole,
     UserStatus,
@@ -180,7 +181,10 @@ async def dashboard(session: DbSession, actor: CurrentUser) -> dict[str, Any]:
         select(func.count())
         .select_from(FeedbackResponse)
         .join(FeedbackTarget, FeedbackTarget.id == FeedbackResponse.target_id)
-        .where(FeedbackTarget.subject_user_id == actor.user.id)
+        .where(
+            FeedbackTarget.subject_user_id == actor.user.id,
+            FeedbackResponse.relationship_type != Relationship.SELF,
+        )
     )
 
     payload: dict[str, Any] = {

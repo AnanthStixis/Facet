@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { Fragment, useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { LookupFilter, SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
@@ -22,6 +22,9 @@ const ROLES: { value: Role; label: string; hint: string }[] = [
   { value: 'manager', label: 'Manager', hint: 'Runs campaigns, reviews their team' },
   { value: 'employee', label: 'Employee', hint: 'Gives and receives feedback' },
 ]
+
+const ROLE_TABS = [{ value: '', label: 'All' }, ...ROLES.map(({ value, label }) => ({ value, label }))]
+
 
 function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void }) {
   const [open, setOpen] = useState(false)
@@ -167,6 +170,7 @@ function EditUserForm({
   onCancel: () => void
   onDone: () => void
 }) {
+
   const [form, setForm] = useState({
     full_name: person.full_name,
     job_title: person.job_title ?? '',
@@ -478,6 +482,8 @@ export function People() {
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const { user } = useAuth()
+  const [params, setParams] = useSearchParams()
+  const role = params.get('role') ?? ''
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<Paged<User> | null>(null)
@@ -492,6 +498,7 @@ export function People() {
     setLoading(true)
     const query = new URLSearchParams({ page_size: String(PAGE_SIZE), page: String(page) })
     if (search) query.set('search', search)
+    if (role) query.set('role', role)
     api
       .get<Paged<User>>(`/users?${query}`)
       .then((result) => {
@@ -504,10 +511,11 @@ export function People() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [search, page])
+  useEffect(load, [search, role, page])
   useRefetchOnFocus(load)
 
   const canManage = user?.role === 'client_admin' || user?.role === 'super_admin'
+  const isPlatform = user?.role === 'super_admin'
 
   return (
     <>
@@ -580,8 +588,30 @@ export function People() {
       )}
 
       <Card padded={false}>
-        <div className="border-b border-ink-200 px-5 py-3 dark:border-ink-800">
-          <div className="max-w-sm">
+        <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 px-5 py-3 dark:border-ink-800">
+          <div className="flex flex-wrap gap-1">
+            {ROLE_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => {
+                  const next = new URLSearchParams(params)
+                  if (tab.value) next.set('role', tab.value)
+                  else next.delete('role')
+                  setParams(next)
+                  setPage(1)
+                }}
+                className={
+                  role === tab.value
+                    ? 'rounded-md accent-soft-bg px-2.5 py-1 text-xs font-medium accent-text'
+                    : 'rounded-md px-2.5 py-1 text-xs text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800'
+                }
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto min-w-[200px] max-w-sm">
             <SearchBox
               value={search}
               onChange={(value) => {
@@ -616,6 +646,7 @@ export function People() {
                 <tr>
                   <th>Name</th>
                   <th>Role</th>
+                  {isPlatform && <th>Organization</th>}
                   <th>Department</th>
                   <th>Status</th>
                   <th>Two-factor</th>
@@ -635,6 +666,11 @@ export function People() {
                     <td>
                       <Chip value={person.role} />
                     </td>
+                    {isPlatform && (
+                      <td className="text-ink-600 dark:text-ink-300">
+                        {person.org_name ?? '—'}
+                      </td>
+                    )}
                     <td className="text-ink-600 dark:text-ink-300">
                       {person.department ?? '—'}
                     </td>
@@ -686,7 +722,9 @@ export function People() {
                               Edit
                             </button>
                             {person.id === user?.id ? (
-                              <span className="text-2xs text-ink-400">You</span>
+                              <span className="flex w-[52px] items-center justify-center px-2 py-1 text-xs text-ink-600 dark:text-ink-300">
+                                You
+                              </span>
                             ) : person.status === 'disabled' ? (
                               <button
                                 type="button"

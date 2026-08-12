@@ -114,7 +114,7 @@ const CHIP_TONES: Record<string, string> = {
   alert: 'bg-critical/10 text-critical',
   notice: 'bg-caution/12 text-caution',
   info: 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',
-  super_admin: 'bg-internal/12 text-internal',
+  super_admin: 'internal-soft-bg text-internal',
   client_admin: 'accent-soft-bg accent-text',
   manager: 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300',
   employee: 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',

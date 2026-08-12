@@ -129,7 +129,7 @@ export function Dashboard() {
               label="Client admins"
               value={data.platform.client_admins}
               sub="Across all tenants"
-              to="/organizations"
+              to="/people?role=client_admin"
               state={{ from: 'dashboard' }}
             />
           

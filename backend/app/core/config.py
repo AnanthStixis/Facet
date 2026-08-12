@@ -56,7 +56,12 @@ class Settings(BaseSettings):
     # --- Security ---------------------------------------------------------
     secret_key: str
     access_token_ttl_minutes: int = 15
-    refresh_token_ttl_days: int = 14
+    refresh_token_ttl_days: float = 14
+    # Optional override, in minutes, for local testing (e.g. verifying the
+    # session-expiry redirect without waiting days or hand-computing a
+    # fractional-day value). Takes precedence over refresh_token_ttl_days
+    # when set. Leave unset in any real deployment.
+    refresh_token_ttl_minutes_override: float | None = None
     invite_token_ttl_hours: int = 72
     feedback_link_ttl_days: int = 30
     password_min_length: int = 6
@@ -131,6 +136,17 @@ class Settings(BaseSettings):
             "postgresql+asyncpg", "postgresql+psycopg"
         )
 
+    @property
+    def refresh_token_ttl_seconds(self) -> float:
+        """Single source of truth for both usage sites that need this.
+
+        Prefers the minutes override when set, so a testing value never has
+        to be hand-converted into a fractional number of days.
+        """
+        if self.refresh_token_ttl_minutes_override is not None:
+            return self.refresh_token_ttl_minutes_override * 60
+        return self.refresh_token_ttl_days * 24 * 3600
+
     def assert_production_safe(self) -> None:
         """Fail fast rather than run production on development defaults."""
         if not self.is_production:
@@ -148,6 +164,11 @@ class Settings(BaseSettings):
             problems.append("REDIS_URL is required so rate limits are shared across workers")
         if self.email_backend in {"file", "console"}:
             problems.append("EMAIL_BACKEND must be a real transport in production")
+        if self.refresh_token_ttl_minutes_override is not None:
+            problems.append(
+                "REFRESH_TOKEN_TTL_MINUTES_OVERRIDE is set — this is a local-testing-only "
+                "escape hatch and must never be present in a production environment"
+            )
         if problems:
             raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))
 

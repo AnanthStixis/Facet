@@ -48,6 +48,10 @@ export class ApiError extends Error {
 let accessToken: string | null = null
 let csrfToken: string | null = null
 let refreshInFlight: Promise<SessionResponse | null> | null = null
+let onSessionExpired: (() => void) | null = null
+export function setSessionExpiredHandler(handler: () => void) {
+  onSessionExpired = handler
+}
 
 export const setTokens = (access: string | null, csrf?: string | null) => {
   accessToken = access
@@ -93,6 +97,7 @@ export async function refreshSession(): Promise<SessionResponse | null> {
       })
       if (!response.ok) {
         setTokens(null, null)
+        onSessionExpired?.()
         return null
       }
       const session = (await response.json()) as SessionResponse

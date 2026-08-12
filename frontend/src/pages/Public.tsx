@@ -5,6 +5,7 @@ import { IconCheck, IconShield } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
 import { ApiError, api } from '../lib/api'
 import { TIMEZONES } from '../lib/timezones'
+import { useAuth } from '../store/auth'
 
 function PublicFrame({
   title,
@@ -230,6 +231,7 @@ function SetPasswordForm({
 }) {
   const [params] = useSearchParams()
   const navigate = useNavigate()
+  const { logout } = useAuth()
   const token = params.get('token') ?? ''
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -258,6 +260,20 @@ function SetPasswordForm({
           setFieldErrors({})
           try {
             await api.post(endpoint, { token, password })
+            // /accept-invite and /reset-password are public routes, so
+            // App.tsx force-displays phase as 'anonymous' here regardless of
+            // whether this browser's cookie actually still holds a live
+            // session underneath (an admin previewing their own invite link,
+            // or — as happened in testing — an earlier account left signed
+            // in). That means `phase` can never be trusted on this page to
+            // decide whether a logout is needed — it's always unconditionally
+            // called instead. For the common case (nobody was ever signed in
+            // here), this 401s harmlessly and is swallowed below; the whole
+            // point is catching the *other* case, where skipping this would
+            // let /login's own boot() check silently restore that old
+            // session and bounce back to its dashboard instead of showing a
+            // login form for the person who just set this password.
+            await logout().catch(() => undefined)
             navigate(navigateTo)
           } catch (caught) {
             if (caught instanceof ApiError) {

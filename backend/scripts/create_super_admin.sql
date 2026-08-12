@@ -14,3 +14,10 @@ INSERT INTO users (
 
 create hash for the password using the following command in psql:
 SELECT crypt('your_password_here', gen_salt('bf'));
+
+-- for firsttime db create automaticatically run the script inside the backend folder on server
+docker exec backend python -m alembic upgrade head
+docker exec backend python -m app.seed
+
+--for first time default category creation
+docker exec backend python -m app.seed_templates
