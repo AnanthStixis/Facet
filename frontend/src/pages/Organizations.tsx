@@ -8,7 +8,7 @@ import { IconBuilding } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, uploadFile } from '../lib/api'
-import { TIMEZONES } from '../lib/timezones'
+import { TIMEZONES, TIMEZONE_FIELD_ENABLED } from '../lib/timezones'
 import type { OrgDetail, Paged } from '../lib/types'
 
 type Pending = { id: string; action: 'approve' | 'reject' | 'suspend' | 'reactivate' } | null
@@ -83,7 +83,7 @@ function ApprovalForm({
           required
         />
         <Field
-          label="Seat limit (optional)"
+          label="User limit (optional)"
           type="number"
           min={1}
           value={seatLimit}
@@ -190,24 +190,26 @@ function EditOrgForm({
           value={form.contact_phone}
           onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
         />
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-            Time zone
-          </span>
-          <select
-            className="field"
-            value={form.timezone}
-            onChange={(event) => setForm({ ...form, timezone: event.target.value })}
-          >
-            {[...new Set([form.timezone, ...TIMEZONES])].map((zone) => (
-              <option key={zone} value={zone}>
-                {zone}
-              </option>
-            ))}
-          </select>
-        </label>
+        {TIMEZONE_FIELD_ENABLED && (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+              Time zone
+            </span>
+            <select
+              className="field"
+              value={form.timezone}
+              onChange={(event) => setForm({ ...form, timezone: event.target.value })}
+            >
+              {[...new Set([form.timezone, ...TIMEZONES])].map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <Field
-          label="Seat limit (optional)"
+          label="User limit (optional)"
           type="number"
           min={1}
           value={form.seat_limit}
@@ -238,12 +240,11 @@ function ProvisionForm({
 }) {
   const [form, setForm] = useState({
     name: '',
-    slug: '',
     contact_name: '',
     contact_email: '',
     contact_phone: '',
     country: '',
-    timezone: 'UTC',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     admin_full_name: '',
     admin_email: '',
     seat_limit: '',
@@ -262,7 +263,6 @@ function ProvisionForm({
     try {
       const created = await api.post<OrgDetail>('/orgs', {
         name: form.name,
-        slug: form.slug || null,
         contact_name: form.contact_name,
         contact_email: form.contact_email,
         contact_phone: form.contact_phone || null,
@@ -312,29 +312,24 @@ function ProvisionForm({
             required
             autoFocus
           />
-          <Field
-            label="Slug (optional)"
-            value={form.slug}
-            onChange={(event) => setForm({ ...form, slug: event.target.value })}
-            error={fieldErrors.slug}
-            placeholder="auto-generated from the name"
-          />
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-              Time zone
-            </span>
-            <select
-              className="field"
-              value={form.timezone}
-              onChange={(event) => setForm({ ...form, timezone: event.target.value })}
-            >
-              {TIMEZONES.map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
-          </label>
+          {TIMEZONE_FIELD_ENABLED && (
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                Time zone
+              </span>
+              <select
+                className="field"
+                value={form.timezone}
+                onChange={(event) => setForm({ ...form, timezone: event.target.value })}
+              >
+                {[...new Set([form.timezone, ...TIMEZONES])].map((zone) => (
+                  <option key={zone} value={zone}>
+                    {zone}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <Field
             label="Primary contact name"
             value={form.contact_name}
@@ -372,7 +367,7 @@ function ProvisionForm({
             required
           />
           <Field
-            label="Seat limit (optional)"
+            label="User limit (optional)"
             type="number"
             min={1}
             value={form.seat_limit}

@@ -424,8 +424,9 @@ async def _query_results(
 
     rows: list[dict[str, Any]] = []
     for row in raw:
-        threshold = row["min_responses_to_reveal"]
-        revealed = (row["responses"] or 0) >= threshold
+        # Suppression removed at the org's explicit request — matches
+        # app/services/results.py, so an export never disagrees with what
+        # the app itself shows.
         rows.append(
             {
                 "cycle": row["cycle"],
@@ -434,19 +435,15 @@ async def _query_results(
                 "responses": row["responses"] or 0,
                 "overall_average": (
                     round(float(row["overall_average"]), 2)
-                    if revealed and row["overall_average"] is not None
+                    if row["overall_average"] is not None
                     else None
                 ),
                 "self_average": (
                     round(float(row["self_average"]), 2)
-                    if revealed and row["self_average"] is not None
+                    if row["self_average"] is not None
                     else None
                 ),
-                "status": (
-                    "Visible"
-                    if revealed
-                    else f"Withheld below {threshold} responses"
-                ),
+                "status": "Visible",
             }
         )
 

@@ -4,7 +4,7 @@ import { FacetMark } from '../components/Logo'
 import { IconCheck, IconShield } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
 import { ApiError, api } from '../lib/api'
-import { TIMEZONES } from '../lib/timezones'
+import { TIMEZONES, TIMEZONE_FIELD_ENABLED } from '../lib/timezones'
 import { useAuth } from '../store/auth'
 
 function PublicFrame({
@@ -159,38 +159,40 @@ export function Register() {
               error={fieldErrors.contact_phone}
               required
             />
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                Time zone
-                <span className="ml-0.5 text-critical" aria-hidden="true">
-                  *
+            {/* Timezone is detected from the browser and sent silently with
+                the form either way — TIMEZONE_FIELD_ENABLED only controls
+                whether it's shown as an editable field at all. */}
+            {TIMEZONE_FIELD_ENABLED && (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                  Time zone
                 </span>
-              </span>
-              <select
-                className="field"
-                value={form.timezone}
-                onChange={(event) => setForm({ ...form, timezone: event.target.value })}
-                required
-              >
-                <option value="" disabled>
-                  Choose a time zone…
-                </option>
-                {[...new Set([form.timezone, ...TIMEZONES])].filter(Boolean).map((zone) => (
-                  <option key={zone} value={zone}>
-                    {zone}
+                <select
+                  className="field"
+                  value={form.timezone}
+                  onChange={(event) => setForm({ ...form, timezone: event.target.value })}
+                  required
+                >
+                  <option value="" disabled>
+                    Choose a time zone…
                   </option>
-                ))}
-              </select>
-              {fieldErrors.timezone ? (
-                <span className="mt-1 block text-xs text-critical">{fieldErrors.timezone}</span>
-              ) : (
-                /* Reports and exports resolve date ranges in this zone, so it is
-                   captured up front rather than guessed later. */
-                <span className="mt-1 block text-xs text-ink-400">
-                  Used for every date range in reports and exports.
-                </span>
-              )}
-            </label>
+                  {[...new Set([form.timezone, ...TIMEZONES])].filter(Boolean).map((zone) => (
+                    <option key={zone} value={zone}>
+                      {zone}
+                    </option>
+                  ))}
+                </select>
+                {fieldErrors.timezone ? (
+                  <span className="mt-1 block text-xs text-critical">{fieldErrors.timezone}</span>
+                ) : (
+                  /* Reports and exports resolve date ranges in this zone, so it is
+                     captured up front rather than guessed later. */
+                  <span className="mt-1 block text-xs text-ink-400">
+                    Used for every date range in reports and exports.
+                  </span>
+                )}
+              </label>
+            )}
           </div>
         </div>
 

@@ -208,12 +208,17 @@ function EditUserForm({
     setError(null)
     setFieldErrors({})
     try {
+      const isOrgChartRole = form.role === 'employee' || form.role === 'manager'
+      // Promoting someone to an admin role takes them out of the org chart
+      // this drives — clear it rather than leave a stale manager hidden
+      // behind a field that no longer shows.
+      const nextManagerId = isOrgChartRole ? form.manager_id : null
       await api.patch(`/users/${person.id}`, {
         full_name: form.full_name,
         job_title: form.job_title || null,
         department: form.department || null,
         role: canChangeRole && form.role !== person.role ? form.role : undefined,
-        manager_id: form.manager_id !== (person.manager_id ?? null) ? form.manager_id : undefined,
+        manager_id: nextManagerId !== (person.manager_id ?? null) ? nextManagerId : undefined,
       })
       onDone()
     } catch (caught) {
@@ -296,14 +301,23 @@ function EditUserForm({
                 <p className="text-xs text-ink-400">You cannot change your own role.</p>
               </div>
             )}
-            <div className="sm:col-span-2">
-              <LookupFilter
-                entity="users"
-                label="Manager"
-                selected={form.manager_id ? [form.manager_id] : []}
-                onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
-              />
-            </div>
+            {/* An admin role sits outside the org chart this drives (self /
+                manager / upward / peer assignment generation) — showing it
+                for a Client Admin or Super Admin would just be a field with
+                no effect. */}
+            {(form.role === 'employee' || form.role === 'manager') && (
+              <div className="sm:col-span-2">
+                <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                  Manager
+                </span>
+                <LookupFilter
+                  entity="users"
+                  label="Choose a manager"
+                  selected={form.manager_id ? [form.manager_id] : []}
+                  onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
+                />
+              </div>
+            )}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>

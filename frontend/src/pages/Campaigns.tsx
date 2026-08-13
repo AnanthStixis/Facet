@@ -249,7 +249,7 @@ function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void
           />
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-              Questionnaire
+              Template
             </span>
             <select
               className="field"

@@ -118,12 +118,14 @@ async def target_results(
     ]
     others = [r for r in responses if r.relationship_type in PEER_RELATIONSHIPS]
 
-    # Non-anonymous cycles used to hardcode this to 1 ("just need one
-    # response to show something"), which silently overrode a template
-    # author's explicit threshold. The configured value now always wins,
-    # including 0 for "reveal immediately, no minimum."
-    threshold = cycle.min_responses_to_reveal
-    revealed = len(others) >= threshold
+    # Suppression removed at the org's explicit request — results are always
+    # shown regardless of response count. `min_responses_to_reveal` stays on
+    # the schema (existing cycles still have a value stored) but no longer
+    # gates anything here. If anonymity protection is wanted back for
+    # low-response anonymous cycles specifically, reintroduce the `revealed`
+    # gate rather than deleting this comment's context.
+    threshold = 0
+    revealed = True
 
     payload: dict[str, Any] = {
         "found": True,
@@ -163,7 +165,15 @@ async def target_results(
     }
     text_answers: dict[str, list[str]] = {}
 
-    for response in others:
+    # The per-question breakdown and comments below include self-review
+    # answers alongside everyone else's — unlike `overall_average` and
+    # `by_relationship`, which stay "others"-only so the self-vs-others
+    # comparison in the stat tiles above still means something. Self input
+    # is never anonymous (it is the reviewee's own answer), so there is no
+    # suppression reason to hide it here — and hiding it was the actual bug:
+    # a cycle with only a self-review submitted showed every question with
+    # nothing filled in, because self responses never reached this loop.
+    for response in others + self_responses:
         for key, value in (response.answers or {}).items():
             question = by_key.get(key)
             if question is None:
@@ -229,7 +239,7 @@ async def target_results(
             # Verbatims are the most identifying content in the whole payload,
             # so they ride the same threshold and are shuffled out of
             # submission order to remove the ordering side channel.
-            "comments": _collect_comments(others),
+            "comments": _collect_comments(others + self_responses),
             "text_answers": text_answers,
         }
     )
@@ -289,18 +299,15 @@ async def cycle_overview(
     for response in responses:
         grouped.setdefault(response.target_id, []).append(response)
 
-    # Non-anonymous cycles used to hardcode this to 1 ("just need one
-    # response to show something"), which silently overrode a template
-    # author's explicit threshold. The configured value now always wins,
-    # including 0 for "reveal immediately, no minimum."
-    threshold = cycle.min_responses_to_reveal
+    # Suppression removed at the org's explicit request — see the matching
+    # comment in target_results() above.
     rows: list[dict[str, Any]] = []
 
     for target_id, group in grouped.items():
         target = targets.get(target_id)
         others = [r for r in group if r.relationship_type in PEER_RELATIONSHIPS]
         selves = [r for r in group if r.relationship_type == Relationship.SELF]
-        revealed = len(others) >= threshold
+        revealed = True
         scores = [float(r.overall_score) for r in others if r.overall_score is not None]
         self_scores = [float(r.overall_score) for r in selves if r.overall_score is not None]
         rows.append(

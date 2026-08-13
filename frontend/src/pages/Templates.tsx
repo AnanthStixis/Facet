@@ -1078,7 +1078,7 @@ export function Templates() {
         title="Template library"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Ready-made questionnaires across all three feedback domains. Clone one to customise it for your organization — published versions are immutable, so editing creates the next version and never rewrites history."
+        description="Ready-made templates across all three feedback domains. Clone one to customise it for your organization — published versions are immutable, so editing creates the next version and never rewrites history."
         actions={
           !creating &&
           categories &&

@@ -153,7 +153,7 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
           />
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-              Questionnaire
+              Template
             </span>
             <select
               className="field"
@@ -412,7 +412,7 @@ export function Cycles() {
         title="Review cycles"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="A cycle asks a set of people for feedback about a set of colleagues, using one pinned questionnaire version."
+        description="A cycle asks a set of people for feedback about a set of colleagues, using one pinned template version."
         actions={
           <CreateCycle
             onCreated={(cycle) => {

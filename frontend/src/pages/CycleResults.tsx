@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { AiPanel } from '../components/AiPanel'
-import { IconLock, IconSearch, IconShield } from '../components/icons'
+import { IconSearch } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton, StatTile } from '../components/ui'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
@@ -79,17 +79,7 @@ function TargetDetail({
         }`}
       />
 
-      {!data.revealed ? (
-        <Card>
-          <EmptyState
-            icon={<IconLock width={19} height={19} />}
-            title="Results are not available yet"
-            body={data.suppressed_reason}
-          />
-        </Card>
-      ) : (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatTile
               label="Overall average"
               value={data.overall_average?.toFixed(2) ?? '—'}
@@ -118,15 +108,11 @@ function TargetDetail({
             <StatTile
               label="Responses"
               value={data.response_count}
-              sub={`Threshold ${data.threshold}`}
             />
           </div>
 
           <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-            <Card
-              title="By direction"
-              hint="A direction is only shown once it clears the threshold on its own."
-            >
+            <Card title="By direction">
               <ul className="space-y-3">
                 {(data.by_relationship ?? []).map((group) => (
                   <li key={group.relationship}>
@@ -134,18 +120,11 @@ function TargetDetail({
                       <span className="text-ink-700 dark:text-ink-200">
                         {RELATIONSHIP_SHORT[group.relationship]}
                       </span>
-                      {group.revealed ? (
-                        <span className="tabular font-medium text-ink-900 dark:text-ink-50">
-                          {group.average?.toFixed(2)}
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-2xs text-ink-400">
-                          <IconLock width={10} height={10} />
-                          {group.count} response{group.count === 1 ? '' : 's'} — withheld
-                        </span>
-                      )}
+                      <span className="tabular font-medium text-ink-900 dark:text-ink-50">
+                        {group.average?.toFixed(2)}
+                      </span>
                     </div>
-                    {group.revealed && data.scale && (
+                    {data.scale && (
                       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-200 dark:bg-ink-800">
                         <div
                           className="accent-bg h-full"
@@ -217,8 +196,6 @@ function TargetDetail({
               </ul>
             </Card>
           )}
-        </>
-      )}
     </>
   )
 }
@@ -287,7 +264,6 @@ export function CycleResults({ cycle, onBack }: { cycle: Cycle; onBack: () => vo
                   <th>Responses</th>
                   <th>Overall</th>
                   <th>Self</th>
-                  <th>Visibility</th>
                   <th />
                 </tr>
               </thead>
@@ -303,16 +279,6 @@ export function CycleResults({ cycle, onBack }: { cycle: Cycle; onBack: () => vo
                     </td>
                     <td className="tabular text-ink-500">
                       {row.self_average?.toFixed(2) ?? '—'}
-                    </td>
-                    <td>
-                      {row.revealed ? (
-                        <span className="chip bg-positive/10 text-positive">Visible</span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-2xs text-ink-400">
-                          <IconLock width={10} height={10} />
-                          Below threshold
-                        </span>
-                      )}
                     </td>
                     <td className="text-right">
                       <button
@@ -330,14 +296,6 @@ export function CycleResults({ cycle, onBack }: { cycle: Cycle; onBack: () => vo
           </div>
         </Card>
       )}
-
-      <Banner tone="info" className="mt-5">
-        <span className="flex flex-wrap items-center gap-x-1.5">
-          <IconShield width={14} height={14} />
-          Suppression is applied in the query, not the page — the CSV, Excel, and PDF
-          exports of this report withhold exactly the same values.
-        </span>
-      </Banner>
     </>
   )
 }
