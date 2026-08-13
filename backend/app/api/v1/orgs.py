@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, File, Request, Response, UploadFile
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import AdminUser, CurrentUser, DbSession, SuperAdmin
 from app.core.config import settings
@@ -115,15 +116,15 @@ async def _invite_admin(
     role: UserRole,
     invited_by: User | None,
 ) -> tuple[User, str]:
-    """Create an invited user and a single-use activation token."""
-    existing = (
-        await session.execute(
-            select(User).where(User.org_id == org.id, User.email == email.lower())
-        )
-    ).scalar_one_or_none()
-    if existing is not None:
-        raise Conflict("Someone with that email already exists in this organization.")
+    """Create an invited user and a single-use activation token.
 
+    No pre-check SELECT here on purpose: RLS restricts this session to its
+    own org's rows, so a query scoped to `org.id` could never see a
+    duplicate sitting in a different organization anyway. The platform-wide
+    unique index on email (migration 0013) is the actual source of truth —
+    this just turns its violation into a clean error instead of a raw
+    IntegrityError reaching the caller.
+    """
     user = User(
         org_id=org.id,
         email=email.lower(),
@@ -146,7 +147,15 @@ async def _invite_admin(
             invited_by_id=invited_by.id if invited_by else None,
         )
     )
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        if "uq_users_email" in str(exc.orig):
+            raise Conflict(
+                "Someone with that email already has an account on the platform."
+            ) from exc
+        raise
     return user, raw_token
 
 
@@ -168,6 +177,25 @@ async def self_register(
         f"register:{audit.client_ip(request) or 'unknown'}", REGISTRATION_PER_IP
     )
     await bind_tenant(session, TenantContext(org_id=None, is_super_admin=True))
+
+    # Deliberate departure from the "identical response either way" rule this
+    # endpoint otherwise follows for the organization itself: the contact
+    # email becomes the admin's login the moment this org is approved, so
+    # telling the person now — while there's still time to use a different
+    # email, or just sign in instead — is more useful than a silent pending
+    # registration that fails invisibly at approval time, days later. This
+    # does trade away some enumeration resistance for that; REGISTRATION_PER_IP
+    # above is what keeps that from being cheap to abuse.
+    existing_user = (
+        await session.execute(
+            select(User.id).where(func.lower(User.email) == payload.contact_email.lower())
+        )
+    ).first()
+    if existing_user is not None:
+        raise Conflict(
+            "That email already has an account on the platform. Sign in "
+            "instead, or use a different contact email for this registration."
+        )
 
     org = Organization(
         name=payload.name.strip(),

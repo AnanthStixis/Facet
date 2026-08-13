@@ -1,9 +1,9 @@
 -- ---------------------------------------------------------------------------
 -- Facet - one-time database bootstrap for a local PostgreSQL instance.
 --
--- Run once, as a superuser, against the `facet` database:
+-- Run once, as a superuser, against your actual working database:
 --
---   psql -U postgres -h localhost -d facet -f infra/bootstrap.sql
+--   psql -U postgres -h localhost -d <your-database-name> -f infra/bootstrap.sql
 --
 -- Creates the extensions and the non-owner application role. Everything after
 -- this point is managed by Alembic migrations.
@@ -25,7 +25,15 @@ BEGIN
 END
 $$;
 
-GRANT CONNECT ON DATABASE facet TO facet_app;
+-- Grants the current database, whatever it is actually named, rather than
+-- assuming a fixed name — a mismatch here silently leaves facet_app with no
+-- real access even though the role itself was created successfully.
+DO $$
+BEGIN
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO facet_app', current_database());
+END
+$$;
+
 GRANT USAGE ON SCHEMA public TO facet_app;
 
 -- Applies to tables created later by migrations.

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -82,21 +83,16 @@ class User(UUIDPrimaryKey, Timestamped, Base):
     )
 
     __table_args__ = (
-        # Email is unique per tenant, not globally. The same consultant can hold
-        # an account in two client organizations, which a global unique index
-        # would make impossible.
+        # Email is unique platform-wide, case-insensitively — one account per
+        # email, full stop. This used to be scoped per org (so the same
+        # person could hold a separate account in several client
+        # organizations), but that let the same email exist in more than one
+        # org at once, which login had no way to safely disambiguate between.
+        # See migration 0013_global_email_uniqueness.
         Index(
-            "uq_users_org_email",
-            "org_id",
-            "email",
+            "uq_users_email",
+            text("lower(email)"),
             unique=True,
-            postgresql_where="org_id IS NOT NULL",
-        ),
-        Index(
-            "uq_users_platform_email",
-            "email",
-            unique=True,
-            postgresql_where="org_id IS NULL",
         ),
         Index(
             "ix_users_name_trgm",

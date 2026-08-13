@@ -11,6 +11,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, File, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import AdminUser, CurrentUser, DbSession
 from app.core.config import settings
@@ -118,13 +119,12 @@ async def invite_user(
                 f"This organization has used all {org.seat_limit} of its seats."
             )
 
+    # No pre-check SELECT here: RLS restricts this session to its own org's
+    # rows, so a query scoped to org_id could never see a duplicate sitting
+    # in a different organization. The platform-wide unique index on email
+    # (migration 0013) is the real source of truth — this just turns its
+    # violation into a clean error instead of a raw IntegrityError.
     email = payload.email.lower()
-    if (
-        await session.execute(
-            select(User.id).where(User.org_id == org_id, User.email == email)
-        )
-    ).first() is not None:
-        raise Conflict("Someone with that email already exists in this organization.")
 
     user = User(
         org_id=org_id,
@@ -150,7 +150,15 @@ async def invite_user(
             invited_by_id=actor.id,
         )
     )
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        if "uq_users_email" in str(exc.orig):
+            raise Conflict(
+                "Someone with that email already has an account on the platform."
+            ) from exc
+        raise
 
     await audit.record(
         session,
@@ -290,39 +298,44 @@ async def bulk_invite_users(
                 skipped.append({"row": index, "email": email, "reason": "Seat limit reached"})
                 continue
 
-        exists = (
-            await session.execute(
-                select(User.id).where(User.org_id == actor.org_id, User.email == email)
-            )
-        ).first()
-        if exists is not None:
-            skipped.append({"row": index, "email": email, "reason": "Already exists"})
-            continue
+        # No pre-check SELECT: RLS restricts this session to its own org's
+        # rows, so this could never see a duplicate sitting in a different
+        # organization. The platform-wide unique index (migration 0013) is
+        # the real source of truth. A savepoint here matters because this
+        # runs per-row inside a loop — without one, a duplicate on row 40
+        # would roll back every row already successfully invited before it,
+        # not just row 40.
+        try:
+            async with session.begin_nested():
+                user = User(
+                    org_id=actor.org_id,
+                    email=email,
+                    full_name=full_name,
+                    role=role,
+                    job_title=row.get("job_title") or None,
+                    department=row.get("department") or None,
+                    status=UserStatus.INVITED,
+                )
+                session.add(user)
 
-        user = User(
-            org_id=actor.org_id,
-            email=email,
-            full_name=full_name,
-            role=role,
-            job_title=row.get("job_title") or None,
-            department=row.get("department") or None,
-            status=UserStatus.INVITED,
-        )
-        session.add(user)
-
-        raw_token = generate_token()
-        session.add(
-            Invitation(
-                org_id=actor.org_id,
-                email=email,
-                full_name=full_name,
-                role=role,
-                token_hash=hash_token(raw_token),
-                expires_at=datetime.now(UTC) + timedelta(hours=settings.invite_token_ttl_hours),
-                invited_by_id=actor.id,
-            )
-        )
-        await session.flush()
+                raw_token = generate_token()
+                session.add(
+                    Invitation(
+                        org_id=actor.org_id,
+                        email=email,
+                        full_name=full_name,
+                        role=role,
+                        token_hash=hash_token(raw_token),
+                        expires_at=datetime.now(UTC) + timedelta(hours=settings.invite_token_ttl_hours),
+                        invited_by_id=actor.id,
+                    )
+                )
+                await session.flush()
+        except IntegrityError as exc:
+            if "uq_users_email" in str(exc.orig):
+                skipped.append({"row": index, "email": email, "reason": "Already exists"})
+                continue
+            raise
 
         await audit.record(
             session,
