@@ -17,7 +17,7 @@ from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
-from app.api.deps import CurrentUser, DbSession, ManagerUser, rebind_tenant
+from app.api.deps import ActingOrg, CurrentUser, DbSession, ManagerUser, rebind_tenant
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import (
@@ -126,8 +126,11 @@ async def _detail(session: DbSession, cycle: ReviewCycle) -> CampaignDetail:
 # --- Campaign lifecycle -----------------------------------------------------
 
 @router.get("", response_model=list[CampaignDetail])
-async def list_campaigns(session: DbSession, actor: ManagerUser) -> list[CampaignDetail]:
-    stmt = select(ReviewCycle).where(ReviewCycle.audience == CycleAudience.EXTERNAL)
+async def list_campaigns(session: DbSession, actor: ManagerUser, acting: ActingOrg) -> list[CampaignDetail]:
+    stmt = select(ReviewCycle).where(
+        ReviewCycle.audience == CycleAudience.EXTERNAL,
+        ReviewCycle.org_id == acting.org_id,
+    )
     # Same ownership scoping as review cycles: Client Admin/Super Admin see
     # every campaign in the org; a Manager sees only the ones they ran.
     if not actor.user.role.at_least(UserRole.CLIENT_ADMIN):
@@ -146,9 +149,8 @@ async def create_campaign(
     request: Request,
     session: DbSession,
     actor: ManagerUser,
+    acting: ActingOrg,
 ) -> CampaignDetail:
-    if actor.org_id is None:
-        raise ValidationFailed("A Super Admin must act within an organization.")
 
     template = (
         await session.execute(
@@ -189,7 +191,7 @@ async def create_campaign(
         target = (
             await session.execute(
                 select(FeedbackTarget).where(
-                    FeedbackTarget.org_id == actor.org_id,
+                    FeedbackTarget.org_id == acting.org_id,
                     FeedbackTarget.target_type == template.target_type,
                     func.lower(FeedbackTarget.label) == label.lower(),
                 )
@@ -197,7 +199,7 @@ async def create_campaign(
         ).scalar_one_or_none()
         if target is None:
             target = FeedbackTarget(
-                org_id=actor.org_id,
+                org_id=acting.org_id,
                 target_type=template.target_type,
                 label=label,
                 reference=f"{template.target_type}:{uuid.uuid4().hex[:10]}",
@@ -216,7 +218,7 @@ async def create_campaign(
         )
 
     cycle = ReviewCycle(
-        org_id=actor.org_id,
+        org_id=acting.org_id,
         name=payload.name.strip(),
         description=payload.description,
         template_version_id=version.id,
@@ -235,7 +237,7 @@ async def create_campaign(
         session,
         action=AuditAction.CAMPAIGN_CREATED,
         summary=f"{actor.user.full_name} created the campaign '{cycle.name}'",
-        org_id=actor.org_id,
+        org_id=acting.org_id,
         actor=actor.user,
         target_type="review_cycle",
         target_id=cycle.id,
@@ -272,7 +274,11 @@ async def add_recipients(
             f"{actor.user.full_name} added {result.added} recipient(s) to "
             f"'{cycle.name}'"
         ),
-        org_id=actor.org_id,
+        # The cycle's own org, not actor.org_id — actor.org_id is always
+        # NULL for a Super Admin, and this route already has the correct,
+        # unambiguous org from the campaign it just loaded, with no need to
+        # ask the header for it again.
+        org_id=cycle.org_id,
         actor=actor.user,
         target_type="review_cycle",
         target_id=cycle.id,
@@ -322,7 +328,7 @@ async def open_campaign(
         session,
         action=AuditAction.CAMPAIGN_LAUNCHED,
         summary=f"{actor.user.full_name} opened the campaign '{cycle.name}'",
-        org_id=actor.org_id,
+        org_id=cycle.org_id,
         actor=actor.user,
         target_type="review_cycle",
         target_id=cycle.id,
@@ -367,7 +373,7 @@ async def send_invitations(
             f"{actor.user.full_name} sent {result.sent} invitation(s) for "
             f"'{cycle.name}'"
         ),
-        org_id=actor.org_id,
+        org_id=cycle.org_id,
         actor=actor.user,
         target_type="review_cycle",
         target_id=cycle.id,
@@ -409,7 +415,7 @@ async def close_campaign(
             f"{actor.user.full_name} closed '{cycle.name}' at "
             f"{delivery['response_rate_pct']}% response rate"
         ),
-        org_id=actor.org_id,
+        org_id=cycle.org_id,
         actor=actor.user,
         target_type="review_cycle",
         target_id=cycle.id,
@@ -459,12 +465,13 @@ async def delete_campaign(
             "real recipients' links. Close it instead."
         )
     name = cycle.name
+    org_id = cycle.org_id
     await session.delete(cycle)
     await audit.record(
         session,
         action=AuditAction.CAMPAIGN_DELETED,
         summary=f"{actor.user.full_name} deleted the draft campaign '{name}'",
-        org_id=actor.org_id,
+        org_id=org_id,
         actor=actor.user,
         target_type="review_cycle",
         target_id=campaign_id,
@@ -545,7 +552,7 @@ async def revoke_link(
         session,
         action=AuditAction.LINK_REVOKED,
         summary=f"{actor.user.full_name} revoked a feedback link in '{cycle.name}'",
-        org_id=actor.org_id,
+        org_id=cycle.org_id,
         actor=actor.user,
         target_type="campaign_recipient",
         target_id=recipient.id,
@@ -561,11 +568,16 @@ async def revoke_link(
 async def list_contacts(
     session: DbSession,
     actor: ManagerUser,
+    acting: ActingOrg,
     search: str | None = None,
     page: int = 1,
     page_size: int = 50,
 ) -> Page[ContactDetail]:
-    stmt = select(Contact)
+    # Previously had no org filter at all — every organization's contacts
+    # were shown pooled together, which is exactly what let a Super Admin
+    # pick a contact that could never actually be added to the campaign
+    # they were viewing, since it belonged to a different org entirely.
+    stmt = select(Contact).where(Contact.org_id == acting.org_id)
     if search:
         term = f"%{search}%"
         stmt = stmt.where(
@@ -601,22 +613,20 @@ async def list_contacts(
 
 @contacts_router.post("", response_model=ContactDetail, status_code=201)
 async def create_contact(
-    payload: ContactCreateRequest, session: DbSession, actor: ManagerUser
+    payload: ContactCreateRequest, session: DbSession, actor: ManagerUser, acting: ActingOrg
 ) -> ContactDetail:
-    if actor.org_id is None:
-        raise ValidationFailed("A Super Admin must act within an organization.")
     email = payload.email.lower()
     if (
         await session.execute(
             select(Contact.id).where(
-                Contact.org_id == actor.org_id, Contact.email == email
+                Contact.org_id == acting.org_id, Contact.email == email
             )
         )
     ).first() is not None:
         raise Conflict("That contact already exists.")
 
     contact = Contact(
-        org_id=actor.org_id,
+        org_id=acting.org_id,
         email=email,
         full_name=payload.full_name.strip(),
         company=payload.company,
@@ -644,7 +654,7 @@ async def contacts_bulk_template(actor: ManagerUser) -> StreamingResponse:
 
 @contacts_router.post("/bulk")
 async def bulk_import_contacts(
-    session: DbSession, actor: ManagerUser, file: UploadFile = File(...)
+    session: DbSession, actor: ManagerUser, acting: ActingOrg, file: UploadFile = File(...)
 ) -> dict[str, Any]:
     """Import many contacts at once from a CSV export of a client list.
 
@@ -652,9 +662,6 @@ async def bulk_import_contacts(
     already the CSV field separator. A row whose email already exists in this
     organization is skipped with a reason rather than failing the file.
     """
-    if actor.org_id is None:
-        raise ValidationFailed("A Super Admin must act within an organization.")
-
     raw = await file.read()
     try:
         rows = parse_csv(raw, required=["full_name", "email"])
@@ -674,7 +681,7 @@ async def bulk_import_contacts(
         exists = (
             await session.execute(
                 select(Contact.id).where(
-                    Contact.org_id == actor.org_id, Contact.email == email
+                    Contact.org_id == acting.org_id, Contact.email == email
                 )
             )
         ).first()
@@ -685,7 +692,7 @@ async def bulk_import_contacts(
         tags = [tag.strip() for tag in (row.get("tags") or "").split(";") if tag.strip()]
         session.add(
             Contact(
-                org_id=actor.org_id,
+                org_id=acting.org_id,
                 email=email,
                 full_name=full_name,
                 company=row.get("company") or None,
@@ -703,9 +710,13 @@ async def bulk_import_contacts(
 
 @targets_router.get("", response_model=list[TargetDetail])
 async def list_targets(
-    session: DbSession, actor: CurrentUser, target_type: str | None = None
+    session: DbSession, actor: CurrentUser, acting: ActingOrg, target_type: str | None = None
 ) -> list[TargetDetail]:
-    stmt = select(FeedbackTarget).where(FeedbackTarget.is_active.is_(True))
+    # Same gap as contacts: previously no org filter at all.
+    stmt = select(FeedbackTarget).where(
+        FeedbackTarget.is_active.is_(True),
+        FeedbackTarget.org_id == acting.org_id,
+    )
     if target_type:
         stmt = stmt.where(FeedbackTarget.target_type == target_type)
     rows = (
@@ -716,17 +727,14 @@ async def list_targets(
 
 @targets_router.post("", response_model=TargetDetail, status_code=201)
 async def create_target(
-    payload: TargetCreateRequest, session: DbSession, actor: ManagerUser
+    payload: TargetCreateRequest, session: DbSession, actor: ManagerUser, acting: ActingOrg
 ) -> TargetDetail:
     """Register something feedback can be about: a product, service or proposal."""
-    if actor.org_id is None:
-        raise ValidationFailed("A Super Admin must act within an organization.")
-
     reference = payload.reference or f"{payload.target_type}:{uuid.uuid4().hex[:10]}"
     if (
         await session.execute(
             select(FeedbackTarget.id).where(
-                FeedbackTarget.org_id == actor.org_id,
+                FeedbackTarget.org_id == acting.org_id,
                 FeedbackTarget.target_type == payload.target_type,
                 FeedbackTarget.reference == reference,
             )
@@ -735,7 +743,7 @@ async def create_target(
         raise Conflict("A target with that reference already exists.")
 
     target = FeedbackTarget(
-        org_id=actor.org_id,
+        org_id=acting.org_id,
         target_type=payload.target_type,
         label=payload.label.strip(),
         reference=reference,

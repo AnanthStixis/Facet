@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request
 from sqlalchemy import func, select
 
 from app.api.deps import (
+    ActingOrg,
     CurrentUser,
     DbSession,
     ManagerUser,
@@ -102,11 +103,11 @@ async def _detail(session: DbSession, cycle: ReviewCycle) -> CycleDetail:
 # --- Cycle lifecycle --------------------------------------------------------
 
 @router.get("", response_model=list[CycleDetail])
-async def list_cycles(session: DbSession, actor: ManagerUser) -> list[CycleDetail]:
-    # External rounds are campaigns and live on their own screen. Mixing them
-    # in here would show an admin two lists' worth of things with different
-    # controls under one heading.
-    stmt = select(ReviewCycle).where(ReviewCycle.audience != CycleAudience.EXTERNAL)
+async def list_cycles(session: DbSession, actor: ManagerUser, acting: ActingOrg) -> list[CycleDetail]:
+    stmt = select(ReviewCycle).where(
+        ReviewCycle.audience != CycleAudience.EXTERNAL,
+        ReviewCycle.org_id == acting.org_id,
+    )
     # Client Admin and Super Admin see everything in the org, per policy. A
     # Manager sees only what they themselves are running — not another
     # manager's cycle, not the Client Admin's — same as a Manager cannot open
@@ -127,9 +128,8 @@ async def create_cycle(
     request: Request,
     session: DbSession,
     actor: ManagerUser,
+    acting: ActingOrg,
 ) -> CycleDetail:
-    if actor.org_id is None:
-        raise ValidationFailed("A Super Admin must act within an organization.")
 
     template = (
         await session.execute(
@@ -159,7 +159,7 @@ async def create_cycle(
         raise ValidationFailed("The closing date must be after the opening date.")
 
     cycle = ReviewCycle(
-        org_id=actor.org_id,
+        org_id=acting.org_id,
         name=payload.name.strip(),
         description=payload.description,
         template_version_id=version.id,
@@ -179,7 +179,7 @@ async def create_cycle(
         session,
         action=AuditAction.CYCLE_CREATED,
         summary=f"{actor.user.full_name} created the cycle '{cycle.name}'",
-        org_id=actor.org_id,
+        org_id=acting.org_id,
         actor=actor.user,
         target_type="review_cycle",
         target_id=cycle.id,

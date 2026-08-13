@@ -20,7 +20,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from sqlalchemy import func, select
 
-from app.api.deps import DbSession, ManagerUser, rebind_tenant
+from app.api.deps import ActingOrg, DbSession, ManagerUser, rebind_tenant
 from app.core.config import settings
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.security import generate_token, hash_token
@@ -164,10 +164,11 @@ async def _detail(session: DbSession, proposal: Proposal) -> ProposalDetail:
 async def list_proposals(
     session: DbSession,
     actor: ManagerUser,
+    acting: ActingOrg,
     stage: str | None = None,
     search: str | None = None,
 ) -> list[ProposalDetail]:
-    stmt = select(Proposal)
+    stmt = select(Proposal).where(Proposal.org_id == acting.org_id)
     if stage:
         stmt = stmt.where(Proposal.stage == stage)
     if search:
@@ -249,22 +250,20 @@ async def create_proposal(
     request: Request,
     session: DbSession,
     actor: ManagerUser,
+    acting: ActingOrg,
 ) -> ProposalDetail:
-    if actor.org_id is None:
-        raise ValidationFailed("A Super Admin must act within an organization.")
-
-    reference = payload.reference or await _next_reference(session, actor.org_id)
+    reference = payload.reference or await _next_reference(session, acting.org_id)  
     if (
         await session.execute(
             select(Proposal.id).where(
-                Proposal.org_id == actor.org_id, Proposal.reference == reference
+                Proposal.org_id == acting.org_id, Proposal.reference == reference
             )
         )
     ).first() is not None:
         raise Conflict(f"Reference '{reference}' is already in use.")
 
     proposal = Proposal(
-        org_id=actor.org_id,
+        org_id=acting.org_id,
         reference=reference,
         title=payload.title.strip(),
         client_name=payload.client_name.strip(),
@@ -286,7 +285,7 @@ async def create_proposal(
         session,
         action=AuditAction.PROPOSAL_CREATED,
         summary=f"{actor.user.full_name} recorded proposal {reference}",
-        org_id=actor.org_id,
+        org_id=acting.org_id,
         actor=actor.user,
         target_type="proposal",
         target_id=proposal.id,

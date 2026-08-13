@@ -1,3 +1,4 @@
+import { getActingOrg } from './actingOrg'
 import type { ApiErrorBody, SessionResponse } from './types'
 
 const BASE = '/api/v1'
@@ -65,6 +66,17 @@ const readCsrfCookie = (): string | null => {
   return match ? decodeURIComponent(match[1]) : null
 }
 
+// A Super Admin's "acting as" selection (lib/actingOrg.ts) rides along on
+// every request as this header. Only ever meaningful for a Super Admin —
+// the backend's ActingOrg dependency ignores it entirely for anyone else,
+// since a Client Admin/Manager's own org is never a choice to begin with.
+// This function only ever offers a value; the backend independently
+// re-validates it on every request, exactly like the CSRF token below.
+function actingOrgHeaders(): Record<string, string> {
+  const acting = getActingOrg()
+  return acting ? { 'x-acting-org-id': acting.id } : {}
+}
+
 async function parse<T>(response: Response): Promise<T> {
   if (response.status === 204) return undefined as T
   const contentType = response.headers.get('content-type') ?? ''
@@ -122,7 +134,7 @@ interface RequestOptions {
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, retry = true } = options
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { ...actingOrgHeaders() }
   if (accessToken) headers.authorization = `Bearer ${accessToken}`
   if (body !== undefined) headers['content-type'] = 'application/json'
   const csrf = csrfToken ?? readCsrfCookie()
@@ -187,7 +199,7 @@ export async function uploadFile<T>(
   const form = new FormData()
   form.append(fieldName, file)
 
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { ...actingOrgHeaders() }
   if (accessToken) headers.authorization = `Bearer ${accessToken}`
   const csrf = csrfToken ?? readCsrfCookie()
   if (csrf) headers['x-facet-csrf'] = csrf
@@ -222,7 +234,7 @@ export async function downloadExport(
   format: string,
   filters: unknown,
 ): Promise<void> {
-  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  const headers: Record<string, string> = { 'content-type': 'application/json', ...actingOrgHeaders() }
   if (accessToken) headers.authorization = `Bearer ${accessToken}`
   const csrf = csrfToken ?? readCsrfCookie()
   if (csrf) headers['x-facet-csrf'] = csrf
@@ -270,7 +282,7 @@ export async function downloadExport(
 
 /** GET a file from an authenticated endpoint and save it, e.g. a CSV template. */
 export async function downloadFile(path: string, fallbackFilename: string): Promise<void> {
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { ...actingOrgHeaders() }
   if (accessToken) headers.authorization = `Bearer ${accessToken}`
 
   let response = await fetch(`${BASE}${path}`, {

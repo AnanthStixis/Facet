@@ -18,9 +18,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import (
     AuthenticationError,
+    NotFound,
     OrganizationInactive,
     PermissionDenied,
     SessionExpired,
+    ValidationFailed,
 )
 from app.core.security import TokenError, decode_access_token
 from app.db.session import get_session
@@ -206,3 +208,65 @@ async def require_manager(actor: CurrentUser) -> Actor:
 SuperAdmin = Annotated[Actor, Depends(require_super_admin)]
 AdminUser = Annotated[Actor, Depends(require_admin)]
 ManagerUser = Annotated[Actor, Depends(require_manager)]
+
+
+# --- Acting organization -----------------------------------------------
+#
+# A Client Admin or Manager belongs to exactly one org — actor.org_id already
+# names it, no choice involved. A Super Admin belongs to none (org_id is
+# always NULL, enforced by ck_users_super_admin_has_no_org), so creating
+# anything org-scoped — a cycle, a campaign, a proposal — has nothing to
+# attach to unless they explicitly say which organization they mean.
+#
+# This is that explicit statement: the frontend's org selector sends
+# X-Acting-Org-Id, and every route that creates or lists one of those
+# org-scoped things should depend on ActingOrg instead of reading
+# actor.org_id directly.
+
+
+@dataclass(slots=True)
+class ActingContext:
+    """The organization an org-scoped operation actually applies to."""
+
+    org_id: uuid.UUID
+    org: Organization
+
+
+async def get_acting_org(
+    session: DbSession,
+    actor: CurrentUser,
+    x_acting_org_id: Annotated[str | None, Header()] = None,
+) -> ActingContext:
+    if not actor.is_super_admin:
+        # get_actor() already loaded and validated this as ACTIVE.
+        assert actor.org is not None
+        return ActingContext(org_id=actor.org_id, org=actor.org)
+
+    if not x_acting_org_id:
+        raise ValidationFailed(
+            "Select an organization to act within — a Super Admin has no "
+            "organization of their own."
+        )
+    try:
+        org_id = uuid.UUID(x_acting_org_id)
+    except ValueError as exc:
+        raise ValidationFailed("That is not a valid organization id.") from exc
+
+    org = (
+        await session.execute(select(Organization).where(Organization.id == org_id))
+    ).scalar_one_or_none()
+    if org is None or org.status != OrgStatus.ACTIVE:
+        raise NotFound("That organization does not exist or is not active.")
+
+    # Rebind as though we genuinely were that org's own actor — not as a
+    # super admin with an org_id set alongside. If is_super_admin stayed
+    # 'on' here, the OR clause in every RLS policy would still let anything
+    # through regardless of org_id, and the boundary would only be as
+    # strong as this one query remembering to filter correctly. Rebinding
+    # False means the database itself refuses a mistake here too, not just
+    # this code.
+    await bind_tenant(session, TenantContext(org_id=org.id, is_super_admin=False))
+    return ActingContext(org_id=org.id, org=org)
+
+
+ActingOrg = Annotated[ActingContext, Depends(get_acting_org)]

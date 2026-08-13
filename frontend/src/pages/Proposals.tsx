@@ -391,6 +391,11 @@ const STAGE_TABS = [
 
 const PAGE_SIZE = 15
 
+interface PageBanner {
+  tone: 'success' | 'error'
+  message: string
+}
+
 export function Proposals() {
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
@@ -398,19 +403,23 @@ export function Proposals() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [stage, setStage] = useState('')
   const [search, setSearch] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [outcomeFor, setOutcomeFor] = useState<string | null>(null)
 
-  // The dismiss button is easy to miss, and a confirmation that only goes
-  // away on a manual click (or a reload) reads as "did that actually work?"
-  // after a few seconds. Auto-clear it; the dismiss button still works for
-  // anyone who wants it gone sooner.
+  // A single banner slot, not two independent ones — same fix as Campaigns
+  // and Cycles. Two separate pieces of state (a success "notice" and an
+  // "error") meant an old success message from one action could sit on
+  // screen indefinitely next to a brand-new, unrelated error from a
+  // different action, and only the success one ever auto-cleared. One slot
+  // means only ever one message shows, whichever kind, and it always
+  // clears itself the same way.
+  const [pageBanner, setPageBanner] = useState<PageBanner | null>(null)
+
   useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 6000)
+    if (!pageBanner) return
+    const timer = window.setTimeout(() => setPageBanner(null), 6000)
     return () => window.clearTimeout(timer)
-  }, [notice])
+  }, [pageBanner])
+
   const [busyId, setBusyId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
 
@@ -422,7 +431,10 @@ export function Proposals() {
       .get<Proposal[]>(`/proposals?${query}`)
       .then(setProposals)
       .catch((caught) =>
-        setError(caught instanceof ApiError ? caught.message : 'Could not load proposals.'),
+        setPageBanner({
+          tone: 'error',
+          message: caught instanceof ApiError ? caught.message : 'Could not load proposals.',
+        }),
       )
     api.get<Summary>('/proposals/summary').then(setSummary).catch(() => {})
   }
@@ -433,25 +445,28 @@ export function Proposals() {
 
   const act = async (proposal: Proposal, action: 'submit' | 'request-feedback') => {
     setBusyId(proposal.id)
-    setError(null)
     try {
       if (action === 'submit') {
         await api.post(`/proposals/${proposal.id}/submit`)
-        setNotice(`${proposal.reference} marked as submitted.`)
+        setPageBanner({ tone: 'success', message: `${proposal.reference} marked as submitted.` })
       } else {
         const result = await api.post<{ sent: boolean; contact: string }>(
           `/proposals/${proposal.id}/request-feedback`,
           {},
         )
-        setNotice(
-          result.sent
+        setPageBanner({
+          tone: 'success',
+          message: result.sent
             ? `Feedback request sent to ${result.contact}.`
             : `Request created, but the email to ${result.contact} could not be sent.`,
-        )
+        })
       }
       load()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'That did not work.')
+      setPageBanner({
+        tone: 'error',
+        message: caught instanceof ApiError ? caught.message : 'That did not work.',
+      })
     } finally {
       setBusyId(null)
     }
@@ -464,17 +479,19 @@ export function Proposals() {
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
         description="Proposals and SOWs, the prospect's view of them, and what actually happened. The last part is what makes the first two worth collecting."
-        actions={<CreateProposal onCreated={(message) => { setNotice(message); load() }} />}
+        actions={
+          <CreateProposal
+            onCreated={(message) => {
+              setPageBanner({ tone: 'success', message })
+              load()
+            }}
+          />
+        }
       />
 
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
-      {error && (
-        <Banner tone="error" className="mb-4" onDismiss={() => setError(null)}>
-          {error}
+      {pageBanner && (
+        <Banner tone={pageBanner.tone} className="mb-4" onDismiss={() => setPageBanner(null)}>
+          {pageBanner.message}
         </Banner>
       )}
 
@@ -646,7 +663,7 @@ export function Proposals() {
                     onCancel={() => setOutcomeFor(null)}
                     onDone={(message) => {
                       setOutcomeFor(null)
-                      setNotice(message)
+                      setPageBanner({ tone: 'success', message })
                       load()
                     }}
                   />

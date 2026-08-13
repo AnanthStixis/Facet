@@ -351,22 +351,31 @@ function AssignmentPlanner({
 
 const PAGE_SIZE = 15
 
+interface PageBanner {
+  tone: 'success' | 'error'
+  message: string
+}
+
 export function Cycles() {
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [cycles, setCycles] = useState<Cycle[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
 
-  // The dismiss button is easy to miss, and a confirmation that only goes
-  // away on a manual click (or a reload) reads as "did that actually work?"
-  // after a few seconds. Auto-clear it; the dismiss button still works for
-  // anyone who wants it gone sooner.
+  // A single banner slot, not two independent ones — same fix as Campaigns.
+  // Two separate pieces of state (a success "notice" and an "error") meant
+  // an old success message from one action could sit on screen indefinitely
+  // next to a brand-new, unrelated error from a different action (e.g.
+  // switching the acting organization, which has nothing to do with the
+  // notice from a prior delete). Only the success one ever auto-cleared.
+  // One slot means only ever one message shows, whichever kind, and it
+  // always clears itself the same way.
+  const [pageBanner, setPageBanner] = useState<PageBanner | null>(null)
+
   useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 6000)
+    if (!pageBanner) return
+    const timer = window.setTimeout(() => setPageBanner(null), 6000)
     return () => window.clearTimeout(timer)
-  }, [notice])
+  }, [pageBanner])
 
   const [planning, setPlanning] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -379,7 +388,10 @@ export function Cycles() {
       .get<Cycle[]>('/cycles')
       .then(setCycles)
       .catch((caught) =>
-        setError(caught instanceof ApiError ? caught.message : 'Could not load cycles.'),
+        setPageBanner({
+          tone: 'error',
+          message: caught instanceof ApiError ? caught.message : 'Could not load cycles.',
+        }),
       )
   }
 
@@ -391,18 +403,22 @@ export function Cycles() {
   }
 
   const act = async (cycle: Cycle, action: 'open' | 'close') => {
-    setError(null)
     try {
       await api.post(`/cycles/${cycle.id}/${action}`)
       setConfirming(null)
-      setNotice(
-        action === 'open'
-          ? `'${cycle.name}' is open. Reviewers can now see it in My feedback.`
-          : `'${cycle.name}' is closed. Results are final.`,
-      )
+      setPageBanner({
+        tone: 'success',
+        message:
+          action === 'open'
+            ? `'${cycle.name}' is open. Reviewers can now see it in My feedback.`
+            : `'${cycle.name}' is closed. Results are final.`,
+      })
       load()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'That did not work.')
+      setPageBanner({
+        tone: 'error',
+        message: caught instanceof ApiError ? caught.message : 'That did not work.',
+      })
     }
   }
 
@@ -416,26 +432,23 @@ export function Cycles() {
         actions={
           <CreateCycle
             onCreated={(cycle) => {
-              if (cycle.status === 'draft') {
-                setNotice(`'${cycle.name}' created as a draft. Add assignments next.`)
-                setPlanning(cycle.id)
-              } else {
-                setNotice(`'${cycle.name}' is open. Reviewers can now see it in My feedback.`)
-              }
+              setPageBanner({
+                tone: 'success',
+                message:
+                  cycle.status === 'draft'
+                    ? `'${cycle.name}' created as a draft. Add assignments next.`
+                    : `'${cycle.name}' is open. Reviewers can now see it in My feedback.`,
+              })
+              if (cycle.status === 'draft') setPlanning(cycle.id)
               load()
             }}
           />
         }
       />
 
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
-      {error && (
-        <Banner tone="error" className="mb-4">
-          {error}
+      {pageBanner && (
+        <Banner tone={pageBanner.tone} className="mb-4" onDismiss={() => setPageBanner(null)}>
+          {pageBanner.message}
         </Banner>
       )}
 
@@ -574,12 +587,16 @@ export function Cycles() {
                             try {
                               await api.delete(`/cycles/${cycle.id}`)
                               setDeleting(null)
-                              setNotice(`'${cycle.name}' deleted.`)
+                              setPageBanner({ tone: 'success', message: `'${cycle.name}' deleted.` })
                               load()
                             } catch (caught) {
-                              setError(
-                                caught instanceof ApiError ? caught.message : 'Could not delete that cycle.',
-                              )
+                              setPageBanner({
+                                tone: 'error',
+                                message:
+                                  caught instanceof ApiError
+                                    ? caught.message
+                                    : 'Could not delete that cycle.',
+                              })
                               setDeleting(null)
                             }
                           }}
@@ -625,7 +642,7 @@ export function Cycles() {
                 <AssignmentPlanner
                   cycle={cycle}
                   onDone={(message) => {
-                    setNotice(message)
+                    setPageBanner({ tone: 'success', message })
                     load()
                   }}
                 />

@@ -777,22 +777,30 @@ function RecipientList({ campaign }: { campaign: Campaign }) {
 
 const PAGE_SIZE = 15
 
+interface PageBanner {
+  tone: 'success' | 'error'
+  message: string
+}
+
 export function Campaigns() {
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
 
-  // The dismiss button is easy to miss, and a confirmation that only goes
-  // away on a manual click (or a reload) reads as "did that actually work?"
-  // after a few seconds. Auto-clear it; the dismiss button still works for
-  // anyone who wants it gone sooner.
+  // A single banner slot, not two independent ones. Two separate pieces of
+  // state (a success "notice" and an "error") meant an old success message
+  // from one action could sit on screen indefinitely next to a brand-new,
+  // unrelated error from a completely different action — nothing ever
+  // cleared one when the other was set, and only the success one auto-
+  // cleared at all. One slot means only ever one message is ever showing,
+  // whichever kind, and it always clears itself the same way.
+  const [pageBanner, setPageBanner] = useState<PageBanner | null>(null)
+
   useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 6000)
+    if (!pageBanner) return
+    const timer = window.setTimeout(() => setPageBanner(null), 6000)
     return () => window.clearTimeout(timer)
-  }, [notice])
+  }, [pageBanner])
 
   const [panel, setPanel] = useState<{ id: string; view: 'recipients' | 'list' } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -806,7 +814,10 @@ export function Campaigns() {
       .get<Campaign[]>('/campaigns')
       .then(setCampaigns)
       .catch((caught) =>
-        setError(caught instanceof ApiError ? caught.message : 'Could not load campaigns.'),
+        setPageBanner({
+          tone: 'error',
+          message: caught instanceof ApiError ? caught.message : 'Could not load campaigns.',
+        }),
       )
   }
 
@@ -854,39 +865,47 @@ export function Campaigns() {
   }
 
   const act = async (campaign: Campaign, action: 'open' | 'close') => {
-    setError(null)
     try {
       await api.post(`/campaigns/${campaign.id}/${action}`)
       setConfirming(null)
-      setNotice(
-        action === 'open'
-          ? `'${campaign.name}' is open. Send the invitations when you are ready.`
-          : `'${campaign.name}' is closed.`,
-      )
+      setPageBanner({
+        tone: 'success',
+        message:
+          action === 'open'
+            ? `'${campaign.name}' is open. Send the invitations when you are ready.`
+            : `'${campaign.name}' is closed.`,
+      })
       load()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'That did not work.')
+      setPageBanner({
+        tone: 'error',
+        message: caught instanceof ApiError ? caught.message : 'That did not work.',
+      })
     }
   }
 
   const send = async (campaign: Campaign, resend: boolean) => {
     setSending(campaign.id)
-    setError(null)
     try {
       const result = await api.post<{
         sent: number
         failed: number
         skipped: number
       }>(`/campaigns/${campaign.id}/send`, { resend })
-      setNotice(
-        `${result.sent} invitation(s) sent` +
+      setPageBanner({
+        tone: 'success',
+        message:
+          `${result.sent} invitation(s) sent` +
           (result.skipped ? `, ${result.skipped} skipped (unsubscribed)` : '') +
           (result.failed ? `, ${result.failed} failed` : '') +
           '.',
-      )
+      })
       load()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Sending failed.')
+      setPageBanner({
+        tone: 'error',
+        message: caught instanceof ApiError ? caught.message : 'Sending failed.',
+      })
     } finally {
       setSending(null)
     }
@@ -902,11 +921,13 @@ export function Campaigns() {
         actions={
           <CreateCampaign
             onCreated={(campaign) => {
-              setNotice(
-                campaign.status === 'draft'
-                  ? `'${campaign.name}' created as a draft.`
-                  : `'${campaign.name}' is open. Add recipients and send when ready.`,
-              )
+              setPageBanner({
+                tone: 'success',
+                message:
+                  campaign.status === 'draft'
+                    ? `'${campaign.name}' created as a draft.`
+                    : `'${campaign.name}' is open. Add recipients and send when ready.`,
+              })
               setPanel({ id: campaign.id, view: 'recipients' })
               load()
             }}
@@ -914,14 +935,9 @@ export function Campaigns() {
         }
       />
 
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
-      {error && (
-        <Banner tone="error" className="mb-4" onDismiss={() => setError(null)}>
-          {error}
+      {pageBanner && (
+        <Banner tone={pageBanner.tone} className="mb-4" onDismiss={() => setPageBanner(null)}>
+          {pageBanner.message}
         </Banner>
       )}
 
@@ -1058,12 +1074,16 @@ export function Campaigns() {
                             try {
                               await api.delete(`/campaigns/${campaign.id}`)
                               setDeleting(null)
-                              setNotice(`'${campaign.name}' deleted.`)
+                              setPageBanner({ tone: 'success', message: `'${campaign.name}' deleted.` })
                               load()
                             } catch (caught) {
-                              setError(
-                                caught instanceof ApiError ? caught.message : 'Could not delete that campaign.',
-                              )
+                              setPageBanner({
+                                tone: 'error',
+                                message:
+                                  caught instanceof ApiError
+                                    ? caught.message
+                                    : 'Could not delete that campaign.',
+                              })
                               setDeleting(null)
                             }
                           }}
@@ -1135,7 +1155,7 @@ export function Campaigns() {
                 <RecipientPicker
                   campaign={campaign}
                   onDone={(message) => {
-                    setNotice(message)
+                    setPageBanner({ tone: 'success', message })
                     load()
                   }}
                 />

@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { FacetMark } from '../components/Logo'
@@ -23,6 +23,8 @@ import {
   IconUsers,
 } from '../components/icons'
 import { triggerManualRefresh } from '../hooks/useRefetchOnFocus'
+import { getActingOrg, setActingOrg, subscribeActingOrg } from '../lib/actingOrg'
+import { api } from '../lib/api'
 import { useAuth } from '../store/auth'
 
 const PRODUCT = 'Facet'
@@ -141,6 +143,56 @@ function Initials({ name }: { name: string }) {
   )
 }
 
+interface OrgOption {
+  id: string
+  name: string
+  status: string
+}
+
+/**
+ * Lets a Super Admin pick which organization Cycles, Campaigns, and
+ * Proposals currently operate against. This is a per-tab, per-session
+ * choice — never membership; a Super Admin's own org_id stays NULL always
+ * (see ck_users_super_admin_has_no_org). Every request while a selection is
+ * active carries it as the X-Acting-Org-Id header (wired in lib/api.ts),
+ * which the backend independently re-validates — this selector only ever
+ * offers the choice, it is never trusted on its own.
+ */
+function OrgSelector() {
+  const acting = useSyncExternalStore(subscribeActingOrg, getActingOrg)
+  const [orgs, setOrgs] = useState<OrgOption[] | null>(null)
+
+  useEffect(() => {
+    api
+      .get<{ items: OrgOption[] }>('/orgs?status=active&page_size=200')
+      .then((result) => setOrgs(result.items))
+      .catch(() => setOrgs([]))
+  }, [])
+
+  return (
+    <label className="flex items-center gap-1.5">
+      <span className="text-2xs font-medium uppercase tracking-[0.06em] text-ink-400">
+        Organization
+      </span>
+      <select
+        className="field h-7 w-40 py-0 text-xs"
+        value={acting?.id ?? ''}
+        onChange={(event) => {
+          const org = orgs?.find((candidate) => candidate.id === event.target.value)
+          setActingOrg(org ? { id: org.id, name: org.name } : null)
+        }}
+      >
+        <option value="">None selected</option>
+        {orgs?.map((org) => (
+          <option key={org.id} value={org.id}>
+            {org.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 export function AppShell() {
   const { user, organization, logout, theme, setTheme } = useAuth()
   const location = useLocation()
@@ -233,13 +285,11 @@ export function AppShell() {
               <p className="truncate text-base font-semibold text-ink-900 dark:text-ink-50">
                 {tenantName}
               </p>
-              {user.role === 'super_admin' && (
-                <p className="truncate text-2xs text-ink-400">Platform administration</p>
-              )}
             </div>
           </div>
 
           <div className="flex items-center gap-1.5">
+            {user.role === 'super_admin' && <OrgSelector />}
             <button
               type="button"
               onClick={triggerManualRefresh}
