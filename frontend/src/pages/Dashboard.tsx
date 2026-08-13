@@ -80,7 +80,11 @@ export function Dashboard() {
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <strong>{data.platform.orgs_pending}</strong> organization
             {data.platform.orgs_pending === 1 ? '' : 's'} awaiting review.
-            <Link to="/organizations?status=pending" className="font-medium underline">
+            <Link
+              to="/organizations?status=pending"
+              state={{ from: 'dashboard' }}
+              className="font-medium underline"
+            >
               Open the approval queue
             </Link>
           </span>
@@ -92,7 +96,7 @@ export function Dashboard() {
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <IconShield width={15} height={15} />
             Two-factor authentication is not enabled on your account.
-            <Link to="/security" className="font-medium underline">
+            <Link to="/security" state={{ from: 'dashboard' }} className="font-medium underline">
               Set it up
             </Link>
           </span>
@@ -141,6 +145,7 @@ export function Dashboard() {
               value={data.metrics.users_total}
               sub={`${data.metrics.users_active} active`}
               to="/people"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="Pending invitations"
@@ -148,6 +153,7 @@ export function Dashboard() {
               tone={data.metrics.users_pending > 0 ? 'caution' : 'neutral'}
               sub="Not yet activated"
               to="/people"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="Two-factor adoption"
@@ -155,12 +161,14 @@ export function Dashboard() {
               tone={data.metrics.mfa_adoption_pct < 50 ? 'caution' : 'neutral'}
               sub="Of all accounts"
               to="/security"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="External contacts"
               value={data.metrics.contacts}
               sub="Clients and prospects"
               to="/campaigns"
+              state={{ from: 'dashboard' }}
             />
           </>
         ) : isManager ? (
@@ -171,6 +179,7 @@ export function Dashboard() {
               tone={data.attention?.open_cycles ? 'accent' : 'neutral'}
               sub="Review cycles you're running"
               to="/cycles"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="My open campaigns"
@@ -178,6 +187,7 @@ export function Dashboard() {
               tone={data.attention?.open_campaigns ? 'accent' : 'neutral'}
               sub="Campaigns you're running"
               to="/campaigns"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="Closing within 7 days"
@@ -185,12 +195,14 @@ export function Dashboard() {
               tone={data.attention?.closing_soon ? 'caution' : 'neutral'}
               sub="Across your cycles"
               to="/cycles"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="My results"
               value={data.metrics.my_results}
               sub="Responses received about you"
               to="/my-results"
+              state={{ from: 'dashboard' }}
             />
           </>
         ) : (
@@ -201,12 +213,14 @@ export function Dashboard() {
               tone={data.metrics.my_pending_feedback > 0 ? 'accent' : 'neutral'}
               sub="Waiting for your response"
               to="/my-feedback"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="My results"
               value={data.metrics.my_results}
               sub="Responses received about you"
               to="/my-results"
+              state={{ from: 'dashboard' }}
             />
             <StatTile
               label="Two-factor"
@@ -214,6 +228,7 @@ export function Dashboard() {
               tone={user?.mfa_enabled ? 'neutral' : 'caution'}
               sub="Your account security"
               to="/security"
+              state={{ from: 'dashboard' }}
             />
           </>
         )}
@@ -284,18 +299,21 @@ export function Dashboard() {
                   value={data.attention.open_campaigns ?? 0}
                   tone={data.attention.open_campaigns ? 'accent' : 'neutral'}
                   to="/campaigns"
+                  state={{ from: 'dashboard' }}
                 />
                 <StatTile
                   label="Closing within 7 days"
                   value={data.attention.closing_soon ?? 0}
                   tone={data.attention.closing_soon ? 'caution' : 'neutral'}
                   to="/cycles"
+                  state={{ from: 'dashboard' }}
                 />
                 <StatTile
                   label="Proposals awaiting outcome"
                   value={data.attention.proposals_awaiting_outcome ?? 0}
                   tone={data.attention.proposals_awaiting_outcome ? 'caution' : 'neutral'}
                   to="/proposals"
+                  state={{ from: 'dashboard' }}
                 />
               </div>
             </Card>
@@ -306,7 +324,11 @@ export function Dashboard() {
               title="Recent activity"
               padded={false}
               action={
-                <Link to="/audit" className="btn-ghost px-2 py-1 text-xs">
+                <Link
+                  to="/audit"
+                  state={{ from: 'dashboard' }}
+                  className="btn-ghost px-2 py-1 text-xs"
+                >
                   Audit trail
                 </Link>
               }
@@ -343,6 +365,7 @@ export function Dashboard() {
               <div className="grid gap-3">
                 <Link
                   to="/cycles"
+                  state={{ from: 'dashboard' }}
                   className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
                 >
                   <IconClock width={16} height={16} className="accent-text shrink-0" />
@@ -350,6 +373,7 @@ export function Dashboard() {
                 </Link>
                 <Link
                   to="/campaigns"
+                  state={{ from: 'dashboard' }}
                   className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
                 >
                   <IconSend width={16} height={16} className="accent-text shrink-0" />
@@ -362,6 +386,7 @@ export function Dashboard() {
               <div className="grid gap-3">
                 <Link
                   to="/my-feedback"
+                  state={{ from: 'dashboard' }}
                   className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
                 >
                   <IconInbox width={16} height={16} className="accent-text shrink-0" />
@@ -369,6 +394,7 @@ export function Dashboard() {
                 </Link>
                 <Link
                   to="/my-results"
+                  state={{ from: 'dashboard' }}
                   className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
                 >
                   <IconSpark width={16} height={16} className="accent-text shrink-0" />
@@ -391,6 +417,7 @@ export function Dashboard() {
               <Link
                 key={item.title}
                 to={item.to}
+                state={{ from: 'dashboard' }}
                 className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
               >
                 <item.icon width={16} height={16} className="accent-text shrink-0" />

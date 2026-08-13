@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { DataTable, Pagination } from '../components/DataTable'
 import {
   DateRangeFilter,
@@ -27,7 +28,15 @@ interface Option {
  * on the server. A new report added to the backend registry appears here, with
  * working filters and all three export formats, without a line of code.
  */
-export function ReportView({ reportKey }: { reportKey: string }) {
+export function ReportView({
+  reportKey,
+  backTo,
+  backLabel,
+}: {
+  reportKey: string
+  backTo?: string
+  backLabel?: string
+}) {
   const { organization, user } = useAuth()
   const [meta, setMeta] = useState<ReportMeta | null>(null)
   const [result, setResult] = useState<ReportResult | null>(null)
@@ -101,6 +110,8 @@ export function ReportView({ reportKey }: { reportKey: string }) {
     <>
       <PageHeader
         title={meta?.title ?? 'Report'}
+        backTo={backTo}
+        backLabel={backLabel}
         description={meta?.description}
         actions={
           meta && (
@@ -222,5 +233,13 @@ export function ReportView({ reportKey }: { reportKey: string }) {
 }
 
 export function AuditPage() {
-  return <ReportView reportKey="audit_trail" />
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
+  return (
+    <ReportView
+      reportKey="audit_trail"
+      backTo={cameFromDashboard ? '/' : undefined}
+      backLabel="Dashboard"
+    />
+  )
 }

@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { IconAlert, IconLock, IconShield, IconSpark } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton, Spinner, StatTile } from '../components/ui'
 import { PageHeader } from '../layout/AppShell'
@@ -182,6 +183,8 @@ interface OrgOption {
 
 export function Insights() {
   const { user } = useAuth()
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const isSuperAdmin = user?.role === 'super_admin'
   const [orgs, setOrgs] = useState<OrgOption[] | null>(null)
   const [selectedOrg, setSelectedOrg] = useState<string>('')
@@ -249,6 +252,8 @@ export function Insights() {
     <>
       <PageHeader
         title="Insights"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="What the feedback across every domain is telling you, and what it is not yet able to tell you."
         actions={
           isAdmin && (

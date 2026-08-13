@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
@@ -485,6 +485,8 @@ const PAGE_SIZE = 15
 
 export function Organizations() {
   const [params, setParams] = useSearchParams()
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const status = params.get('status') ?? ''
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -542,6 +544,8 @@ export function Organizations() {
     <>
       <PageHeader
         title="Organizations"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Every tenant on the platform. Self-registered organizations stay blocked until they are approved here."
         actions={
           !provisioning && (

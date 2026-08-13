@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ExportMenu } from '../components/filters'
 import { IconFile } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton } from '../components/ui'
@@ -16,6 +17,8 @@ import { ReportView } from './ReportView'
  * without any change in this file.
  */
 export function Reports() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [reports, setReports] = useState<ReportMeta[] | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +51,8 @@ export function Reports() {
     <>
       <PageHeader
         title="Reports"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Every report can be viewed on screen and downloaded as CSV, Excel, or a branded PDF — all three produced from the same query, so a file can never disagree with the screen."
       />
 

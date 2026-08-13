@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { IconLayers, IconShield } from '../components/icons'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
@@ -1030,6 +1031,8 @@ function ViewCloneModal({
 
 export function Templates() {
   const { user } = useAuth()
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const isAdmin = user?.role === 'client_admin' || user?.role === 'super_admin'
   const isSuperAdmin = user?.role === 'super_admin'
   const [categories, setCategories] = useState<CategoryMeta[] | null>(null)
@@ -1073,6 +1076,8 @@ export function Templates() {
     <>
       <PageHeader
         title="Template library"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Ready-made questionnaires across all three feedback domains. Clone one to customise it for your organization — published versions are immutable, so editing creates the next version and never rewrites history."
         actions={
           !creating &&

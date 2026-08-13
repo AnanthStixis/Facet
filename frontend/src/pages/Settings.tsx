@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { IconSettings, IconShield, IconUpload } from '../components/icons'
 import { Banner, Card, Field, Modal, Spinner } from '../components/ui'
 import { PageHeader } from '../layout/AppShell'
@@ -654,10 +655,14 @@ function PolicyCard() {
 }
 
 export function Settings() {
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   return (
     <>
       <PageHeader
         title="Settings"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
         description="Branding applied to everything your organization sends, and the policy thresholds that govern reminders, anonymity, AI and audit history."
       />
       <div className="space-y-5">
