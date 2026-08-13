@@ -6,6 +6,10 @@ email-validator==2.2.0
 
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
+# zoneinfo has no bundled tz database — it reads the OS's /usr/share/zoneinfo,
+# which slim container images don't ship. This package supplies the IANA
+# database directly so timezone lookups work the same in every environment.
+tzdata==2024.2
 # Sync driver, used only by Alembic. Migrations run as the database owner while
 # the app runs as a separate non-owner role, so the two drivers are separate.
 psycopg[binary]==3.2.3

@@ -451,7 +451,6 @@ function RecipientPicker({
   const [contacts, setContacts] = useState<Contact[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [search, setSearch] = useState('')
-  const [batch, setBatch] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -481,12 +480,6 @@ function RecipientPicker({
         <div className="min-w-[200px] flex-1">
           <SearchBox value={search} onChange={setSearch} placeholder="Search contacts" />
         </div>
-        <input
-          className="field max-w-[160px]"
-          value={batch}
-          onChange={(event) => setBatch(event.target.value)}
-          placeholder="Batch (e.g. cohort 1)"
-        />
         <button
           type="button"
           className="btn-secondary px-2.5 py-1.5 text-sm"
@@ -654,7 +647,6 @@ function RecipientPicker({
               }>(`/campaigns/${campaign.id}/recipients`, {
                 target_id: campaign.target_id,
                 contact_ids: selected,
-                batch: batch || null,
               })
               setSelected([])
               onDone(
@@ -707,7 +699,6 @@ function RecipientList({ campaign }: { campaign: Campaign }) {
           <tr>
             <th>Recipient</th>
             <th>Company</th>
-            <th>Batch</th>
             <th>Status</th>
             <th>Opens</th>
             <th />
@@ -721,7 +712,6 @@ function RecipientList({ campaign }: { campaign: Campaign }) {
                 <span className="block text-2xs text-ink-400">{row.contact_email}</span>
               </td>
               <td className="text-ink-600 dark:text-ink-300">{row.company ?? '—'}</td>
-              <td className="text-2xs text-ink-400">{row.batch ?? '—'}</td>
               <td>
                 <Chip value={row.status} />
               </td>

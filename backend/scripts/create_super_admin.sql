@@ -21,3 +21,7 @@ docker exec backend python -m app.seed
 
 --for first time default category creation
 docker exec backend python -m app.seed_templates
+
+--for fix the export report issue
+docker exec backend pip install tzdata==2024.2
+docker restart backend
