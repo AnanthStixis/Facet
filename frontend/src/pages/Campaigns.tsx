@@ -5,6 +5,7 @@ import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { IconCheck, IconClock, IconLock, IconSearch, IconUsers } from '../components/icons'
 import { Banner, Card, Chip, EmptyState, Field, Skeleton, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, downloadFile, uploadFile } from '../lib/api'
@@ -118,6 +119,7 @@ function Funnel({ delivery }: { delivery: Delivery }) {
 }
 
 function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void }) {
+  const toast = useToast()
   const [open, setOpen] = useState(false)
   const [templates, setTemplates] = useState<TemplateOption[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -133,7 +135,6 @@ function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void
     open_immediately: true,
   })
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const loadContacts = () => {
     const query = new URLSearchParams({ page_size: '200' })
@@ -203,7 +204,6 @@ function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void
         onSubmit={async (event) => {
           event.preventDefault()
           setBusy(true)
-          setError(null)
           try {
             const campaign = await api.post<Campaign>('/campaigns', {
               name: form.name,
@@ -227,17 +227,16 @@ function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void
             onCreated(finalCampaign)
             reset()
           } catch (caught) {
-            setError(caught instanceof ApiError ? caught.message : 'Could not create the campaign.')
+            toast.show(
+              'critical',
+              'Campaign creation failed',
+              caught instanceof ApiError ? caught.message : 'Could not create the campaign.',
+            )
           } finally {
             setBusy(false)
           }
         }}
       >
-        {error && (
-          <Banner tone="error" className="mb-3">
-            {error}
-          </Banner>
-        )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field
             label="Campaign name"
@@ -344,7 +343,9 @@ function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void
                         loadContacts()
                         setSelected((current) => [...current, created.id])
                       } catch (caught) {
-                        setError(
+                        toast.show(
+                          'critical',
+                          'Could not add contact',
                           caught instanceof ApiError ? caught.message : 'Could not add the contact.',
                         )
                       }
@@ -448,11 +449,11 @@ function RecipientPicker({
   campaign: Campaign
   onDone: (message: string) => void
 }) {
+  const toast = useToast()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [newContact, setNewContact] = useState({ full_name: '', email: '', company: '' })
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -470,12 +471,6 @@ function RecipientPicker({
 
   return (
     <div className="mt-4 rounded-lg border border-ink-200 bg-ink-50 p-4 dark:border-ink-700 dark:bg-ink-900/60">
-      {error && (
-        <Banner tone="error" className="mb-3">
-          {error}
-        </Banner>
-      )}
-
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="min-w-[200px] flex-1">
           <SearchBox value={search} onChange={setSearch} placeholder="Search contacts" />
@@ -507,7 +502,6 @@ function RecipientPicker({
               event.target.value = ''
               if (!file) return
               setBulkBusy(true)
-              setError(null)
               try {
                 const result = await uploadFile<{
                   imported: number
@@ -520,7 +514,11 @@ function RecipientPicker({
                 )
                 load()
               } catch (caught) {
-                setError(caught instanceof ApiError ? caught.message : 'The upload failed.')
+                toast.show(
+                  'critical',
+                  'Import failed',
+                  caught instanceof ApiError ? caught.message : 'The upload failed.',
+                )
               } finally {
                 setBulkBusy(false)
               }
@@ -534,7 +532,6 @@ function RecipientPicker({
           className="mb-3 grid gap-2 sm:grid-cols-4"
           onSubmit={async (event) => {
             event.preventDefault()
-            setError(null)
             try {
               await api.post('/contacts', {
                 full_name: newContact.full_name,
@@ -545,7 +542,11 @@ function RecipientPicker({
               setAdding(false)
               load()
             } catch (caught) {
-              setError(caught instanceof ApiError ? caught.message : 'Could not add the contact.')
+              toast.show(
+                'critical',
+                'Could not add contact',
+                caught instanceof ApiError ? caught.message : 'Could not add the contact.',
+              )
             }
           }}
         >
@@ -637,7 +638,6 @@ function RecipientPicker({
           disabled={busy || selected.length === 0 || !campaign.target_id}
           onClick={async () => {
             setBusy(true)
-            setError(null)
             try {
               const result = await api.post<{
                 added: number
@@ -658,7 +658,11 @@ function RecipientPicker({
                   '.',
               )
             } catch (caught) {
-              setError(caught instanceof ApiError ? caught.message : 'Could not add recipients.')
+              toast.show(
+                'critical',
+                'Could not add recipients',
+                caught instanceof ApiError ? caught.message : 'Could not add recipients.',
+              )
             } finally {
               setBusy(false)
             }
@@ -768,21 +772,11 @@ function RecipientList({ campaign }: { campaign: Campaign }) {
 const PAGE_SIZE = 15
 
 export function Campaigns() {
+  const toast = useToast()
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-
-  // The dismiss button is easy to miss, and a confirmation that only goes
-  // away on a manual click (or a reload) reads as "did that actually work?"
-  // after a few seconds. Auto-clear it; the dismiss button still works for
-  // anyone who wants it gone sooner.
-  useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 6000)
-    return () => window.clearTimeout(timer)
-  }, [notice])
 
   const [panel, setPanel] = useState<{ id: string; view: 'recipients' | 'list' } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -844,31 +838,37 @@ export function Campaigns() {
   }
 
   const act = async (campaign: Campaign, action: 'open' | 'close') => {
-    setError(null)
     try {
       await api.post(`/campaigns/${campaign.id}/${action}`)
       setConfirming(null)
-      setNotice(
+      toast.show(
+        'success',
+        action === 'open' ? 'Campaign opened' : 'Campaign closed',
         action === 'open'
           ? `'${campaign.name}' is open. Send the invitations when you are ready.`
           : `'${campaign.name}' is closed.`,
       )
       load()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'That did not work.')
+      toast.show(
+        'critical',
+        'Action failed',
+        caught instanceof ApiError ? caught.message : 'That did not work.',
+      )
     }
   }
 
   const send = async (campaign: Campaign, resend: boolean) => {
     setSending(campaign.id)
-    setError(null)
     try {
       const result = await api.post<{
         sent: number
         failed: number
         skipped: number
       }>(`/campaigns/${campaign.id}/send`, { resend })
-      setNotice(
+      toast.show(
+        'success',
+        'Invitations sent',
         `${result.sent} invitation(s) sent` +
           (result.skipped ? `, ${result.skipped} skipped (unsubscribed)` : '') +
           (result.failed ? `, ${result.failed} failed` : '') +
@@ -876,7 +876,11 @@ export function Campaigns() {
       )
       load()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Sending failed.')
+      toast.show(
+        'critical',
+        'Sending failed',
+        caught instanceof ApiError ? caught.message : 'Sending failed.',
+      )
     } finally {
       setSending(null)
     }
@@ -892,7 +896,9 @@ export function Campaigns() {
         actions={
           <CreateCampaign
             onCreated={(campaign) => {
-              setNotice(
+              toast.show(
+                'success',
+                'Campaign created',
                 campaign.status === 'draft'
                   ? `'${campaign.name}' created as a draft.`
                   : `'${campaign.name}' is open. Add recipients and send when ready.`,
@@ -904,11 +910,6 @@ export function Campaigns() {
         }
       />
 
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
       {error && (
         <Banner tone="error" className="mb-4" onDismiss={() => setError(null)}>
           {error}
@@ -1048,10 +1049,12 @@ export function Campaigns() {
                             try {
                               await api.delete(`/campaigns/${campaign.id}`)
                               setDeleting(null)
-                              setNotice(`'${campaign.name}' deleted.`)
+                              toast.show('success', 'Campaign deleted', `'${campaign.name}' deleted.`)
                               load()
                             } catch (caught) {
-                              setError(
+                              toast.show(
+                                'critical',
+                                'Delete failed',
                                 caught instanceof ApiError ? caught.message : 'Could not delete that campaign.',
                               )
                               setDeleting(null)
@@ -1125,7 +1128,7 @@ export function Campaigns() {
                 <RecipientPicker
                   campaign={campaign}
                   onDone={(message) => {
-                    setNotice(message)
+                    toast.show('success', 'Recipients updated', message)
                     load()
                   }}
                 />

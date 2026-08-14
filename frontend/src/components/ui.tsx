@@ -41,11 +41,19 @@ export function Card({
   )
 }
 
+const TILE_BADGE_TONE: Record<string, string> = {
+  neutral: 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',
+  accent: 'accent-soft-bg accent-text',
+  caution: 'bg-caution/12 text-caution',
+  critical: 'bg-critical/12 text-critical',
+}
+
 export function StatTile({
   label,
   value,
   sub,
   tone = 'neutral',
+  icon,
   to,
   state,
   onClick,
@@ -54,6 +62,7 @@ export function StatTile({
   value: ReactNode
   sub?: ReactNode
   tone?: 'neutral' | 'accent' | 'caution' | 'critical'
+  icon?: ReactNode
   to?: string
   state?: Record<string, unknown>
   onClick?: () => void
@@ -68,7 +77,7 @@ export function StatTile({
   return (
     <div
       className={clsx(
-        'surface animate-fade-up px-4 py-3.5 text-left',
+        'surface animate-fade-up px-4 py-4 text-left',
         interactive &&
           'cursor-pointer transition-transform hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
       )}
@@ -86,6 +95,16 @@ export function StatTile({
           : undefined
       }
     >
+      {icon && (
+        <span
+          className={clsx(
+            'mb-3 flex h-9 w-9 items-center justify-center rounded-md',
+            TILE_BADGE_TONE[tone],
+          )}
+        >
+          {icon}
+        </span>
+      )}
       <p className="label-caps">{label}</p>
       <p
         className={clsx(

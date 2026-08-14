@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { IconCheck, IconClock, IconLock, IconShield } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
@@ -179,7 +180,7 @@ function FeedbackFormView({
   const [answers, setAnswers] = useState<Answers>({})
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const allQuestions = form.sections.flatMap((section) => section.questions)
@@ -193,7 +194,6 @@ function FeedbackFormView({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
-    setError(null)
     setFieldErrors({})
     try {
       const result = await api.post<{ message: string }>(
@@ -205,13 +205,15 @@ function FeedbackFormView({
       if (caught instanceof ApiError) {
         const fields = caught.fieldErrors()
         // When a problem is tied to a specific field, show it there instead
-        // of repeating it in the banner too — see the password-change fix
-        // for the same reasoning. The banner stays for anything that isn't
+        // of repeating it in a toast too — see the password-change fix
+        // for the same reasoning. The toast stays for anything that isn't
         // attributable to one field (e.g. "unknown question" on a stale form).
-        setError(Object.keys(fields).length > 0 ? null : caught.message)
+        if (Object.keys(fields).length === 0) {
+          toast.show('critical', 'Could not submit feedback', caught.message)
+        }
         setFieldErrors(fields)
       } else {
-        setError('Your feedback could not be submitted.')
+        toast.show('critical', 'Could not submit feedback', 'Your feedback could not be submitted.')
       }
     } finally {
       setBusy(false)
@@ -250,12 +252,6 @@ function FeedbackFormView({
             answers, and there is no record linking them back to you — not for your
             administrator, and not for anyone with database access.
           </span>
-        </Banner>
-      )}
-
-      {error && (
-        <Banner tone="error" className="mb-5">
-          {error}
         </Banner>
       )}
 
@@ -340,8 +336,7 @@ export function MyFeedback() {
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [assignments, setAssignments] = useState<Assignment[] | null>(null)
   const [active, setActive] = useState<AssignmentForm | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const [opening, setOpening] = useState<string | null>(null)
 
   const load = () => {
@@ -349,7 +344,11 @@ export function MyFeedback() {
       .get<Assignment[]>('/assignments/mine')
       .then(setAssignments)
       .catch((caught) =>
-        setError(caught instanceof ApiError ? caught.message : 'Could not load your feedback.'),
+        toast.show(
+          'critical',
+          'Could not load your feedback',
+          caught instanceof ApiError ? caught.message : undefined,
+        ),
       )
   }
 
@@ -358,11 +357,14 @@ export function MyFeedback() {
 
   const open = async (assignment: Assignment) => {
     setOpening(assignment.id)
-    setError(null)
     try {
       setActive(await api.get<AssignmentForm>(`/assignments/${assignment.id}`))
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not open that form.')
+      toast.show(
+        'critical',
+        'Could not open that form',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setOpening(null)
     }
@@ -375,7 +377,7 @@ export function MyFeedback() {
         onCancel={() => setActive(null)}
         onDone={(message) => {
           setActive(null)
-          setNotice(message)
+          toast.show('success', message)
           load()
         }}
       />
@@ -390,17 +392,6 @@ export function MyFeedback() {
         backLabel="Dashboard"
         description="Feedback you have been asked to give. Nothing here is visible to the person concerned until enough people have responded."
       />
-
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
-      {error && (
-        <Banner tone="error" className="mb-4">
-          {error}
-        </Banner>
-      )}
 
       {!assignments ? (
         <div className="space-y-3">

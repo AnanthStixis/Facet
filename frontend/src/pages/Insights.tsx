@@ -2,7 +2,8 @@ import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { IconAlert, IconLock, IconShield, IconSpark } from '../components/icons'
-import { Banner, Card, EmptyState, Skeleton, Spinner, StatTile } from '../components/ui'
+import { Card, EmptyState, Skeleton, Spinner, StatTile } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
 import { useAuth } from '../store/auth'
@@ -193,7 +194,7 @@ export function Insights() {
   const [predictions, setPredictions] = useState<Predictions | null>(null)
   const [themes, setThemes] = useState<Themes | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   const isAdmin = user?.role === 'client_admin' || user?.role === 'super_admin'
   // Recommendations and predictive models are inherently per-tenant — a
@@ -229,7 +230,6 @@ export function Insights() {
 
   const run = async (what: 'rebuild' | 'train') => {
     setBusy(what)
-    setError(null)
     try {
       await api.post(
         what === 'rebuild'
@@ -238,7 +238,11 @@ export function Insights() {
       )
       load()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'That did not work.')
+      toast.show(
+        'critical',
+        'That did not work',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setBusy(null)
     }
@@ -281,11 +285,6 @@ export function Insights() {
         }
       />
 
-      {error && (
-        <Banner tone="error" className="mb-4" onDismiss={() => setError(null)}>
-          {error}
-        </Banner>
-      )}
 
       {isSuperAdmin && (
         <Card className="mb-5" padded={false}>

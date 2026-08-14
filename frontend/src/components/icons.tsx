@@ -105,6 +105,12 @@ export const IconX = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export const IconMenu = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M3 6h18M3 12h18M3 18h18" />
+  </svg>
+)
+
 export const IconLogout = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -157,6 +163,13 @@ export const IconLock = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <rect x="4" y="11" width="16" height="10" rx="2" />
     <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </svg>
+)
+
+export const IconInfo = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 8h.01" />
   </svg>
 )
 

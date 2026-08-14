@@ -4,6 +4,7 @@ import { useLocation, useSearchParams } from 'react-router-dom'
 import { LookupFilter, SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { IconUsers } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
@@ -27,6 +28,7 @@ const ROLE_TABS = [{ value: '', label: 'All' }, ...ROLES.map(({ value, label }) 
 
 
 function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void }) {
+  const toast = useToast()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({
     full_name: '',
@@ -36,7 +38,6 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
     department: '',
   })
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   if (!open) {
@@ -50,7 +51,6 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
-    setError(null)
     setFieldErrors({})
     try {
       const result = await api.post<InviteResult>('/users', {
@@ -63,10 +63,10 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
       setForm({ full_name: '', email: '', role: 'employee', job_title: '', department: '' })
     } catch (caught) {
       if (caught instanceof ApiError) {
-        setError(caught.message)
+        toast.show('critical', 'Invitation failed', caught.message)
         setFieldErrors(caught.fieldErrors())
       } else {
-        setError('The invitation could not be sent.')
+        toast.show('critical', 'Invitation failed', 'The invitation could not be sent.')
       }
     } finally {
       setBusy(false)
@@ -76,11 +76,6 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
   return (
     <Card className="mb-5" title="Invite someone" hint="They set their own password from a single-use link that expires in 72 hours.">
       <form onSubmit={submit}>
-        {error && (
-          <Banner tone="error" className="mb-3">
-            {error}
-          </Banner>
-        )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field
             label="Full name"
@@ -170,7 +165,7 @@ function EditUserForm({
   onCancel: () => void
   onDone: () => void
 }) {
-
+  const toast = useToast()
   const [form, setForm] = useState({
     full_name: person.full_name,
     job_title: person.job_title ?? '',
@@ -179,24 +174,26 @@ function EditUserForm({
     manager_id: person.manager_id ?? null,
   })
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [resetBusy, setResetBusy] = useState(false)
-  const [resetNotice, setResetNotice] = useState<string | null>(null)
 
   const resetPassword = async () => {
     setResetBusy(true)
-    setError(null)
-    setResetNotice(null)
     try {
       const result = await api.post<{ message: string; reset_url: string | null }>(
         `/users/${person.id}/reset-password`,
       )
-      setResetNotice(
+      toast.show(
+        'success',
+        'Password reset',
         result.reset_url ? `${result.message} ${result.reset_url}` : result.message,
       )
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not send a reset link.')
+      toast.show(
+        'critical',
+        'Password reset failed',
+        caught instanceof ApiError ? caught.message : 'Could not send a reset link.',
+      )
     } finally {
       setResetBusy(false)
     }
@@ -205,7 +202,6 @@ function EditUserForm({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
-    setError(null)
     setFieldErrors({})
     try {
       const isOrgChartRole = form.role === 'employee' || form.role === 'manager'
@@ -223,10 +219,10 @@ function EditUserForm({
       onDone()
     } catch (caught) {
       if (caught instanceof ApiError) {
-        setError(caught.message)
+        toast.show('critical', 'Save failed', caught.message)
         setFieldErrors(caught.fieldErrors())
       } else {
-        setError('Could not save those changes.')
+        toast.show('critical', 'Save failed', 'Could not save those changes.')
       }
     } finally {
       setBusy(false)
@@ -236,16 +232,6 @@ function EditUserForm({
   return (
     <Modal title={person.full_name} hint="Everything about this person, in one place." onClose={onCancel}>
       <form onSubmit={submit}>
-          {error && (
-            <Banner tone="error" className="mb-3">
-              {error}
-            </Banner>
-          )}
-          {resetNotice && (
-            <Banner tone="success" className="mb-3 break-all" onDismiss={() => setResetNotice(null)}>
-              {resetNotice}
-            </Banner>
-          )}
           <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-500 dark:text-ink-400">
             <span>{person.email}</span>
             <span className="flex items-center gap-1">
@@ -368,21 +354,24 @@ function countCsvRows(text: string): number {
 }
 
 function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
+  const toast = useToast()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<{ file: File; rowCount: number } | null>(null)
 
   const runUpload = async (file: File) => {
     setBusy(true)
-    setError(null)
     try {
       const result = await uploadFile<BulkResult>('/users/bulk', file)
       onDone(result)
       setOpen(false)
       setPending(null)
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'The upload failed.')
+      toast.show(
+        'critical',
+        'Bulk invite failed',
+        caught instanceof ApiError ? caught.message : 'The upload failed.',
+      )
       setPending(null)
     } finally {
       setBusy(false)
@@ -403,12 +392,6 @@ function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
 
   return (
     <Card className="mb-5" title="Bulk invite from a spreadsheet" hint="Upload a CSV with full_name and email columns (role, job_title, department are optional). Each row is invited exactly like a single invite. Up to 100 rows per file.">
-      {error && (
-        <Banner tone="error" className="mb-3">
-          {error}
-        </Banner>
-      )}
-
       {busy ? (
         <div className="space-y-2">
           <div className="h-2 w-full overflow-hidden rounded-full bg-ink-200 dark:bg-ink-800">
@@ -460,15 +443,16 @@ function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
                 const file = event.target.files?.[0]
                 event.target.value = ''
                 if (!file) return
-                setError(null)
                 const text = await file.text()
                 const rowCount = countCsvRows(text)
                 if (rowCount === 0) {
-                  setError('That file has no data rows.')
+                  toast.show('critical', 'No data rows', 'That file has no data rows.')
                   return
                 }
                 if (rowCount > MAX_BULK_ROWS) {
-                  setError(
+                  toast.show(
+                    'critical',
+                    'File too large',
                     `This file has ${rowCount} rows. Bulk invite is limited to ${MAX_BULK_ROWS} at a time — split it into smaller files.`,
                   )
                   return
@@ -493,6 +477,7 @@ function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
 const PAGE_SIZE = 15
 
 export function People() {
+  const toast = useToast()
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const { user } = useAuth()
@@ -503,8 +488,6 @@ export function People() {
   const [data, setData] = useState<Paged<User> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [confirmDisable, setConfirmDisable] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -543,12 +526,16 @@ export function People() {
             <span className="flex flex-wrap items-start gap-2">
               <InvitePanel
                 onInvited={(result) => {
-                  setNotice(
+                  // Development convenience only; the API withholds this in production,
+                  // where the link is a bearer credential.
+                  const linkSuffix = result.invite_url ? ` ${result.invite_url}` : ''
+                  toast.show(
+                    'success',
+                    'Invitation sent',
                     result.email_sent
-                      ? `Invitation sent to ${result.user.email}.`
-                      : `${result.user.email} was created, but the invitation email could not be sent.`,
+                      ? `Invitation sent to ${result.user.email}.${linkSuffix}`
+                      : `${result.user.email} was created, but the invitation email could not be sent.${linkSuffix}`,
                   )
-                  setInviteLink(result.invite_url)
                   load()
                 }}
               />
@@ -571,8 +558,7 @@ export function People() {
                       .map((row) => `row ${row.row} (${row.reason})`)
                       .join(', ')}${otherSkipped.length > 5 ? ', ...' : ''}`
                   }
-                  setNotice(message)
-                  setInviteLink(null)
+                  toast.show('success', 'Bulk invite complete', message)
                   load()
                 }}
               />
@@ -581,20 +567,6 @@ export function People() {
         }
       />
 
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          <div>
-            {notice}
-            {/* Development convenience only; the API withholds this in production,
-                where the link is a bearer credential. Shown as a labelled
-                link rather than the raw URL, so the token itself is not
-                sitting in plain text on screen. */}
-            {inviteLink && (
-              <p className="mt-1"><a href={inviteLink} target="_blank" rel="noopener noreferrer" className="text-2xs font-medium underline">View invitation</a></p>
-            )}
-          </div>
-        </Banner>
-      )}
       {error && (
         <Banner tone="error" className="mb-4">
           {error}
@@ -712,7 +684,7 @@ export function People() {
                               onClick={async () => {
                                 await api.post(`/users/${person.id}/disable`)
                                 setConfirmDisable(null)
-                                setNotice(`${person.email} can no longer sign in.`)
+                                toast.show('success', 'User disabled', `${person.email} can no longer sign in.`)
                                 load()
                               }}
                             >
@@ -745,7 +717,7 @@ export function People() {
                                 className="btn-secondary px-2 py-1 text-xs"
                                 onClick={async () => {
                                   await api.post(`/users/${person.id}/enable`)
-                                  setNotice(`${person.email} can sign in again.`)
+                                  toast.show('success', 'User enabled', `${person.email} can sign in again.`)
                                   load()
                                 }}
                               >
@@ -772,7 +744,7 @@ export function People() {
                       onCancel={() => setEditingId(null)}
                       onDone={() => {
                         setEditingId(null)
-                        setNotice(`${person.full_name}'s details were updated.`)
+                        toast.show('success', 'Person updated', `${person.full_name}'s details were updated.`)
                         load()
                       }}
                     />

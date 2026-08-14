@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { FacetMark } from '../components/Logo'
@@ -13,6 +13,7 @@ import {
   IconInbox,
   IconLayers,
   IconLogout,
+  IconMenu,
   IconMoon,
   IconRefresh,
   IconSend,
@@ -21,6 +22,7 @@ import {
   IconSpark,
   IconSun,
   IconUsers,
+  IconX,
 } from '../components/icons'
 import { triggerManualRefresh } from '../hooks/useRefetchOnFocus'
 import { useAuth } from '../store/auth'
@@ -145,6 +147,19 @@ export function AppShell() {
   const { user, organization, logout, theme, setTheme } = useAuth()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [railOpen, setRailOpen] = useState(false)
+
+  // Route changes close the mobile drawer; Escape does too, matching the
+  // Modal component's own close behavior elsewhere in the app.
+  useEffect(() => setRailOpen(false), [location.pathname])
+  useEffect(() => {
+    if (!railOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setRailOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [railOpen])
 
   if (!user) return null
 
@@ -158,22 +173,49 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar. Ink-dark in both themes, so the workspace chrome stays
-          constant and the content area is what changes. */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-ink-800 bg-ink-900 lg:flex">
-        <div className="flex h-14 items-center gap-2.5 border-b border-ink-800 px-4">
-          <span className="accent-text">
-            <FacetMark size={22} />
+      {/* Mobile scrim — catches the tap-outside-to-close and dims the page
+          behind the drawer. Desktop never renders it (rail is static there). */}
+      {railOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-ink-950/50 lg:hidden"
+          onClick={() => setRailOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar. Follows the app's light/dark theme like every other
+          surface, rather than staying permanently dark — a white rail in
+          light mode is what makes the workspace feel airy instead of
+          console-like. Static on desktop; an off-canvas drawer below lg. */}
+      <aside
+        className={clsx(
+          'fixed inset-y-0 left-0 z-40 flex w-56 flex-col border-r border-ink-200 bg-white',
+          'dark:border-ink-800 dark:bg-ink-900',
+          'transition-transform duration-200 ease-out lg:translate-x-0',
+          railOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="flex h-14 items-center gap-2.5 border-b border-ink-200 px-4 dark:border-ink-800">
+          <span className="accent-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white">
+            <FacetMark size={18} />
           </span>
-          <span className="text-base font-semibold tracking-[-0.02em] text-white">
+          <span className="flex-1 text-base font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
             {PRODUCT}
           </span>
+          <button
+            type="button"
+            onClick={() => setRailOpen(false)}
+            className="rounded-md p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-800 dark:hover:bg-ink-800 dark:hover:text-white lg:hidden"
+            aria-label="Close menu"
+          >
+            <IconX width={16} height={16} />
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2.5 py-4">
           {visible.map((group) => (
             <div key={group.section} className="mb-5">
-              <p className="px-2.5 pb-1.5 text-2xs font-semibold uppercase tracking-[0.1em] text-ink-500">
+              <p className="px-2.5 pb-1.5 text-2xs font-semibold uppercase tracking-[0.1em] text-ink-400 dark:text-ink-500">
                 {group.section}
               </p>
               {group.items.map((item) => {
@@ -186,15 +228,12 @@ export function AppShell() {
                     key={item.to}
                     to={item.to}
                     className={clsx(
-                      'relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-base transition-colors',
+                      'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-base transition-colors',
                       active
-                        ? 'bg-ink-800 font-medium text-white'
-                        : 'text-ink-400 hover:bg-ink-800/60 hover:text-ink-100',
+                        ? 'accent-soft-bg accent-text font-semibold'
+                        : 'text-ink-500 hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-ink-800/60 dark:hover:text-ink-100',
                     )}
                   >
-                    {active && (
-                      <span className="accent-bg absolute inset-y-1.5 left-0 w-0.5 rounded-full" />
-                    )}
                     <item.icon width={16} height={16} className="shrink-0" />
                     {item.label}
                   </NavLink>
@@ -204,10 +243,14 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="border-t border-ink-800 px-4 py-3">
-          <p className="text-2xs uppercase tracking-[0.1em] text-ink-500">Signed in as</p>
-          <p className="truncate text-sm font-medium text-ink-100">{user.full_name}</p>
-          <p className="truncate text-2xs text-ink-500">{user.email}</p>
+        <div className="border-t border-ink-200 px-4 py-3 dark:border-ink-800">
+          <p className="text-2xs uppercase tracking-[0.1em] text-ink-400 dark:text-ink-500">
+            Signed in as
+          </p>
+          <p className="truncate text-sm font-medium text-ink-900 dark:text-ink-100">
+            {user.full_name}
+          </p>
+          <p className="truncate text-2xs text-ink-400 dark:text-ink-500">{user.email}</p>
           <div className="mt-1.5">
             <Chip value={user.role} />
           </div>
@@ -217,6 +260,14 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col lg:pl-56">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-ink-200 bg-white/85 px-4 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/85 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setRailOpen(true)}
+              className="btn-ghost -ml-1.5 p-2 lg:hidden"
+              aria-label="Open menu"
+            >
+              <IconMenu />
+            </button>
             {/* The tenant's own mark, not ours: this is their workspace. */}
             {logo ? (
               <img

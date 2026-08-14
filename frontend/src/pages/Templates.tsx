@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { IconLayers, IconShield } from '../components/icons'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
@@ -110,7 +111,6 @@ function TemplateActions({
 
   const run = async (action: 'clone' | 'publish') => {
     setBusy(action)
-    onError('')
     try {
       if (action === 'clone') {
         const result = await api.post<{ name: string }>(
@@ -137,7 +137,6 @@ function TemplateActions({
 
   const remove = async () => {
     setBusy('delete')
-    onError('')
     try {
       await api.delete(`/catalog/templates/${template.id}`)
       onDeleted?.(`'${template.name}' deleted.`)
@@ -560,6 +559,7 @@ function SectionsEditor({
 }
 
 function TemplateEditor({ templateId, onClose, onSaved }: { templateId: string; onClose: () => void; onSaved: (message: string) => void }) {
+  const toast = useToast()
   const [detail, setDetail] = useState<TemplateDetail | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -593,7 +593,6 @@ function TemplateEditor({ templateId, onClose, onSaved }: { templateId: string; 
   const save = async () => {
     if (!definition) return
     setBusy(true)
-    setError(null)
     try {
       await api.put(`/catalog/templates/${templateId}/draft`, {
         definition,
@@ -604,7 +603,11 @@ function TemplateEditor({ templateId, onClose, onSaved }: { templateId: string; 
       })
       onSaved(`Draft of '${name}' saved.`)
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not save the draft.')
+      toast.show(
+        'critical',
+        'Could not save the draft',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setBusy(false)
     }
@@ -780,6 +783,7 @@ function CategoryManager({
   isSuperAdmin: boolean
   onChanged: () => void
 }) {
+  const toast = useToast()
   const [categories, setCategories] = useState<ManagedCategory[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -799,13 +803,16 @@ function CategoryManager({
 
   const toggle = async (category: ManagedCategory) => {
     setBusyId(category.id)
-    setError(null)
     try {
       await api.patch(`/catalog/categories/${category.id}`, { is_enabled: !category.is_enabled })
       reload()
       onChanged()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not update the category.')
+      toast.show(
+        'critical',
+        'Could not update the category',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setBusyId(null)
     }
@@ -903,6 +910,7 @@ function ViewCloneModal({
   onClose: () => void
   onCloned: (message: string) => void
 }) {
+  const toast = useToast()
   const [detail, setDetail] = useState<TemplateDetail | null>(null)
   const [name, setName] = useState(`${template.name} (copy)`)
   const [description, setDescription] = useState('')
@@ -935,7 +943,6 @@ function ViewCloneModal({
   const cloneWithChanges = async () => {
     if (!definition) return
     setBusy(true)
-    setError(null)
     try {
       const cloned = await api.post<{ id: string; name: string }>(
         `/catalog/templates/${template.id}/clone`,
@@ -950,7 +957,11 @@ function ViewCloneModal({
       })
       onCloned(`'${name}' created as a draft in your organization.`)
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not clone this template.')
+      toast.show(
+        'critical',
+        'Could not clone this template',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setBusy(false)
     }
@@ -1030,6 +1041,7 @@ function ViewCloneModal({
 }
 
 export function Templates() {
+  const toast = useToast()
   const { user } = useAuth()
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
@@ -1037,7 +1049,6 @@ export function Templates() {
   const isSuperAdmin = user?.role === 'super_admin'
   const [categories, setCategories] = useState<CategoryMeta[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
@@ -1094,11 +1105,6 @@ export function Templates() {
         }
       />
 
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
       {error && (
         <Banner tone="error" className="mb-4" onDismiss={() => setError(null)}>
           {error}
@@ -1125,7 +1131,7 @@ export function Templates() {
           templateId={editingId}
           onClose={() => setEditingId(null)}
           onSaved={(message) => {
-            setNotice(message)
+            toast.show('success', 'Template saved', message)
             setEditingId(null)
             reload()
           }}
@@ -1267,13 +1273,13 @@ export function Templates() {
                           <TemplateActions
                             template={template}
                             onChanged={(message) => {
-                              setNotice(message)
+                              toast.show('success', 'Template updated', message)
                               reload()
                             }}
-                            onError={setError}
+                            onError={(message) => toast.show('critical', 'Action failed', message)}
                             onEdit={setEditingId}
                             onDeleted={(message) => {
-                              setNotice(message)
+                              toast.show('success', 'Template deleted', message)
                               reload()
                             }}
                           />
@@ -1293,7 +1299,7 @@ export function Templates() {
           template={viewingTemplate}
           onClose={() => setViewingTemplate(null)}
           onCloned={(message) => {
-            setNotice(message)
+            toast.show('success', 'Template cloned', message)
             setViewingTemplate(null)
             reload()
           }}

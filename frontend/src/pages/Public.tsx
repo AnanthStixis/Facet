@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { FacetMark } from '../components/Logo'
 import { IconCheck, IconShield } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
 import { TIMEZONES, TIMEZONE_FIELD_ENABLED } from '../lib/timezones'
 import { useAuth } from '../store/auth'
@@ -51,7 +52,7 @@ export function Register() {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   })
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [done, setDone] = useState<string | null>(null)
 
@@ -79,7 +80,6 @@ export function Register() {
       <form
         onSubmit={async (event) => {
           event.preventDefault()
-          setError(null)
 
           const validation: Record<string, string> = {}
           if (form.name.trim().length < 2) {
@@ -109,21 +109,16 @@ export function Register() {
             setDone(result.message)
           } catch (caught) {
             if (caught instanceof ApiError) {
-              setError(caught.message)
+              toast.show('critical', 'Could not submit the registration', caught.message)
               setFieldErrors(caught.fieldErrors())
             } else {
-              setError('Could not submit the registration.')
+              toast.show('critical', 'Could not submit the registration')
             }
           } finally {
             setBusy(false)
           }
         }}
       >
-        {error && (
-          <Banner tone="error" className="mb-4">
-            {error}
-          </Banner>
-        )}
         <div className="space-y-4">
           <Field
             label="Organization name"
@@ -238,7 +233,7 @@ function SetPasswordForm({
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   if (!token) {
@@ -258,7 +253,6 @@ function SetPasswordForm({
           event.preventDefault()
           if (mismatch) return
           setBusy(true)
-          setError(null)
           setFieldErrors({})
           try {
             await api.post(endpoint, { token, password })
@@ -279,21 +273,16 @@ function SetPasswordForm({
             navigate(navigateTo)
           } catch (caught) {
             if (caught instanceof ApiError) {
-              setError(caught.message)
+              toast.show('critical', 'Could not complete this request', caught.message)
               setFieldErrors(caught.fieldErrors())
             } else {
-              setError('Could not complete this request.')
+              toast.show('critical', 'Could not complete this request')
             }
           } finally {
             setBusy(false)
           }
         }}
       >
-        {error && (
-          <Banner tone="error" className="mb-4">
-            {error}
-          </Banner>
-        )}
         <div className="space-y-4">
           <Field
             label="New password"

@@ -6,12 +6,16 @@
   :root {
     /* Overridden per tenant at runtime from their branding, which is what
        makes the whole app feel like the customer's own tool rather than ours. */
-    --accent: #b4633a;
-    --accent-soft: rgba(180, 99, 58, 0.12);
+    --accent: #2f6f62;
+    --accent-soft: rgba(47, 111, 98, 0.12);
     color-scheme: light;
   }
 
   .dark {
+    /* Tenants without a custom branding color fall back to a lighter teal
+       that still holds contrast on the dark surfaces below. */
+    --accent: #4fa893;
+    --accent-soft: rgba(79, 168, 147, 0.16);
     color-scheme: dark;
   }
 
@@ -58,7 +62,7 @@
 @layer components {
   .surface {
     @apply rounded-lg border border-ink-200 bg-white shadow-card
-           dark:border-ink-800 dark:bg-ink-900;
+           dark:border-ink-700 dark:bg-ink-900;
   }
 
   .hairline {
@@ -79,12 +83,12 @@
 
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2
-           text-base font-medium transition-colors disabled:cursor-not-allowed
-           disabled:opacity-50;
+           text-base font-semibold transition-colors disabled:cursor-not-allowed
+           disabled:opacity-50 active:translate-y-px;
   }
 
   .btn-primary {
-    @apply btn text-white;
+    @apply btn text-white shadow-card;
     background-color: var(--accent);
   }
   .btn-primary:hover:not(:disabled) {
@@ -92,8 +96,8 @@
   }
 
   .btn-secondary {
-    @apply btn border border-ink-200 bg-white text-ink-700 hover:bg-ink-50
-           dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200 dark:hover:bg-ink-800;
+    @apply btn border border-ink-300 bg-white text-ink-800 hover:bg-ink-50
+           dark:border-ink-600 dark:bg-ink-900 dark:text-ink-100 dark:hover:bg-ink-800;
   }
 
   .btn-ghost {
@@ -102,13 +106,15 @@
   }
 
   .btn-danger {
-    @apply btn border border-critical/30 bg-critical/5 text-critical
-           hover:bg-critical/10;
+    @apply btn bg-critical text-white;
+  }
+  .btn-danger:hover:not(:disabled) {
+    filter: brightness(0.93);
   }
 
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-2xs
-           font-semibold uppercase tracking-[0.06em];
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-2xs
+           font-bold uppercase tracking-[0.05em];
   }
 
   /* One visual grammar for every table in the product. */
@@ -143,7 +149,7 @@
     background-color: var(--accent-soft);
   }
   .internal-soft-bg {
-    background-color: rgba(61, 122, 140, 0.12);
+    background-color: rgba(53, 114, 176, 0.12);
   }
 
   /* The signature grid used behind the sign-in artwork. */

@@ -189,7 +189,7 @@ export function PublicFeedback() {
     )
   }
 
-  const accent = data.organization.accent_color || '#B4633A'
+  const accent = data.organization.accent_color || '#2F6F62'
   const allQuestions = data.form.sections.flatMap((section) => section.questions)
   const required = allQuestions.filter((question) => question.required)
   const answered = required.filter(

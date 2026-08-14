@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Banner, Card, Field, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { IconLock, IconShield } from '../components/icons'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
@@ -46,7 +47,7 @@ function MfaSection() {
   const [code, setCode] = useState('')
   const [recovery, setRecovery] = useState<string[] | null>(null)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   if (recovery) {
     return (
@@ -107,12 +108,6 @@ function MfaSection() {
       title="Two-factor authentication"
       hint="Strongly recommended for anyone who can administer a workspace."
     >
-      {error && (
-        <Banner tone="error" className="mb-4">
-          {error}
-        </Banner>
-      )}
-
       {!enrol ? (
         <>
           <p className="mb-4 text-sm text-ink-600 dark:text-ink-300">
@@ -125,11 +120,14 @@ function MfaSection() {
             disabled={busy}
             onClick={async () => {
               setBusy(true)
-              setError(null)
               try {
                 setEnrol(await api.post<EnrolStart>('/auth/mfa/enrol'))
               } catch (caught) {
-                setError(caught instanceof ApiError ? caught.message : 'Could not start setup.')
+                toast.show(
+                  'critical',
+                  'Could not start setup',
+                  caught instanceof ApiError ? caught.message : undefined,
+                )
               } finally {
                 setBusy(false)
               }
@@ -145,7 +143,6 @@ function MfaSection() {
           onSubmit={async (event) => {
             event.preventDefault()
             setBusy(true)
-            setError(null)
             try {
               const result = await api.post<{ recovery_codes: string[] }>(
                 '/auth/mfa/enrol/confirm',
@@ -153,7 +150,11 @@ function MfaSection() {
               )
               setRecovery(result.recovery_codes)
             } catch (caught) {
-              setError(caught instanceof ApiError ? caught.message : 'That code was not accepted.')
+              toast.show(
+                'critical',
+                'That code was not accepted',
+                caught instanceof ApiError ? caught.message : undefined,
+              )
             } finally {
               setBusy(false)
             }
@@ -205,9 +206,8 @@ function PasswordSection() {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [done, setDone] = useState<string | null>(null)
 
   return (
     <Card
@@ -219,40 +219,30 @@ function PasswordSection() {
         onSubmit={async (event) => {
           event.preventDefault()
           setBusy(true)
-          setError(null)
           setFieldErrors({})
-          setDone(null)
           try {
             const result = await api.post<{ message: string }>('/auth/password', {
               current_password: current,
               new_password: next,
             })
-            setDone(result.message)
+            toast.show('success', 'Password changed', result.message)
             setCurrent('')
             setNext('')
           } catch (caught) {
             if (caught instanceof ApiError) {
               const fields = caught.fieldErrors()
-              setError(Object.keys(fields).length > 0 ? null : caught.message)
+              if (Object.keys(fields).length === 0) {
+                toast.show('critical', 'The password could not be changed', caught.message)
+              }
               setFieldErrors(fields)
             } else {
-              setError('The password could not be changed.')
+              toast.show('critical', 'The password could not be changed')
             }
           } finally {
               setBusy(false)
           }
         }}
       >
-        {error && (
-          <Banner tone="error" className="mb-3">
-            {error}
-          </Banner>
-        )}
-        {done && (
-          <Banner tone="success" className="mb-3">
-            {done}
-          </Banner>
-        )}
         <div className="space-y-3">
           <Field
             label="Current password"

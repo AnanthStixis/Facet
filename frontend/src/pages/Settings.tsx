@@ -2,7 +2,8 @@ import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { IconSettings, IconShield, IconUpload } from '../components/icons'
-import { Banner, Card, Field, Modal, Spinner } from '../components/ui'
+import { Card, Field, Modal, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, uploadFile } from '../lib/api'
 import { useAuth } from '../store/auth'
@@ -63,11 +64,10 @@ function BrandingCard() {
         }
       : null,
   )
-  const [accent, setAccent] = useState(organization?.branding?.accent_color ?? '#B4633A')
+  const [accent, setAccent] = useState(organization?.branding?.accent_color ?? '#2F6F62')
   const [footerNote, setFooterNote] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const [preview, setPreview] = useState<string | null>(null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [pendingRemove, setPendingRemove] = useState(false)
@@ -105,11 +105,10 @@ function BrandingCard() {
   const saveColour = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!HEX_RE.test(accent)) {
-      setError('Enter a valid hex colour such as #B4633A.')
+      toast.show('critical', 'Invalid colour', 'Enter a valid hex colour such as #2F6F62.')
       return
     }
     setBusy(true)
-    setError(null)
     try {
       // The logo change commits first, in the same submit, so "Save
       // branding" is the single moment anything actually reaches the
@@ -128,9 +127,17 @@ function BrandingCard() {
       setPreview(null)
       setPendingFile(null)
       setPendingRemove(false)
-      setNotice('Branding saved. Your dashboard, emails and feedback forms now reflect these changes.')
+      toast.show(
+        'success',
+        'Branding saved',
+        'Your dashboard, emails and feedback forms now reflect these changes.',
+      )
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not save branding.')
+      toast.show(
+        'critical',
+        'Could not save branding',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setBusy(false)
     }
@@ -164,17 +171,6 @@ function BrandingCard() {
       title="Branding"
       hint="Applied to your dashboard header, outgoing emails, and every feedback form your organization sends. Never shown to any other tenant."
     >
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
-      {error && (
-        <Banner tone="error" className="mb-4">
-          {error}
-        </Banner>
-      )}
-
       <div className="flex flex-wrap items-start gap-6">
         <div>
           <p className="mb-1.5 text-sm font-medium text-ink-700 dark:text-ink-200">Logo</p>
@@ -248,7 +244,7 @@ function BrandingCard() {
               <div className="flex items-center gap-2">
                 <input
                   type="color"
-                  value={HEX_RE.test(accent) ? accent.slice(0, 7) : '#B4633A'}
+                  value={HEX_RE.test(accent) ? accent.slice(0, 7) : '#2F6F62'}
                   onChange={(event) => setAccent(event.target.value)}
                   className="h-9 w-9 cursor-pointer rounded border border-ink-200 dark:border-ink-700"
                 />
@@ -347,21 +343,23 @@ function PolicyCard() {
   const [data, setData] = useState<SettingsResponse | null>(null)
   const [draft, setDraft] = useState<OrgSettings | null>(null)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null)
   const [previewBusy, setPreviewBusy] = useState<'invitation' | 'feedback_request' | null>(null)
 
   const openPreview = async (kind: 'invitation' | 'feedback_request') => {
     setPreviewBusy(kind)
-    setError(null)
     try {
       const rendered = await api.get<{ subject: string; html: string }>(
         `/settings/email-preview?kind=${kind}`,
       )
       setPreview(rendered)
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not render the preview.')
+      toast.show(
+        'critical',
+        'Could not render the preview',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setPreviewBusy(null)
     }
@@ -375,7 +373,11 @@ function PolicyCard() {
         setDraft(response.settings)
       })
       .catch((caught) =>
-        setError(caught instanceof ApiError ? caught.message : 'Could not load settings.'),
+        toast.show(
+          'critical',
+          'Could not load settings',
+          caught instanceof ApiError ? caught.message : undefined,
+        ),
       )
   }
 
@@ -393,18 +395,17 @@ function PolicyCard() {
 
   const save = async () => {
     setBusy(true)
-    setError(null)
     try {
       const result = await api.put<SettingsResponse>('/settings', draft)
       setData(result)
       setDraft(result.settings)
-      setNotice('Settings saved.')
+      toast.show('success', 'Settings saved')
     } catch (caught) {
-      if (caught instanceof ApiError) {
-        setError(caught.message)
-      } else {
-        setError('Could not save settings.')
-      }
+      toast.show(
+        'critical',
+        'Could not save settings',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setBusy(false)
     }
@@ -420,17 +421,6 @@ function PolicyCard() {
       }
       hint="Thresholds may be made stricter than the platform default, never looser — these are safety properties, not preferences."
     >
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
-      {error && (
-        <Banner tone="error" className="mb-4">
-          {error}
-        </Banner>
-      )}
-
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
           <h3 className="mb-3 text-sm font-semibold text-ink-900 dark:text-ink-50">

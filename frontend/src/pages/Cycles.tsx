@@ -5,6 +5,7 @@ import { LookupFilter } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { IconClock, IconLayers, IconLock } from '../components/icons'
 import { Banner, Card, Chip, EmptyState, Field, Skeleton, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
@@ -40,6 +41,7 @@ const DIRECTIONS: { key: 'include_self' | 'include_manager' | 'include_upward' |
 ]
 
 function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
+  const toast = useToast()
   const [open, setOpen] = useState(false)
   const [templates, setTemplates] = useState<TemplateOption[]>([])
   const [form, setForm] = useState({ name: '', template_id: '', closes_at: '' })
@@ -51,7 +53,6 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
     include_peers: false,
   })
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -89,11 +90,14 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
   // nobody should have to do all three separately just to start a round.
   const createAndOpen = async () => {
     if (reviewees.length === 0) {
-      setError('Add at least one person to review before opening — or create it as a draft.')
+      toast.show(
+        'warning',
+        'Add reviewees first',
+        'Add at least one person to review before opening — or create it as a draft.',
+      )
       return
     }
     setBusy(true)
-    setError(null)
     try {
       const cycle = await api.post<Cycle>('/cycles', {
         name: form.name,
@@ -105,7 +109,11 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
       onCreated(opened)
       reset()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not create and open the cycle.')
+      toast.show(
+        'critical',
+        'Could not create and open the cycle',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setBusy(false)
     }
@@ -113,7 +121,6 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
 
   const createAsDraft = async () => {
     setBusy(true)
-    setError(null)
     try {
       const cycle = await api.post<Cycle>('/cycles', {
         name: form.name,
@@ -123,7 +130,11 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
       onCreated(cycle)
       reset()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not create the cycle.')
+      toast.show(
+        'critical',
+        'Could not create the cycle',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setBusy(false)
     }
@@ -137,11 +148,6 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
           void createAndOpen()
         }}
       >
-        {error && (
-          <Banner tone="error" className="mb-3">
-            {error}
-          </Banner>
-        )}
         <div className="grid gap-3 sm:grid-cols-3">
           <Field
             label="Cycle name"
@@ -243,6 +249,7 @@ function AssignmentPlanner({
   cycle: Cycle
   onDone: (message: string) => void
 }) {
+  const toast = useToast()
   const [reviewees, setReviewees] = useState<string[]>([])
   const [plan, setPlan] = useState({
     include_self: true,
@@ -252,8 +259,6 @@ function AssignmentPlanner({
     max_peers: 6,
   })
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [warnings, setWarnings] = useState<string[]>([])
 
   const directions: { key: keyof typeof plan; label: string; hint: string }[] = [
     { key: 'include_self', label: 'Self', hint: 'The person rates themselves' },
@@ -264,21 +269,6 @@ function AssignmentPlanner({
 
   return (
     <div className="mt-4 rounded-lg border border-ink-200 bg-ink-50 p-4 dark:border-ink-700 dark:bg-ink-900/60">
-      {error && (
-        <Banner tone="error" className="mb-3">
-          {error}
-        </Banner>
-      )}
-      {warnings.length > 0 && (
-        <Banner tone="warning" className="mb-3" onDismiss={() => setWarnings([])}>
-          <ul className="list-disc pl-4">
-            {warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
-        </Banner>
-      )}
-
       <p className="mb-3 text-sm text-ink-600 dark:text-ink-300">
         Choose who is being reviewed. Reviewers are worked out from the org chart —
         running this again only adds what is missing.
@@ -318,7 +308,6 @@ function AssignmentPlanner({
           disabled={busy || reviewees.length === 0}
           onClick={async () => {
             setBusy(true)
-            setError(null)
             try {
               const result = await api.post<{
                 created: number
@@ -326,7 +315,9 @@ function AssignmentPlanner({
                 by_relationship: Record<string, number>
                 warnings: string[]
               }>(`/cycles/${cycle.id}/assignments`, { ...plan, reviewee_ids: reviewees })
-              setWarnings(result.warnings)
+              if (result.warnings.length > 0) {
+                toast.show('warning', 'Assignments generated with warnings', result.warnings.join(' '))
+              }
               const breakdown = Object.entries(result.by_relationship)
                 .map(([key, count]) => `${count} ${RELATIONSHIP_SHORT[key as Relationship] ?? key}`)
                 .join(', ')
@@ -335,7 +326,11 @@ function AssignmentPlanner({
                   (result.skipped_existing ? `. ${result.skipped_existing} already existed.` : '.'),
               )
             } catch (caught) {
-              setError(caught instanceof ApiError ? caught.message : 'Generation failed.')
+              toast.show(
+                'critical',
+                'Generation failed',
+                caught instanceof ApiError ? caught.message : undefined,
+              )
             } finally {
               setBusy(false)
             }
@@ -352,21 +347,11 @@ function AssignmentPlanner({
 const PAGE_SIZE = 15
 
 export function Cycles() {
+  const toast = useToast()
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [cycles, setCycles] = useState<Cycle[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-
-  // The dismiss button is easy to miss, and a confirmation that only goes
-  // away on a manual click (or a reload) reads as "did that actually work?"
-  // after a few seconds. Auto-clear it; the dismiss button still works for
-  // anyone who wants it gone sooner.
-  useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 6000)
-    return () => window.clearTimeout(timer)
-  }, [notice])
 
   const [planning, setPlanning] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -391,18 +376,19 @@ export function Cycles() {
   }
 
   const act = async (cycle: Cycle, action: 'open' | 'close') => {
-    setError(null)
     try {
       await api.post(`/cycles/${cycle.id}/${action}`)
       setConfirming(null)
-      setNotice(
+      toast.show(
+        'success',
+        action === 'open' ? 'Cycle opened' : 'Cycle closed',
         action === 'open'
           ? `'${cycle.name}' is open. Reviewers can now see it in My feedback.`
           : `'${cycle.name}' is closed. Results are final.`,
       )
       load()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'That did not work.')
+      toast.show('critical', 'That did not work', caught instanceof ApiError ? caught.message : undefined)
     }
   }
 
@@ -417,10 +403,10 @@ export function Cycles() {
           <CreateCycle
             onCreated={(cycle) => {
               if (cycle.status === 'draft') {
-                setNotice(`'${cycle.name}' created as a draft. Add assignments next.`)
+                toast.show('success', 'Cycle created as a draft', `'${cycle.name}' — add assignments next.`)
                 setPlanning(cycle.id)
               } else {
-                setNotice(`'${cycle.name}' is open. Reviewers can now see it in My feedback.`)
+                toast.show('success', 'Cycle opened', `'${cycle.name}' is open. Reviewers can now see it in My feedback.`)
               }
               load()
             }}
@@ -428,11 +414,6 @@ export function Cycles() {
         }
       />
 
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
       {error && (
         <Banner tone="error" className="mb-4">
           {error}
@@ -574,11 +555,13 @@ export function Cycles() {
                             try {
                               await api.delete(`/cycles/${cycle.id}`)
                               setDeleting(null)
-                              setNotice(`'${cycle.name}' deleted.`)
+                              toast.show('success', 'Cycle deleted', `'${cycle.name}' deleted.`)
                               load()
                             } catch (caught) {
-                              setError(
-                                caught instanceof ApiError ? caught.message : 'Could not delete that cycle.',
+                              toast.show(
+                                'critical',
+                                'Could not delete that cycle',
+                                caught instanceof ApiError ? caught.message : undefined,
                               )
                               setDeleting(null)
                             }
@@ -625,7 +608,7 @@ export function Cycles() {
                 <AssignmentPlanner
                   cycle={cycle}
                   onDone={(message) => {
-                    setNotice(message)
+                    toast.show('success', 'Assignments generated', message)
                     load()
                   }}
                 />

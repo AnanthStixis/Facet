@@ -23,7 +23,7 @@ interface AuthState {
 
 /** Paint the tenant's accent colour into the CSS custom properties. */
 const applyBranding = (organization: Organization | null) => {
-  const accent = organization?.branding?.accent_color || '#B4633A'
+  const accent = organization?.branding?.accent_color || '#2F6F62'
   const root = document.documentElement
   root.style.setProperty('--accent', accent)
   const [r, g, b] = [1, 3, 5].map((index) => parseInt(accent.slice(index, index + 2), 16))

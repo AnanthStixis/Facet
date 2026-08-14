@@ -3,27 +3,15 @@ import { Link } from 'react-router-dom'
 import { FacetMark } from '../components/Logo'
 import { IconLock, IconShield } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
 import { useAuth } from '../store/auth'
 
 function ForgotPassword({ initialEmail, onBack }: { initialEmail: string; onBack: () => void }) {
   const [email, setEmail] = useState(initialEmail)
   const [busy, setBusy] = useState(false)
-  const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  if (sent) {
-    return (
-      <div>
-        <Banner tone="success">
-          If that email matches an account, a reset link is on its way. Check your inbox.
-        </Banner>
-        <button type="button" className="btn-secondary mt-4 w-full py-2.5" onClick={onBack}>
-          Back to sign in
-        </button>
-      </div>
-    )
-  }
+  const toast = useToast()
 
   return (
     <form
@@ -34,7 +22,12 @@ function ForgotPassword({ initialEmail, onBack }: { initialEmail: string; onBack
         setError(null)
         try {
           await api.post('/auth/forgot-password', { email })
-          setSent(true)
+          toast.show(
+            'success',
+            'Reset link sent',
+            'If that email matches an account, a reset link is on its way. Check your inbox.',
+          )
+          onBack()
         } catch (caught) {
           setError(caught instanceof ApiError ? caught.message : 'Could not reach the server.')
         } finally {
@@ -95,8 +88,8 @@ function GraphArtwork() {
           y1={nodes[from].y}
           x2={nodes[to].x}
           y2={nodes[to].y}
-          stroke="white"
-          strokeOpacity={0.16}
+          stroke="#8A93A0"
+          strokeOpacity={0.4}
           strokeWidth={0.35}
           strokeDasharray="60"
           strokeDashoffset="60"
@@ -111,7 +104,7 @@ function GraphArtwork() {
           style={{ animation: `pop .6s ${0.6 + index * 0.08}s cubic-bezier(.2,.9,.3,1) both` }}
         >
           {node.kind === 'core' && (
-            <circle cx={node.x} cy={node.y} r={node.r + 4} fill="none" stroke="#B4633A" strokeOpacity={0.35} strokeWidth={0.4} />
+            <circle cx={node.x} cy={node.y} r={node.r + 4} fill="none" stroke="#2F6F62" strokeOpacity={0.3} strokeWidth={0.4} />
           )}
           <circle
             cx={node.x}
@@ -119,19 +112,19 @@ function GraphArtwork() {
             r={node.r}
             fill={
               node.kind === 'external'
-                ? '#B4633A'
+                ? '#C08A2E'
                 : node.kind === 'core'
-                  ? '#FFFFFF'
-                  : '#3D7A8C'
+                  ? '#2F6F62'
+                  : '#3572B0'
             }
-            fillOpacity={node.kind === 'core' ? 0.95 : 0.85}
+            fillOpacity={node.kind === 'core' ? 1 : 0.88}
           />
           <text
             x={node.x}
             y={node.y - node.r - 2.4}
             textAnchor="middle"
-            fill="white"
-            fillOpacity={0.5}
+            fill="#5A6472"
+            fillOpacity={0.85}
             style={{ fontSize: '2.6px', letterSpacing: '0.28px', textTransform: 'uppercase' }}
           >
             {node.label}
@@ -189,20 +182,30 @@ export function Login() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      {/* Left: brand panel. Always ink-dark regardless of theme, so the product
-          has one consistent first impression. */}
-      <div className="relative hidden overflow-hidden bg-ink-950 lg:flex lg:flex-col lg:justify-between">
-        <div className="grid-etch absolute inset-0" />
+      {/* Left: brand panel. Light and airy like the rest of the product now,
+          rather than a permanently dark showcase panel — the sign-in screen
+          should feel like the same tool, not a different one. */}
+      <div className="relative hidden overflow-hidden bg-ink-50 dark:bg-ink-950 lg:flex lg:flex-col lg:justify-between">
+        <div
+          className="absolute inset-0 opacity-[0.35] dark:opacity-[0.06]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(18,22,28,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(18,22,28,0.05) 1px, transparent 1px)',
+            backgroundSize: '36px 36px',
+          }}
+        />
         <div
           className="absolute -left-24 top-1/3 h-96 w-96 rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(circle, rgba(180,99,58,0.24), transparent 68%)' }}
+          style={{ background: 'radial-gradient(circle, rgba(47,111,98,0.16), transparent 68%)' }}
         />
 
         <div className="relative z-10 flex items-center gap-2.5 px-12 pt-11">
-          <span className="text-copper-500">
-            <FacetMark size={26} />
+          <span className="accent-bg flex h-9 w-9 items-center justify-center rounded-lg text-white">
+            <FacetMark size={20} />
           </span>
-          <span className="text-xl font-semibold tracking-[-0.02em] text-white">Facet</span>
+          <span className="text-xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
+            Facet
+          </span>
         </div>
 
         <div className="relative z-10 flex flex-1 items-center justify-center px-12">
@@ -212,23 +215,23 @@ export function Login() {
         </div>
 
         <div className="relative z-10 max-w-lg px-12 pb-14">
-          <h2 className="text-4xl font-semibold leading-tight tracking-[-0.03em] text-white">
+          <h2 className="text-4xl font-semibold leading-tight tracking-[-0.03em] text-ink-900 dark:text-white">
             Every relationship has more than one side.
           </h2>
-          <p className="mt-3.5 text-base leading-relaxed text-ink-400">
+          <p className="mt-3.5 text-base leading-relaxed text-ink-500 dark:text-ink-400">
             Employee, client, and proposal feedback in a single graph &mdash; so you
             can finally ask whether the teams that work well together are the ones
             winning the work.
           </p>
-          <div className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-2xs uppercase tracking-[0.12em] text-ink-500">
+          <div className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-2xs uppercase tracking-[0.12em] text-ink-500 dark:text-ink-500">
             <span className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-internal" /> Internal 360
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-copper-500" /> Client experience
+              <span className="h-1.5 w-1.5 rounded-full bg-external" /> Client experience
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-copper-300" /> Proposal quality
+              <span className="h-1.5 w-1.5 rounded-full bg-external opacity-60" /> Proposal quality
             </span>
           </div>
         </div>

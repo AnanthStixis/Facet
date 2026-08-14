@@ -5,8 +5,8 @@
 // Deliberately not the pastel-purple, heavily-rounded look that Culture Amp,
 // Lattice and 15Five all converge on. This is an analytical tool that will sit
 // in front of executives, so it borrows from editorial and financial software:
-// ink neutrals, one warm metallic accent, hairline borders instead of drop
-// shadows, tight type, and dense tables that respect the reader's screen.
+// ink neutrals, one calm forest-teal accent, soft cards instead of hard
+// hairlines, tight type, and dense tables that respect the reader's screen.
 export default {
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -26,28 +26,30 @@ export default {
           900: '#12161C',
           950: '#0B0E12',
         },
-        // Copper. Warm, uncommon in this category, and legible on both
-        // ink-900 and white, which a mid-tone purple is not.
-        copper: {
-          50: '#FBF3EF',
-          100: '#F4E1D7',
-          200: '#E7C2AF',
-          300: '#D79C7F',
-          400: '#C67B57',
-          500: '#B4633A',
-          600: '#9A5130',
-          700: '#7C4027',
-          800: '#5E3120',
-          900: '#41231A',
+        // Forest teal. Calmer than the old copper, reads as trust/growth
+        // rather than boutique-agency warmth, and still holds contrast on
+        // both ink-900 and white.
+        teal: {
+          50: '#EAF3F1',
+          100: '#D3E6E1',
+          200: '#A9CDC4',
+          300: '#7BB2A6',
+          400: '#4FA893',
+          500: '#2F6F62',
+          600: '#265A50',
+          700: '#1E4F45',
+          800: '#173B34',
+          900: '#102822',
         },
-        // Semantic accents for the feedback graph. Internal relationships read
-        // cool, external ones read warm, so the split is legible before the
-        // legend is.
-        internal: '#3D7A8C',
-        external: '#B4633A',
-        positive: '#2F7D5B',
-        caution: '#B4863A',
-        critical: '#A63D3D',
+        // Semantic accents for the feedback graph, kept independent of the
+        // brand accent so they never fight a tenant's custom color. Internal
+        // relationships read cool, external ones read warm.
+        internal: '#3572B0',
+        external: '#C08A2E',
+        positive: '#2F8F5B',
+        caution: '#C4791F',
+        critical: '#C23B33',
+        info: '#3572B0',
       },
       fontFamily: {
         sans: [
@@ -74,17 +76,15 @@ export default {
         '5xl': ['3rem', { lineHeight: '3.1rem', letterSpacing: '-0.032em' }],
       },
       borderRadius: {
-        // Restrained. Large radii read consumer; this product is sold to
-        // people who buy Qualtrics.
-        DEFAULT: '4px',
-        md: '6px',
-        lg: '8px',
-        xl: '12px',
+        DEFAULT: '7px',
+        md: '9px',
+        lg: '10px',
+        xl: '14px',
       },
       boxShadow: {
         card: '0 1px 2px rgba(18,22,28,0.04), 0 1px 1px rgba(18,22,28,0.03)',
         lift: '0 8px 24px -8px rgba(18,22,28,0.18), 0 2px 6px rgba(18,22,28,0.06)',
-        focus: '0 0 0 3px rgba(180,99,58,0.22)',
+        focus: '0 0 0 3px rgba(47,111,98,0.22)',
       },
       keyframes: {
         'fade-up': {
@@ -99,11 +99,16 @@ export default {
           '0%': { backgroundPosition: '-460px 0' },
           '100%': { backgroundPosition: '460px 0' },
         },
+        'toast-in': {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         'fade-up': 'fade-up 0.32s cubic-bezier(0.2, 0.7, 0.3, 1) both',
         'ring-draw': 'ring-draw 1.1s cubic-bezier(0.3, 0.8, 0.3, 1) both',
         shimmer: 'shimmer 1.4s linear infinite',
+        'toast-in': 'toast-in 0.22s ease both',
       },
     },
   },

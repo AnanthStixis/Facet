@@ -5,6 +5,7 @@ import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { IconCheck, IconFile, IconSend, IconSpark } from '../components/icons'
 import { Banner, Card, Chip, EmptyState, Field, Skeleton, Spinner, StatTile } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
@@ -110,7 +111,7 @@ function OutcomeForm({
   const [competitor, setCompetitor] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   return (
     <form
@@ -118,7 +119,6 @@ function OutcomeForm({
       onSubmit={async (event) => {
         event.preventDefault()
         setBusy(true)
-        setError(null)
         try {
           await api.post(`/proposals/${proposal.id}/outcome`, {
             stage,
@@ -129,16 +129,15 @@ function OutcomeForm({
           })
           onDone(`${proposal.reference} recorded as ${stage}.`)
         } catch (caught) {
-          setError(caught instanceof ApiError ? caught.message : 'Could not record the outcome.')
+          toast.show(
+            'critical',
+            'Could not record the outcome',
+            caught instanceof ApiError ? caught.message : undefined,
+          )
           setBusy(false)
         }
       }}
     >
-      {error && (
-        <Banner tone="error" className="mb-3">
-          {error}
-        </Banner>
-      )}
       <p className="mb-3 text-sm text-ink-600 dark:text-ink-300">
         Recording the real outcome is what turns a prospect's rating into
         something you can act on.
@@ -236,7 +235,7 @@ function CreateProposal({ onCreated }: { onCreated: (message: string) => void })
     prospect_contact_id: '',
   })
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   useEffect(() => {
     if (!open) return
@@ -260,7 +259,6 @@ function CreateProposal({ onCreated }: { onCreated: (message: string) => void })
         onSubmit={async (event) => {
           event.preventDefault()
           setBusy(true)
-          setError(null)
           try {
             await api.post('/proposals', {
               title: form.title,
@@ -283,17 +281,16 @@ function CreateProposal({ onCreated }: { onCreated: (message: string) => void })
               prospect_contact_id: '',
             })
           } catch (caught) {
-            setError(caught instanceof ApiError ? caught.message : 'Could not record it.')
+            toast.show(
+              'critical',
+              'Could not record proposal',
+              caught instanceof ApiError ? caught.message : undefined,
+            )
           } finally {
             setBusy(false)
           }
         }}
       >
-        {error && (
-          <Banner tone="error" className="mb-3">
-            {error}
-          </Banner>
-        )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Field
             label="Title"
@@ -399,18 +396,8 @@ export function Proposals() {
   const [stage, setStage] = useState('')
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const toast = useToast()
   const [outcomeFor, setOutcomeFor] = useState<string | null>(null)
-
-  // The dismiss button is easy to miss, and a confirmation that only goes
-  // away on a manual click (or a reload) reads as "did that actually work?"
-  // after a few seconds. Auto-clear it; the dismiss button still works for
-  // anyone who wants it gone sooner.
-  useEffect(() => {
-    if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 6000)
-    return () => window.clearTimeout(timer)
-  }, [notice])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
 
@@ -433,25 +420,32 @@ export function Proposals() {
 
   const act = async (proposal: Proposal, action: 'submit' | 'request-feedback') => {
     setBusyId(proposal.id)
-    setError(null)
     try {
       if (action === 'submit') {
         await api.post(`/proposals/${proposal.id}/submit`)
-        setNotice(`${proposal.reference} marked as submitted.`)
+        toast.show('success', `${proposal.reference} marked as submitted.`)
       } else {
         const result = await api.post<{ sent: boolean; contact: string }>(
           `/proposals/${proposal.id}/request-feedback`,
           {},
         )
-        setNotice(
-          result.sent
-            ? `Feedback request sent to ${result.contact}.`
-            : `Request created, but the email to ${result.contact} could not be sent.`,
-        )
+        if (result.sent) {
+          toast.show('success', 'Feedback request sent', `Sent to ${result.contact}.`)
+        } else {
+          toast.show(
+            'warning',
+            'Request created',
+            `The email to ${result.contact} could not be sent.`,
+          )
+        }
       }
       load()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'That did not work.')
+      toast.show(
+        'critical',
+        'That did not work',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
     } finally {
       setBusyId(null)
     }
@@ -464,14 +458,9 @@ export function Proposals() {
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
         description="Proposals and SOWs, the prospect's view of them, and what actually happened. The last part is what makes the first two worth collecting."
-        actions={<CreateProposal onCreated={(message) => { setNotice(message); load() }} />}
+        actions={<CreateProposal onCreated={(message) => { toast.show('success', message); load() }} />}
       />
 
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
       {error && (
         <Banner tone="error" className="mb-4" onDismiss={() => setError(null)}>
           {error}
@@ -646,7 +635,7 @@ export function Proposals() {
                     onCancel={() => setOutcomeFor(null)}
                     onDone={(message) => {
                       setOutcomeFor(null)
-                      setNotice(message)
+                      toast.show('success', message)
                       load()
                     }}
                   />

@@ -2,7 +2,18 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PerspectiveRing } from '../components/PerspectiveRing'
 import { Banner, Card, Chip, EmptyState, Skeleton, StatTile } from '../components/ui'
-import { IconAlert, IconClock, IconFile, IconInbox, IconSend, IconShield, IconSpark } from '../components/icons'
+import {
+  IconAlert,
+  IconBuilding,
+  IconClock,
+  IconFile,
+  IconInbox,
+  IconLock,
+  IconSend,
+  IconShield,
+  IconSpark,
+  IconUsers,
+} from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
@@ -110,6 +121,7 @@ export function Dashboard() {
               label="Organizations"
               value={data.platform.orgs_total}
               sub={`${data.platform.orgs_active} active`}
+              icon={<IconBuilding width={17} height={17} />}
               to="/organizations"
               state={{ from: 'dashboard' }}
             />
@@ -118,6 +130,7 @@ export function Dashboard() {
               value={data.platform.orgs_pending}
               tone={data.platform.orgs_pending > 0 ? 'caution' : 'neutral'}
               sub="Self-registered tenants"
+              icon={<IconClock width={17} height={17} />}
               to="/organizations?status=pending"
               state={{ from: 'dashboard' }}
             />
@@ -126,6 +139,7 @@ export function Dashboard() {
               value={data.platform.orgs_suspended}
               tone={data.platform.orgs_suspended > 0 ? 'critical' : 'neutral'}
               sub="Access revoked"
+              icon={<IconAlert width={17} height={17} />}
               to="/organizations?status=suspended"
               state={{ from: 'dashboard' }}
             />
@@ -133,6 +147,7 @@ export function Dashboard() {
               label="Client admins"
               value={data.platform.client_admins}
               sub="Across all tenants"
+              icon={<IconUsers width={17} height={17} />}
               to="/people?role=client_admin"
               state={{ from: 'dashboard' }}
             />
@@ -144,6 +159,7 @@ export function Dashboard() {
               label="People"
               value={data.metrics.users_total}
               sub={`${data.metrics.users_active} active`}
+              icon={<IconUsers width={17} height={17} />}
               to="/people"
               state={{ from: 'dashboard' }}
             />
@@ -152,6 +168,7 @@ export function Dashboard() {
               value={data.metrics.users_pending}
               tone={data.metrics.users_pending > 0 ? 'caution' : 'neutral'}
               sub="Not yet activated"
+              icon={<IconInbox width={17} height={17} />}
               to="/people"
               state={{ from: 'dashboard' }}
             />
@@ -160,6 +177,7 @@ export function Dashboard() {
               value={`${data.metrics.mfa_adoption_pct}%`}
               tone={data.metrics.mfa_adoption_pct < 50 ? 'caution' : 'neutral'}
               sub="Of all accounts"
+              icon={<IconLock width={17} height={17} />}
               to="/security"
               state={{ from: 'dashboard' }}
             />
@@ -167,6 +185,7 @@ export function Dashboard() {
               label="External contacts"
               value={data.metrics.contacts}
               sub="Clients and prospects"
+              icon={<IconSend width={17} height={17} />}
               to="/campaigns"
               state={{ from: 'dashboard' }}
             />
@@ -178,6 +197,7 @@ export function Dashboard() {
               value={data.attention?.open_cycles ?? 0}
               tone={data.attention?.open_cycles ? 'accent' : 'neutral'}
               sub="Review cycles you're running"
+              icon={<IconClock width={17} height={17} />}
               to="/cycles"
               state={{ from: 'dashboard' }}
             />
@@ -186,6 +206,7 @@ export function Dashboard() {
               value={data.attention?.open_campaigns ?? 0}
               tone={data.attention?.open_campaigns ? 'accent' : 'neutral'}
               sub="Campaigns you're running"
+              icon={<IconSend width={17} height={17} />}
               to="/campaigns"
               state={{ from: 'dashboard' }}
             />
@@ -194,6 +215,7 @@ export function Dashboard() {
               value={data.attention?.closing_soon ?? 0}
               tone={data.attention?.closing_soon ? 'caution' : 'neutral'}
               sub="Across your cycles"
+              icon={<IconAlert width={17} height={17} />}
               to="/cycles"
               state={{ from: 'dashboard' }}
             />
@@ -201,6 +223,7 @@ export function Dashboard() {
               label="My results"
               value={data.metrics.my_results}
               sub="Responses received about you"
+              icon={<IconSpark width={17} height={17} />}
               to="/my-results"
               state={{ from: 'dashboard' }}
             />
@@ -212,6 +235,7 @@ export function Dashboard() {
               value={data.metrics.my_pending_feedback}
               tone={data.metrics.my_pending_feedback > 0 ? 'accent' : 'neutral'}
               sub="Waiting for your response"
+              icon={<IconInbox width={17} height={17} />}
               to="/my-feedback"
               state={{ from: 'dashboard' }}
             />
@@ -219,6 +243,7 @@ export function Dashboard() {
               label="My results"
               value={data.metrics.my_results}
               sub="Responses received about you"
+              icon={<IconSpark width={17} height={17} />}
               to="/my-results"
               state={{ from: 'dashboard' }}
             />
@@ -227,6 +252,7 @@ export function Dashboard() {
               value={user?.mfa_enabled ? 'On' : 'Off'}
               tone={user?.mfa_enabled ? 'neutral' : 'caution'}
               sub="Your account security"
+              icon={<IconLock width={17} height={17} />}
               to="/security"
               state={{ from: 'dashboard' }}
             />
@@ -291,6 +317,7 @@ export function Dashboard() {
                   label="Open review cycles"
                   value={data.attention.open_cycles ?? 0}
                   tone={data.attention.open_cycles ? 'accent' : 'neutral'}
+                  icon={<IconClock width={16} height={16} />}
                   to="/cycles"
                   state={{ from: 'dashboard' }}
                 />
@@ -298,6 +325,7 @@ export function Dashboard() {
                   label="Open campaigns"
                   value={data.attention.open_campaigns ?? 0}
                   tone={data.attention.open_campaigns ? 'accent' : 'neutral'}
+                  icon={<IconSend width={16} height={16} />}
                   to="/campaigns"
                   state={{ from: 'dashboard' }}
                 />
@@ -305,6 +333,7 @@ export function Dashboard() {
                   label="Closing within 7 days"
                   value={data.attention.closing_soon ?? 0}
                   tone={data.attention.closing_soon ? 'caution' : 'neutral'}
+                  icon={<IconAlert width={16} height={16} />}
                   to="/cycles"
                   state={{ from: 'dashboard' }}
                 />
@@ -312,6 +341,7 @@ export function Dashboard() {
                   label="Proposals awaiting outcome"
                   value={data.attention.proposals_awaiting_outcome ?? 0}
                   tone={data.attention.proposals_awaiting_outcome ? 'caution' : 'neutral'}
+                  icon={<IconFile width={16} height={16} />}
                   to="/proposals"
                   state={{ from: 'dashboard' }}
                 />
@@ -366,17 +396,21 @@ export function Dashboard() {
                 <Link
                   to="/cycles"
                   state={{ from: 'dashboard' }}
-                  className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
+                  className="flex items-center gap-3 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
                 >
-                  <IconClock width={16} height={16} className="accent-text shrink-0" />
+                  <span className="accent-soft-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+                    <IconClock width={16} height={16} className="accent-text" />
+                  </span>
                   Your review cycles
                 </Link>
                 <Link
                   to="/campaigns"
                   state={{ from: 'dashboard' }}
-                  className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
+                  className="flex items-center gap-3 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
                 >
-                  <IconSend width={16} height={16} className="accent-text shrink-0" />
+                  <span className="accent-soft-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+                    <IconSend width={16} height={16} className="accent-text" />
+                  </span>
                   Your campaigns
                 </Link>
               </div>
@@ -387,17 +421,21 @@ export function Dashboard() {
                 <Link
                   to="/my-feedback"
                   state={{ from: 'dashboard' }}
-                  className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
+                  className="flex items-center gap-3 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
                 >
-                  <IconInbox width={16} height={16} className="accent-text shrink-0" />
+                  <span className="accent-soft-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+                    <IconInbox width={16} height={16} className="accent-text" />
+                  </span>
                   Review what's waiting for you
                 </Link>
                 <Link
                   to="/my-results"
                   state={{ from: 'dashboard' }}
-                  className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
+                  className="flex items-center gap-3 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
                 >
-                  <IconSpark width={16} height={16} className="accent-text shrink-0" />
+                  <span className="accent-soft-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+                    <IconSpark width={16} height={16} className="accent-text" />
+                  </span>
                   See feedback you've received
                 </Link>
               </div>
@@ -418,9 +456,11 @@ export function Dashboard() {
                 key={item.title}
                 to={item.to}
                 state={{ from: 'dashboard' }}
-                className="flex items-center gap-2 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
+                className="flex items-center gap-3 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
               >
-                <item.icon width={16} height={16} className="accent-text shrink-0" />
+                <span className="accent-soft-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+                  <item.icon width={16} height={16} className="accent-text" />
+                </span>
                 {item.title}
               </Link>
             ))}

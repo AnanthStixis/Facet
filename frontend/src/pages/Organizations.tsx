@@ -4,6 +4,7 @@ import { useLocation, useSearchParams } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { IconBuilding } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
@@ -30,16 +31,15 @@ function ApprovalForm({
   onDone: () => void
   onCancel: () => void
 }) {
+  const toast = useToast()
   const [fullName, setFullName] = useState(org.contact_name)
   const [email, setEmail] = useState(org.contact_email)
   const [seatLimit, setSeatLimit] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
-    setError(null)
     try {
       await api.post<OrgDetail>(`/orgs/${org.id}/approve`, {
         admin_full_name: fullName,
@@ -48,7 +48,11 @@ function ApprovalForm({
       })
       onDone()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Approval failed.')
+      toast.show(
+        'critical',
+        'Approval failed',
+        caught instanceof ApiError ? caught.message : 'Approval failed.',
+      )
     } finally {
       setBusy(false)
     }
@@ -63,11 +67,6 @@ function ApprovalForm({
         Approving provisions the workspace and emails a single-use invitation to the
         first Client Admin. No password is ever sent by email.
       </p>
-      {error && (
-        <Banner tone="error" className="mb-3">
-          {error}
-        </Banner>
-      )}
       <div className="grid gap-3 sm:grid-cols-3">
         <Field
           label="Client admin name"
@@ -122,14 +121,13 @@ function EditOrgForm({
     timezone: org.timezone,
     seat_limit: org.seat_limit ? String(org.seat_limit) : '',
   })
+  const toast = useToast()
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
-    setError(null)
     setFieldErrors({})
     try {
       await api.patch(`/orgs/${org.id}`, {
@@ -144,10 +142,10 @@ function EditOrgForm({
       onDone(`${form.name}'s profile was updated.`)
     } catch (caught) {
       if (caught instanceof ApiError) {
-        setError(caught.message)
+        toast.show('critical', 'Save failed', caught.message)
         setFieldErrors(caught.fieldErrors())
       } else {
-        setError('Could not save those changes.')
+        toast.show('critical', 'Save failed', 'Could not save those changes.')
       }
     } finally {
       setBusy(false)
@@ -157,11 +155,6 @@ function EditOrgForm({
   return (
     <Modal title={org.name} hint="Everything about this organization, in one place." onClose={onCancel}>
       <form onSubmit={submit}>
-      {error && (
-        <Banner tone="error" className="mb-3">
-          {error}
-        </Banner>
-      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Field
           label="Organization name"
@@ -249,16 +242,15 @@ function ProvisionForm({
     admin_email: '',
     seat_limit: '',
   })
+  const toast = useToast()
   const [logo, setLogo] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
-    setError(null)
     setFieldErrors({})
     try {
       const created = await api.post<OrgDetail>('/orgs', {
@@ -285,10 +277,10 @@ function ProvisionForm({
       onDone(form.name)
     } catch (caught) {
       if (caught instanceof ApiError) {
-        setError(caught.message)
+        toast.show('critical', 'Provisioning failed', caught.message)
         setFieldErrors(caught.fieldErrors())
       } else {
-        setError('Provisioning failed.')
+        toast.show('critical', 'Provisioning failed', 'Provisioning failed.')
       }
     } finally {
       setBusy(false)
@@ -298,11 +290,6 @@ function ProvisionForm({
   return (
     <Card className="mb-5" title="Provision an organization" hint="For a tenant that has already been vetted directly — this skips the approval queue and activates immediately.">
       <form onSubmit={submit}>
-        {error && (
-          <Banner tone="error" className="mb-3">
-            {error}
-          </Banner>
-        )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field
             label="Organization name"
@@ -427,30 +414,28 @@ function ReasonForm({
   onSubmit: (reason: string) => Promise<void>
   onCancel: () => void
 }) {
+  const toast = useToast()
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   return (
     <form
       onSubmit={async (event) => {
         event.preventDefault()
         setBusy(true)
-        setError(null)
         try {
           await onSubmit(reason)
         } catch (caught) {
-          setError(caught instanceof ApiError ? caught.message : 'That did not work.')
+          toast.show(
+            'critical',
+            'Action failed',
+            caught instanceof ApiError ? caught.message : 'That did not work.',
+          )
           setBusy(false)
         }
       }}
       className="mt-3 rounded-lg border border-ink-200 bg-ink-50 p-4 dark:border-ink-700 dark:bg-ink-900/60"
     >
-      {error && (
-        <Banner tone="error" className="mb-3">
-          {error}
-        </Banner>
-      )}
       <Field
         label={label}
         value={reason}
@@ -479,6 +464,7 @@ function ReasonForm({
 const PAGE_SIZE = 15
 
 export function Organizations() {
+  const toast = useToast()
   const [params, setParams] = useSearchParams()
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
@@ -489,13 +475,11 @@ export function Organizations() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<Pending>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [provisioning, setProvisioning] = useState(false)
   const [editOrgId, setEditOrgId] = useState<string | null>(null)
   const [logoOrgId, setLogoOrgId] = useState<string | null>(null)
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
   const [logoBusy, setLogoBusy] = useState(false)
-  const [logoError, setLogoError] = useState<string | null>(null)
 
   // Guards against an out-of-order response overwriting a newer one. Without
   // this, rejecting an org and immediately switching tabs could have the
@@ -531,7 +515,7 @@ export function Organizations() {
 
   const finish = (message: string) => {
     setPending(null)
-    setNotice(message)
+    toast.show('success', 'Done', message)
     load()
   }
 
@@ -555,11 +539,6 @@ export function Organizations() {
         }
       />
 
-      {notice && (
-        <Banner tone="success" className="mb-4" onDismiss={() => setNotice(null)}>
-          {notice}
-        </Banner>
-      )}
       {error && (
         <Banner tone="error" className="mb-4">
           {error}
@@ -571,7 +550,11 @@ export function Organizations() {
           onCancel={() => setProvisioning(false)}
           onDone={(name) => {
             setProvisioning(false)
-            setNotice(`${name} provisioned and active. The client admin has been invited.`)
+            toast.show(
+              'success',
+              'Organization provisioned',
+              `${name} provisioned and active. The client admin has been invited.`,
+            )
             load()
           }}
         />
@@ -701,7 +684,6 @@ export function Organizations() {
                       type="button"
                       className="btn-secondary px-3 py-1.5 text-sm"
                       onClick={() => {
-                        setLogoError(null)
                         setLogoOrgId(logoOrgId === org.id ? null : org.id)
                       }}
                     >
@@ -751,13 +733,14 @@ export function Organizations() {
                         const localPreview = URL.createObjectURL(file)
                         setLogoPreviewUrl(localPreview)
                         setLogoBusy(true)
-                        setLogoError(null)
                         try {
                           await uploadFile(`/orgs/${org.id}/logo`, file)
                           setLogoOrgId(null)
                           finish(`Logo updated for ${org.name}.`)
                         } catch (caught) {
-                          setLogoError(
+                          toast.show(
+                            'critical',
+                            'Logo upload failed',
                             caught instanceof ApiError ? caught.message : 'Logo upload failed.',
                           )
                         } finally {
@@ -775,7 +758,6 @@ export function Organizations() {
                     >
                       Cancel
                     </button>
-                    {logoError && <p className="w-full text-xs text-critical">{logoError}</p>}
                   </div>
                 )}
 
