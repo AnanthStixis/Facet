@@ -251,7 +251,7 @@ async def target_results(
 
 
 def _collect_comments(responses: list[FeedbackResponse]) -> list[dict[str, Any]]:
-    """Closing comments, detached from submission order.
+    """Comments, detached from submission order.
 
     Sorting by submitted_at would let anyone who knows who responded first
     match a comment to a person, which quietly undoes the anonymity the storage

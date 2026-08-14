@@ -34,6 +34,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
     role: 'employee' as Role,
     job_title: '',
     department: '',
+    manager_id: null as string | null,
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,7 +61,14 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
       })
       onInvited(result)
       setOpen(false)
-      setForm({ full_name: '', email: '', role: 'employee', job_title: '', department: '' })
+      setForm({
+        full_name: '',
+        email: '',
+        role: 'employee',
+        job_title: '',
+        department: '',
+        manager_id: null,
+      })
     } catch (caught) {
       if (caught instanceof ApiError) {
         setError(caught.message)
@@ -107,6 +115,14 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
             value={form.department}
             onChange={(event) => setForm({ ...form, department: event.target.value })}
           />
+          <div className="sm:col-span-2">
+            <LookupFilter
+              entity="users"
+              label="Manager"
+              selected={form.manager_id ? [form.manager_id] : []}
+              onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
+            />
+          </div>
         </div>
 
         <fieldset className="mt-4">
@@ -208,17 +224,12 @@ function EditUserForm({
     setError(null)
     setFieldErrors({})
     try {
-      const isOrgChartRole = form.role === 'employee' || form.role === 'manager'
-      // Promoting someone to an admin role takes them out of the org chart
-      // this drives — clear it rather than leave a stale manager hidden
-      // behind a field that no longer shows.
-      const nextManagerId = isOrgChartRole ? form.manager_id : null
       await api.patch(`/users/${person.id}`, {
         full_name: form.full_name,
         job_title: form.job_title || null,
         department: form.department || null,
         role: canChangeRole && form.role !== person.role ? form.role : undefined,
-        manager_id: nextManagerId !== (person.manager_id ?? null) ? nextManagerId : undefined,
+        manager_id: form.manager_id !== (person.manager_id ?? null) ? form.manager_id : undefined,
       })
       onDone()
     } catch (caught) {
@@ -301,23 +312,14 @@ function EditUserForm({
                 <p className="text-xs text-ink-400">You cannot change your own role.</p>
               </div>
             )}
-            {/* An admin role sits outside the org chart this drives (self /
-                manager / upward / peer assignment generation) — showing it
-                for a Client Admin or Super Admin would just be a field with
-                no effect. */}
-            {(form.role === 'employee' || form.role === 'manager') && (
-              <div className="sm:col-span-2">
-                <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                  Manager
-                </span>
-                <LookupFilter
-                  entity="users"
-                  label="Choose a manager"
-                  selected={form.manager_id ? [form.manager_id] : []}
-                  onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
-                />
-              </div>
-            )}
+            <div className="sm:col-span-2">
+              <LookupFilter
+                entity="users"
+                label="Manager"
+                selected={form.manager_id ? [form.manager_id] : []}
+                onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
+              />
+            </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>
@@ -360,11 +362,37 @@ const MAX_BULK_ROWS = 100
 // reject an oversized file before it ever leaves the browser. The server
 // re-parses and re-validates properly; this is just for the confirmation
 // prompt and an early, cheap rejection.
+//
+// A non-blank *line* is not the same as a non-blank *row*: Excel routinely
+// saves trailing rows as bare commas (",,,,") once formatting has ever
+// extended past the real data, even after that data is deleted. Those lines
+// pass a plain text.trim() check, so they were being counted as real users.
+// A row only counts if at least one comma-separated field actually has
+// content.
 function countCsvRows(text: string): number {
   return text
     .split(/\r?\n/)
     .slice(1) // header
-    .filter((line) => line.trim().length > 0).length
+    .filter((line) => line.split(',').some((field) => field.trim().length > 0)).length
+}
+
+// Excel's Save As dialog defaults to "Excel Workbook (*.xlsx)" — someone
+// typing "name.csv" into the filename box without also switching the file
+// type dropdown gets a real .xlsx (a ZIP archive) saved under a .csv name.
+// Reading that as text and counting "rows" in it produces a meaningless
+// number: whatever comma/newline bytes happen to fall next to each other in
+// the compressed binary. Catch it by signature before ever calling
+// file.text(), rather than trying to make row-counting smarter about text
+// that was never CSV in the first place.
+// PK\x03\x04 — ZIP (.xlsx, .docx, .zip). D0 CF 11 E0 — legacy OLE2 (.xls, .doc).
+const BINARY_SPREADSHEET_SIGNATURES = [
+  [0x50, 0x4b, 0x03, 0x04],
+  [0xd0, 0xcf, 0x11, 0xe0],
+]
+
+async function looksLikeBinarySpreadsheet(file: File): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, 4).arrayBuffer())
+  return BINARY_SPREADSHEET_SIGNATURES.some((sig) => sig.every((byte, i) => head[i] === byte))
 }
 
 function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
@@ -461,6 +489,14 @@ function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
                 event.target.value = ''
                 if (!file) return
                 setError(null)
+                if (await looksLikeBinarySpreadsheet(file)) {
+                  setError(
+                    'That file is an Excel workbook saved with a .csv name, not an actual CSV. ' +
+                      'In Excel, use File → Save As and pick "CSV UTF-8 (Comma delimited)" as the ' +
+                      'file type — not just typing .csv as the filename — then upload that.',
+                  )
+                  return
+                }
                 const text = await file.text()
                 const rowCount = countCsvRows(text)
                 if (rowCount === 0) {
@@ -494,10 +530,17 @@ const PAGE_SIZE = 15
 
 export function People() {
   const location = useLocation()
-  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
+  const navState = location.state as { from?: string; orgName?: string } | null
+  const cameFromDashboard = navState?.from === 'dashboard'
   const { user } = useAuth()
   const [params, setParams] = useSearchParams()
   const role = params.get('role') ?? ''
+  // Set only when a Super Admin arrived here scoped to one client (e.g. from
+  // that client's row on the Organizations page). A Client Admin/Manager/
+  // Employee never has this — their own directory is already exactly their
+  // own org, enforced by row level security, so there is nothing to scope.
+  const orgId = params.get('org')
+  const orgName = navState?.orgName ?? null
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<Paged<User> | null>(null)
@@ -513,6 +556,7 @@ export function People() {
     const query = new URLSearchParams({ page_size: String(PAGE_SIZE), page: String(page) })
     if (search) query.set('search', search)
     if (role) query.set('role', role)
+    if (orgId) query.set('org_id', orgId)
     api
       .get<Paged<User>>(`/users?${query}`)
       .then((result) => {
@@ -525,19 +569,27 @@ export function People() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [search, role, page])
+  useEffect(load, [search, role, page, orgId])
   useRefetchOnFocus(load)
 
   const canManage = user?.role === 'client_admin' || user?.role === 'super_admin'
-  const isPlatform = user?.role === 'super_admin'
+  // The Organization column exists to disambiguate rows when a Super Admin
+  // is looking at every client at once. Scoped to one client, every row
+  // would repeat the same name, so it is redundant rather than merely
+  // unnecessary.
+  const isPlatform = user?.role === 'super_admin' && !orgId
 
   return (
     <>
       <PageHeader
-        title="People"
-        backTo={cameFromDashboard ? '/' : undefined}
-        backLabel="Dashboard"
-        description="Everyone with access to this workspace. External respondents are not listed here — they never hold an account."
+        title={orgName ? `People — ${orgName}` : 'People'}
+        backTo={orgId ? '/organizations' : cameFromDashboard ? '/' : undefined}
+        backLabel={orgId ? 'Organizations' : 'Dashboard'}
+        description={
+          orgName
+            ? `Employees and managers at ${orgName}. External respondents are not listed here — they never hold an account.`
+            : 'Everyone with access to this workspace. External respondents are not listed here — they never hold an account.'
+        }
         actions={
           canManage && (
             <span className="flex flex-wrap items-start gap-2">

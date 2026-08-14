@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import AdminUser, DbSession, ManagerUser
-from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.errors import Conflict, NotFound
 from app.models.catalog import Category, FeedbackTemplate, FeedbackTemplateVersion
 from app.models.enums import AuditAction, TemplateScope, TemplateStatus
 from app.schemas.cycle import (
@@ -328,7 +328,7 @@ async def get_template(
         "target_type": str(template.target_type),
         "is_anonymous": template.is_anonymous,
         "min_responses_to_reveal": template.min_responses_to_reveal,
-        "editable": template.org_id is not None,
+        "editable": template.org_id is not None or actor.is_super_admin,
         "versions": [
             {
                 "id": str(version.id),
@@ -359,18 +359,25 @@ async def delete_template(
     session: DbSession,
     actor: AdminUser,
 ) -> None:
-    """Remove an org-owned template and every draft/published version of it.
+    """Remove a template and every draft/published version of it.
 
-    Provided (vendor-authored) templates can never be deleted through this
-    endpoint — only a clone, which is org-owned, is. A version already pinned
-    by a review cycle blocks the delete at the database level (a foreign key
-    with `ON DELETE RESTRICT`), which this turns into a plain, actionable
-    error instead of a 500: historical results must stay interpretable
-    against the questions that were actually asked, so a template that has
-    ever backed a cycle cannot be un-asked after the fact.
+    An org-owned template can only be deleted by its own org. A global
+    (vendor/Super-Admin-owned) template can only be deleted by a Super
+    Admin — never by a Client Admin through this endpoint, even one whose
+    own RLS-bypassed view can see it, and never a *specific client's*
+    private template by a Super Admin either; that boundary stays intact.
+    A version already pinned by a review cycle blocks the delete at the
+    database level (a foreign key with `ON DELETE RESTRICT`), which this
+    turns into a plain, actionable error instead of a 500: historical
+    results must stay interpretable against the questions that were
+    actually asked, so a template that has ever backed a cycle cannot be
+    un-asked after the fact.
     """
     template = await _load_template(session, template_id)
-    if template.org_id is None or template.org_id != actor.org_id:
+    if actor.is_super_admin:
+        if template.org_id is not None:
+            raise NotFound("That template does not exist.")
+    elif template.org_id is None or template.org_id != actor.org_id:
         raise NotFound("That template does not exist.")
 
     name = template.name
@@ -413,9 +420,6 @@ async def create_template(
     definition is valid immediately — an empty section would fail
     `validate_definition` the moment the author tried to save it.
     """
-    if actor.org_id is None:
-        raise ValidationFailed("A Super Admin must act within an organization to create a template.")
-
     category = (
         await session.execute(select(Category).where(Category.id == payload.category_id))
     ).scalar_one_or_none()
@@ -426,13 +430,15 @@ async def create_template(
         await session.execute(
             select(func.count())
             .select_from(FeedbackTemplate)
-            .where(
-                FeedbackTemplate.org_id == actor.org_id, FeedbackTemplate.name == payload.name
-            )
+            .where(FeedbackTemplate.org_id == actor.org_id, FeedbackTemplate.name == payload.name)
         )
     ).scalar_one()
     if clash:
-        raise Conflict("A template with that name already exists in your organization.")
+        raise Conflict(
+            "A template with that name already exists in the shared library."
+            if actor.org_id is None
+            else "A template with that name already exists in your organization."
+        )
 
     template = FeedbackTemplate(
         org_id=actor.org_id,
@@ -509,9 +515,6 @@ async def clone_template(
     every customer, so letting one edit in place would change the library for
     everybody. Cloning is the supported way to customise.
     """
-    if actor.org_id is None:
-        raise ValidationFailed("A Super Admin must act within an organization to clone.")
-
     source = await _load_template(session, template_id)
     source_version = (
         await session.execute(
@@ -538,7 +541,11 @@ async def clone_template(
         )
     ).scalar_one()
     if clash:
-        raise Conflict("A template with that name already exists in your organization.")
+        raise Conflict(
+            "A template with that name already exists in the shared library."
+            if actor.org_id is None
+            else "A template with that name already exists in your organization."
+        )
 
     clone = FeedbackTemplate(
         org_id=actor.org_id,
@@ -590,7 +597,7 @@ async def save_draft(
 ) -> dict[str, Any]:
     """Create or update the draft version of an org-owned template."""
     template = await _load_template(session, template_id)
-    if template.org_id is None:
+    if template.org_id is None and not actor.is_super_admin:
         raise Conflict(
             "Provided templates cannot be edited. Clone it first, then edit the copy."
         )
@@ -650,7 +657,7 @@ async def publish_template(
 ) -> dict[str, Any]:
     """Publish the draft, making it immutable and usable by a cycle."""
     template = await _load_template(session, template_id)
-    if template.org_id is None:
+    if template.org_id is None and not actor.is_super_admin:
         raise Conflict("Provided templates are already published.")
 
     draft = await _latest_version(session, template.id)

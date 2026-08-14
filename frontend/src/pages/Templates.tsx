@@ -97,15 +97,20 @@ function TemplateActions({
   onError,
   onEdit,
   onDeleted,
+  isSuperAdmin = false,
 }: {
   template: TemplateMeta
   onChanged: (message: string) => void
   onError: (message: string) => void
   onEdit: (templateId: string) => void
   onDeleted?: (message: string) => void
+  // A Super Admin editing/publishing/deleting a global template is managing
+  // the shared library itself, not customising a copy of it — so they get
+  // the full edit/publish/delete set below instead of the clone-only path
+  // every other role gets for a global template.
+  isSuperAdmin?: boolean
 }) {
   const [busy, setBusy] = useState<'clone' | 'publish' | 'delete' | null>(null)
-  const [confirming, setConfirming] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const run = async (action: 'clone' | 'publish') => {
@@ -127,7 +132,6 @@ function TemplateActions({
           `'${template.name}' v${result.version} published. It can now back a review cycle.`,
         )
       }
-      setConfirming(false)
     } catch (caught) {
       onError(caught instanceof ApiError ? caught.message : 'That did not work.')
     } finally {
@@ -149,7 +153,7 @@ function TemplateActions({
     }
   }
 
-  if (template.scope === 'global') {
+  if (template.scope === 'global' && !isSuperAdmin) {
     return (
       <button
         type="button"
@@ -172,35 +176,17 @@ function TemplateActions({
       >
         {template.status === 'draft' ? 'Edit draft' : 'Edit (new version)'}
       </button>
-      {template.status === 'draft' &&
-        (confirming ? (
-          <span className="flex gap-1.5">
-            <button
-              type="button"
-              className="btn-primary px-2.5 py-1.5 text-sm"
-              disabled={busy === 'publish'}
-              onClick={() => run('publish')}
-            >
-              {busy === 'publish' && <Spinner />}
-              Confirm publish
-            </button>
-            <button
-              type="button"
-              className="btn-secondary px-2.5 py-1.5 text-sm"
-              onClick={() => setConfirming(false)}
-            >
-              Cancel
-            </button>
-          </span>
-        ) : (
-          <button
-            type="button"
-            className="btn-primary px-3 py-1.5 text-sm"
-            onClick={() => setConfirming(true)}
-          >
-            Publish
-          </button>
-        ))}
+      {template.status === 'draft' && (
+        <button
+          type="button"
+          className="btn-primary px-3 py-1.5 text-sm"
+          disabled={busy === 'publish'}
+          onClick={() => run('publish')}
+        >
+          {busy === 'publish' && <Spinner />}
+          Publish
+        </button>
+      )}
       {template.status !== 'draft' && (
         <span className="text-2xs uppercase tracking-[0.08em] text-ink-400">
           v{template.version} published
@@ -256,7 +242,7 @@ function CreateTemplateForm({
     target_type: 'employee',
     description: '',
     is_anonymous: false,
-    min_responses_to_reveal: 4,
+    min_responses_to_reveal: 0,
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1078,7 +1064,7 @@ export function Templates() {
         title="Template library"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Ready-made templates across all three feedback domains. Clone one to customise it for your organization — published versions are immutable, so editing creates the next version and never rewrites history."
+        description="Ready-made questionnaires across all three feedback domains. Clone one to customise it for your organization — published versions are immutable, so editing creates the next version and never rewrites history."
         actions={
           !creating &&
           categories &&
@@ -1206,13 +1192,30 @@ export function Templates() {
                               <span className="tabular">{template.question_count} questions</span>
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            className="btn-secondary px-3 py-1.5 text-sm"
-                            onClick={() => setViewingTemplate(template)}
-                          >
-                            View
-                          </button>
+                          {isSuperAdmin ? (
+                            <TemplateActions
+                              template={template}
+                              isSuperAdmin
+                              onChanged={(message) => {
+                                setNotice(message)
+                                reload()
+                              }}
+                              onError={setError}
+                              onEdit={setEditingId}
+                              onDeleted={(message) => {
+                                setNotice(message)
+                                reload()
+                              }}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn-secondary px-3 py-1.5 text-sm"
+                              onClick={() => setViewingTemplate(template)}
+                            >
+                              View
+                            </button>
+                          )}
                         </div>
                       </li>
                     ))}

@@ -163,7 +163,7 @@ TEMPLATES = [
     },
     {
         "category": "internal_360",
-        "name": "Downward review (manager on direct report)",
+        "name": "Team review",
         "target_type": TargetType.EMPLOYEE,
         "is_anonymous": False,
         "description": "A manager's structured review of a direct report — attributable, part of the normal review conversation.",
