@@ -376,9 +376,10 @@ export function MyFeedback() {
         data={active}
         onCancel={() => setActive(null)}
         onDone={(message) => {
+          const submittedId = active.assignment.id
           setActive(null)
           toast.show('success', message)
-          load()
+          setAssignments((current) => (current ? current.filter((a) => a.id !== submittedId) : current))
         }}
       />
     )

@@ -56,6 +56,17 @@ class OrgApprovalRequest(BaseModel):
     note: str | None = Field(default=None, max_length=500)
 
 
+class OrgInviteAdminRequest(BaseModel):
+    """Invite an additional Client Admin into an already-active organization,
+    from that org's Edit popup. Distinct from OrgApprovalRequest (pending ->
+    active, one-time) and OrgProvisionRequest's create-time admin fields —
+    this is the third path: an org that is already active getting a new
+    Client Admin added to it later."""
+
+    full_name: str = Field(min_length=2, max_length=150)
+    email: EmailStr
+
+
 class OrgUpdateRequest(BaseModel):
     """Super Admin edit of an existing organization's profile.
 
@@ -79,6 +90,13 @@ class OrgRejectionRequest(BaseModel):
 
 class OrgStatusChangeRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
+
+
+class OrgReactivateRequest(BaseModel):
+    # Unlike suspend/reject, reactivating isn't adverse to anyone — recording
+    # why is nice-to-have for the audit trail, not something worth blocking
+    # the action over.
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class BrandingUpdateRequest(BaseModel):
@@ -116,6 +134,7 @@ class OrgDetail(ORMModel):
     seat_limit: int | None = None
     approved_at: datetime | None = None
     rejection_reason: str | None = None
+    suspension_reason: str | None = None
     created_at: datetime
     user_count: int = 0
     branding: BrandingDetail | None = None
@@ -165,10 +184,10 @@ class UserDetail(ORMModel):
     department: str | None
     role: str
     status: str
-    mfa_enabled: bool
     manager_id: uuid.UUID | None
     last_login_at: datetime | None
     created_at: datetime
+    feedback_count: int = 0
 
 
 class InviteResult(BaseModel):

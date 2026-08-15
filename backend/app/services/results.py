@@ -253,14 +253,20 @@ async def target_results(
 def _collect_comments(responses: list[FeedbackResponse]) -> list[dict[str, Any]]:
     """Closing comments, detached from submission order.
 
-    Sorting by submitted_at would let anyone who knows who responded first
-    match a comment to a person, which quietly undoes the anonymity the storage
-    model works hard to provide.
+    Sorted by comment text, not by submitted_at — the *display order* is what
+    would let anyone who knows who responded first match a comment to a
+    person, so the order itself never depends on timing. `submitted_at` is
+    still included on each entry (per an explicit product requirement that
+    every comment show when it was given), which is a narrower disclosure
+    than sorting by it: a reader sees each individual date, but nothing here
+    hands them "here is the response order" the way a chronological list
+    would.
     """
     comments = [
         {
             "comment": response.comment.strip(),
             "relationship": response.relationship_type.value,
+            "submitted_at": response.submitted_at.isoformat(),
         }
         for response in responses
         if response.comment and response.comment.strip()

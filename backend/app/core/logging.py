@@ -23,10 +23,8 @@ _REDACT_KEYS = {
     "access_token",
     "authorization",
     "cookie",
-    "mfa_code",
     "secret",
     "api_key",
-    "openai_api_key",
 }
 
 

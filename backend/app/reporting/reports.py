@@ -140,7 +140,6 @@ USER_COLUMNS = [
     Column("department", "Department", width=20),
     Column("role", "Role", width=14, kind="badge"),
     Column("status", "Status", width=12, kind="badge"),
-    Column("mfa_enabled", "MFA", width=8),
     Column("last_login_at", "Last sign-in", width=18, kind="datetime"),
     Column("organization", "Organization", width=22),
 ]
@@ -161,7 +160,6 @@ async def _query_users(
             User.department,
             User.role,
             User.status,
-            User.mfa_enabled,
             User.last_login_at,
             User.created_at,
             Organization.name.label("organization"),
@@ -192,7 +190,7 @@ USER_REPORT = register(
     ReportDefinition(
         key="user_directory",
         title="User directory",
-        description="People with access to the platform, their roles, and MFA status.",
+        description="People with access to the platform and their roles.",
         columns=USER_COLUMNS,
         query=_query_users,
         min_role=UserRole.CLIENT_ADMIN,

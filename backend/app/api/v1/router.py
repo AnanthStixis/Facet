@@ -9,6 +9,7 @@ from app.api.v1 import (
     catalog,
     cycles,
     dashboard,
+    feedback,
     insights,
     lookup,
     orgs,
@@ -33,6 +34,7 @@ api_router.include_router(cycles.me_router)
 api_router.include_router(campaigns.router)
 api_router.include_router(campaigns.contacts_router)
 api_router.include_router(campaigns.targets_router)
+api_router.include_router(feedback.router)
 api_router.include_router(proposals.router)
 api_router.include_router(ai.router)
 api_router.include_router(insights.router)

@@ -1,4 +1,4 @@
-"""Cryptographic primitives: password hashing, tokens, JWTs, MFA secrets.
+"""Cryptographic primitives: password hashing, tokens, JWTs.
 
 Nothing in this module talks to the database or to FastAPI. Keeping it pure
 means the security-critical code can be reasoned about, and unit tested,
@@ -7,20 +7,17 @@ without standing up an application.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import hmac
 import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any
 
 import jwt
-import pyotp
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
-from cryptography.fernet import Fernet, InvalidToken
 
 from app.core.config import settings
 
@@ -109,9 +106,7 @@ class AccessTokenClaims:
     session_id: uuid.UUID
     jti: uuid.UUID
     expires_at: datetime
-    # An access token issued after only the password step is deliberately not
-    # a full session: it can reach the MFA endpoints and nothing else.
-    scope: Literal["full", "mfa_pending"] = "full"
+    scope: str
 
 
 def create_access_token(
@@ -120,7 +115,7 @@ def create_access_token(
     org_id: uuid.UUID | None,
     role: str,
     session_id: uuid.UUID,
-    scope: Literal["full", "mfa_pending"] = "full",
+    scope: str = "full",
     ttl_minutes: int | None = None,
 ) -> tuple[str, datetime]:
     now = datetime.now(UTC)
@@ -188,60 +183,3 @@ def verify_csrf(header_value: str | None, cookie_value: str | None) -> bool:
     if not header_value or not cookie_value:
         return False
     return hmac.compare_digest(header_value, cookie_value)
-
-
-# --- MFA secrets ------------------------------------------------------------
-
-def _fernet() -> Fernet:
-    """Derive a stable Fernet key from SECRET_KEY.
-
-    TOTP secrets are encrypted rather than hashed because they must be
-    recoverable to verify a code. Rotating SECRET_KEY therefore invalidates
-    enrolled authenticators, which is why the rotation runbook includes a
-    re-enrolment step.
-    """
-    digest = hashlib.sha256(settings.secret_key.encode("utf-8")).digest()
-    return Fernet(base64.urlsafe_b64encode(digest))
-
-
-def encrypt_mfa_secret(secret: str) -> str:
-    return _fernet().encrypt(secret.encode("utf-8")).decode("utf-8")
-
-
-def decrypt_mfa_secret(payload: str) -> str:
-    try:
-        return _fernet().decrypt(payload.encode("utf-8")).decode("utf-8")
-    except InvalidToken as exc:
-        raise TokenError("mfa secret is not decryptable with the current key") from exc
-
-
-def generate_mfa_secret() -> str:
-    return pyotp.random_base32()
-
-
-def mfa_provisioning_uri(secret: str, account_email: str) -> str:
-    return pyotp.TOTP(secret).provisioning_uri(
-        name=account_email, issuer_name=settings.product_name
-    )
-
-
-def verify_totp(secret: str, code: str) -> bool:
-    """Verify a 6-digit code, allowing one step of clock drift either way."""
-    cleaned = code.replace(" ", "").strip()
-    if not cleaned.isdigit() or len(cleaned) != 6:
-        return False
-    return pyotp.TOTP(secret).verify(cleaned, valid_window=1)
-
-
-def generate_recovery_codes(count: int = 10) -> list[str]:
-    """Human-transcribable single-use codes, e.g. 'K3F9-2QME'."""
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no I, O, 0, 1
-    codes: list[str] = []
-    for _ in range(count):
-        raw = "".join(secrets.choice(alphabet) for _ in range(8))
-        codes.append(f"{raw[:4]}-{raw[4:]}")
-    return codes
-
-
-def normalise_recovery_code(code: str) -> str:
-    return code.replace("-", "").replace(" ", "").upper()

@@ -1,18 +1,19 @@
 import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
-import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
+import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, Switch } from '../components/ui'
 import { useToast } from '../components/Toast'
-import { IconBuilding } from '../components/icons'
+import { IconBuilding, IconEdit } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, uploadFile } from '../lib/api'
+import { COUNTRIES } from '../lib/countries'
 import { TIMEZONES, TIMEZONE_FIELD_ENABLED } from '../lib/timezones'
 import type { OrgDetail, Paged } from '../lib/types'
 
-type Pending = { id: string; action: 'approve' | 'reject' | 'suspend' | 'reactivate' } | null
+type Pending = { id: string; action: 'approve' | 'reject' | 'suspend' } | null
 
 const STATUS_TABS = [
   { value: '', label: 'All' },
@@ -28,7 +29,7 @@ function ApprovalForm({
   onCancel,
 }: {
   org: OrgDetail
-  onDone: () => void
+  onDone: (updated: OrgDetail) => void
   onCancel: () => void
 }) {
   const toast = useToast()
@@ -41,12 +42,12 @@ function ApprovalForm({
     event.preventDefault()
     setBusy(true)
     try {
-      await api.post<OrgDetail>(`/orgs/${org.id}/approve`, {
+      const updated = await api.post<OrgDetail>(`/orgs/${org.id}/approve`, {
         admin_full_name: fullName,
         admin_email: email,
         seat_limit: seatLimit ? Number(seatLimit) : null,
       })
-      onDone()
+      onDone(updated)
     } catch (caught) {
       toast.show(
         'critical',
@@ -103,144 +104,29 @@ function ApprovalForm({
   )
 }
 
-function EditOrgForm({
+// Handles both creation and editing in one popup: same fields, same
+// component, only the submit label and the admin-invite/logo section (which
+// only make sense once, at creation) differ.
+function OrgFormModal({
   org,
   onCancel,
   onDone,
 }: {
-  org: OrgDetail
+  org: OrgDetail | null
   onCancel: () => void
-  onDone: (message: string) => void
+  onDone: (message: string, updated: OrgDetail) => void
 }) {
+  const isEdit = !!org
   const [form, setForm] = useState({
-    name: org.name,
-    contact_name: org.contact_name,
-    contact_email: org.contact_email,
-    contact_phone: org.contact_phone ?? '',
-    country: org.country ?? '',
-    timezone: org.timezone,
-    seat_limit: org.seat_limit ? String(org.seat_limit) : '',
-  })
-  const toast = useToast()
-  const [busy, setBusy] = useState(false)
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setBusy(true)
-    setFieldErrors({})
-    try {
-      await api.patch(`/orgs/${org.id}`, {
-        name: form.name,
-        contact_name: form.contact_name,
-        contact_email: form.contact_email,
-        contact_phone: form.contact_phone || null,
-        country: form.country || null,
-        timezone: form.timezone,
-        seat_limit: form.seat_limit ? Number(form.seat_limit) : null,
-      })
-      onDone(`${form.name}'s profile was updated.`)
-    } catch (caught) {
-      if (caught instanceof ApiError) {
-        toast.show('critical', 'Save failed', caught.message)
-        setFieldErrors(caught.fieldErrors())
-      } else {
-        toast.show('critical', 'Save failed', 'Could not save those changes.')
-      }
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Modal title={org.name} hint="Everything about this organization, in one place." onClose={onCancel}>
-      <form onSubmit={submit}>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Field
-          label="Organization name"
-          value={form.name}
-          onChange={(event) => setForm({ ...form, name: event.target.value })}
-          error={fieldErrors.name}
-          required
-        />
-        <Field
-          label="Primary contact name"
-          value={form.contact_name}
-          onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
-          error={fieldErrors.contact_name}
-          required
-        />
-        <Field
-          label="Primary contact email"
-          type="email"
-          value={form.contact_email}
-          onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
-          error={fieldErrors.contact_email}
-          required
-        />
-        <Field
-          label="Phone"
-          value={form.contact_phone}
-          onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
-        />
-        {TIMEZONE_FIELD_ENABLED && (
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-              Time zone
-            </span>
-            <select
-              className="field"
-              value={form.timezone}
-              onChange={(event) => setForm({ ...form, timezone: event.target.value })}
-            >
-              {[...new Set([form.timezone, ...TIMEZONES])].map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <Field
-          label="User limit (optional)"
-          type="number"
-          min={1}
-          value={form.seat_limit}
-          onChange={(event) => setForm({ ...form, seat_limit: event.target.value })}
-          placeholder="Unlimited"
-        />
-      </div>
-      <div className="mt-3 flex gap-2">
-        <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>
-          {busy && <Spinner />}
-          Save changes
-        </button>
-        <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-      </form>
-    </Modal>
-  )
-}
-
-function ProvisionForm({
-  onDone,
-  onCancel,
-}: {
-  onDone: (name: string) => void
-  onCancel: () => void
-}) {
-  const [form, setForm] = useState({
-    name: '',
-    contact_name: '',
-    contact_email: '',
-    contact_phone: '',
-    country: '',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    name: org?.name ?? '',
+    contact_name: org?.contact_name ?? '',
+    contact_email: org?.contact_email ?? '',
+    contact_phone: org?.contact_phone ?? '',
+    country: org?.country ?? '',
+    timezone: org?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
+    seat_limit: org?.seat_limit ? String(org.seat_limit) : '',
     admin_full_name: '',
     admin_email: '',
-    seat_limit: '',
   })
   const toast = useToast()
   const [logo, setLogo] = useState<File | null>(null)
@@ -248,39 +134,137 @@ function ProvisionForm({
   const [busy, setBusy] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  const setFieldError = (field: string, message: string | null) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev }
+      if (message) next[field] = message
+      else delete next[field]
+      return next
+    })
+  }
+
+  // Field-level, not just on submit: checked again on submit below as a
+  // final guard in case the input never blurred (e.g. a form filled by
+  // pasting and hitting Enter).
+  const validatePhone = (value: string) => {
+    const ok = value.length === 10
+    setFieldError('contact_phone', ok ? null : 'Enter a 10-digit phone number.')
+    return ok
+  }
+
+  const DUPLICATE_EMAIL_MESSAGE = 'This email is already in use by another account.'
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  // Only meaningful on create — editing an existing org's contact email
+  // legitimately matches an already-existing user (its own admin) all the
+  // time, so this only ever runs for a brand-new org's fields.
+  const isEmailTaken = async (value: string): Promise<boolean> => {
+    if (!value || !EMAIL_RE.test(value)) return false
+    try {
+      const result = await api.get<{ available: boolean }>(
+        `/orgs/check-email?email=${encodeURIComponent(value)}`,
+      )
+      return !result.available
+    } catch {
+      return false // best-effort — the submit-time uniqueness check still catches it
+    }
+  }
+
+  // A blur check still in flight and the submit-time re-check both hit the
+  // same endpoint for the same field — without this, whichever happened to
+  // land second would silently overwrite the other's result, and the error
+  // message could flash in, clear, then flash back in. Each field's own
+  // generation counter means only the most recent check for that field is
+  // ever allowed to touch state.
+  const emailCheckSeq = useRef<Record<string, number>>({})
+
+  const checkFieldEmail = async (field: 'contact_email' | 'admin_email', value: string) => {
+    if (isEdit) return
+    const seq = (emailCheckSeq.current[field] = (emailCheckSeq.current[field] ?? 0) + 1)
+    const taken = await isEmailTaken(value)
+    if (emailCheckSeq.current[field] !== seq) return
+    setFieldError(field, taken ? DUPLICATE_EMAIL_MESSAGE : null)
+  }
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (!validatePhone(form.contact_phone)) return
+    // Authoritative at submit time, not just relying on whatever a prior
+    // blur happened to leave in state — a field that was never blurred (form
+    // filled by paste + Enter) would otherwise sail through unchecked. Busy
+    // only flips on once this resolves clean, so a duplicate-email rejection
+    // never shows a spinner that immediately vanishes.
+    if (!isEdit) {
+      const contactSeq = (emailCheckSeq.current.contact_email = (emailCheckSeq.current.contact_email ?? 0) + 1)
+      const adminSeq = (emailCheckSeq.current.admin_email = (emailCheckSeq.current.admin_email ?? 0) + 1)
+      const [contactTaken, adminTaken] = await Promise.all([
+        isEmailTaken(form.contact_email),
+        isEmailTaken(form.admin_email),
+      ])
+      const errors: Record<string, string> = {}
+      if (emailCheckSeq.current.contact_email === contactSeq && contactTaken) {
+        errors.contact_email = DUPLICATE_EMAIL_MESSAGE
+      }
+      if (emailCheckSeq.current.admin_email === adminSeq && adminTaken) {
+        errors.admin_email = DUPLICATE_EMAIL_MESSAGE
+      }
+      if (Object.keys(errors).length) {
+        setFieldErrors((prev) => ({ ...prev, ...errors }))
+        return
+      }
+    }
     setBusy(true)
     setFieldErrors({})
     try {
-      const created = await api.post<OrgDetail>('/orgs', {
-        name: form.name,
-        contact_name: form.contact_name,
-        contact_email: form.contact_email,
-        contact_phone: form.contact_phone || null,
-        country: form.country || null,
-        timezone: form.timezone,
-        admin_full_name: form.admin_full_name,
-        admin_email: form.admin_email,
-        seat_limit: form.seat_limit ? Number(form.seat_limit) : null,
-      })
-      if (logo) {
-        // Best-effort: the org is already provisioned at this point, so a
-        // logo upload failure should not be reported as a provisioning
-        // failure — it can always be added later from the org's branding page.
+      let orgId = org?.id
+      let saved: OrgDetail
+      if (isEdit) {
+        saved = await api.patch<OrgDetail>(`/orgs/${org.id}`, {
+          name: form.name,
+          contact_name: form.contact_name,
+          contact_email: form.contact_email,
+          contact_phone: form.contact_phone || null,
+          country: form.country || null,
+          timezone: form.timezone,
+          seat_limit: form.seat_limit ? Number(form.seat_limit) : null,
+        })
+      } else {
+        saved = await api.post<OrgDetail>('/orgs', {
+          name: form.name,
+          contact_name: form.contact_name,
+          contact_email: form.contact_email,
+          contact_phone: form.contact_phone || null,
+          country: form.country || null,
+          timezone: form.timezone,
+          admin_full_name: form.admin_full_name,
+          admin_email: form.admin_email,
+          seat_limit: form.seat_limit ? Number(form.seat_limit) : null,
+        })
+        orgId = saved.id
+      }
+      if (logo && orgId) {
+        // Best-effort: the org is already saved at this point, so a logo
+        // upload failure should not be reported as a save failure — it can
+        // always be retried from here later.
         try {
-          await uploadFile(`/orgs/${created.id}/logo`, logo)
+          await uploadFile(`/orgs/${orgId}/logo`, logo)
         } catch {
           // ignored — see comment above
         }
       }
-      onDone(form.name)
+      onDone(
+        isEdit
+          ? `${form.name}'s profile was updated.`
+          : `${form.name} created and active. The client admin has been invited.`,
+        saved,
+      )
     } catch (caught) {
+      const title = isEdit ? 'Save failed' : 'Creation failed'
       if (caught instanceof ApiError) {
-        toast.show('critical', 'Provisioning failed', caught.message)
+        toast.show('critical', title, caught.message)
         setFieldErrors(caught.fieldErrors())
       } else {
-        toast.show('critical', 'Provisioning failed', 'Provisioning failed.')
+        toast.show('critical', title, isEdit ? 'Could not save those changes.' : 'Could not create the organization.')
       }
     } finally {
       setBusy(false)
@@ -288,7 +272,11 @@ function ProvisionForm({
   }
 
   return (
-    <Card className="mb-5" title="Provision an organization" hint="For a tenant that has already been vetted directly — this skips the approval queue and activates immediately.">
+    <Modal
+      title={isEdit ? org.name : 'Create organization'}
+      hint={isEdit ? 'Everything about this organization, in one place.' : undefined}
+      onClose={onCancel}
+    >
       <form onSubmit={submit}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field
@@ -297,8 +285,80 @@ function ProvisionForm({
             onChange={(event) => setForm({ ...form, name: event.target.value })}
             error={fieldErrors.name}
             required
-            autoFocus
+            autoFocus={!isEdit}
           />
+          <Field
+            label="Primary contact name"
+            value={form.contact_name}
+            onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
+            error={fieldErrors.contact_name}
+            required
+          />
+          <Field
+            label="Primary contact email"
+            type="email"
+            value={form.contact_email}
+            onChange={(event) => {
+              setForm({ ...form, contact_email: event.target.value })
+              if (fieldErrors.contact_email) setFieldError('contact_email', null)
+            }}
+            onBlur={(event) => void checkFieldEmail('contact_email', event.target.value)}
+            error={fieldErrors.contact_email}
+            required
+          />
+          <Field
+            label="Phone"
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            value={form.contact_phone}
+            onChange={(event) =>
+              setForm({ ...form, contact_phone: event.target.value.replace(/\D/g, '').slice(0, 10) })
+            }
+            onBlur={(event) => validatePhone(event.target.value)}
+            error={fieldErrors.contact_phone}
+            required
+          />
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+              Country
+            </span>
+            <select
+              className="field"
+              value={form.country}
+              onChange={(event) => setForm({ ...form, country: event.target.value })}
+            >
+              <option value="">— select —</option>
+              {COUNTRIES.map((country) => (
+                <option key={country.code} value={country.code}>
+                  {country.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {!isEdit && (
+            <>
+              <Field
+                label="Client admin name"
+                value={form.admin_full_name}
+                onChange={(event) => setForm({ ...form, admin_full_name: event.target.value })}
+                error={fieldErrors.admin_full_name}
+                required
+              />
+              <Field
+                label="Client admin email"
+                type="email"
+                value={form.admin_email}
+                onChange={(event) => {
+                  setForm({ ...form, admin_email: event.target.value })
+                  if (fieldErrors.admin_email) setFieldError('admin_email', null)
+                }}
+                onBlur={(event) => void checkFieldEmail('admin_email', event.target.value)}
+                error={fieldErrors.admin_email}
+                required
+              />
+            </>
+          )}
           {TIMEZONE_FIELD_ENABLED && (
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
@@ -318,86 +378,130 @@ function ProvisionForm({
             </label>
           )}
           <Field
-            label="Primary contact name"
-            value={form.contact_name}
-            onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
-            error={fieldErrors.contact_name}
-            required
-          />
-          <Field
-            label="Primary contact email"
-            type="email"
-            value={form.contact_email}
-            onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
-            error={fieldErrors.contact_email}
-            required
-          />
-          <Field
-            label="Phone (optional)"
-            value={form.contact_phone}
-            onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
-          />
-          <Field
-            label="Client admin name"
-            value={form.admin_full_name}
-            onChange={(event) => setForm({ ...form, admin_full_name: event.target.value })}
-            error={fieldErrors.admin_full_name}
-            required
-            hint="Receives the single-use activation link."
-          />
-          <Field
-            label="Client admin email"
-            type="email"
-            value={form.admin_email}
-            onChange={(event) => setForm({ ...form, admin_email: event.target.value })}
-            error={fieldErrors.admin_email}
-            required
-          />
-          <Field
             label="User limit (optional)"
             type="number"
             min={1}
             value={form.seat_limit}
             onChange={(event) => setForm({ ...form, seat_limit: event.target.value })}
             placeholder="Unlimited"
+            className="max-w-[130px]"
           />
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-              Logo (optional)
-            </span>
-            <div className="flex items-center gap-2">
-              {logoPreview && (
-                <img
-                  src={logoPreview}
-                  alt=""
-                  className="h-9 w-9 shrink-0 rounded object-contain"
-                />
-              )}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                className="field py-1.5"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null
-                  setLogo(file)
-                  if (logoPreview) URL.revokeObjectURL(logoPreview)
-                  setLogoPreview(file ? URL.createObjectURL(file) : null)
-                }}
-              />
-            </div>
-          </label>
         </div>
+
+        <div className="mt-4">
+          <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+            Logo (optional)
+          </span>
+          <div className="flex items-center gap-4">
+            {(logoPreview || org?.branding?.logo_url) && (
+              <img
+                src={logoPreview ?? org?.branding?.logo_url ?? undefined}
+                alt=""
+                className="h-20 w-20 shrink-0 rounded-lg border border-ink-200 object-contain dark:border-ink-700"
+              />
+            )}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml,image/webp"
+              className="field py-2 text-sm"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null
+                if (!file) return
+                setLogo(file)
+                if (logoPreview) URL.revokeObjectURL(logoPreview)
+                setLogoPreview(URL.createObjectURL(file))
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Edit-only, per the client's explicit instruction — never shown on
+            the create-org popup. */}
+        {isEdit && <InviteAdminSection org={org} />}
+
         <div className="mt-4 flex gap-2">
-          <button type="submit" className="btn-primary px-3 py-1.5" disabled={busy}>
+          <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>
             {busy && <Spinner />}
-            Provision and invite
+            {isEdit ? 'Update' : 'Submit'}
           </button>
-          <button type="button" className="btn-secondary px-3 py-1.5" onClick={onCancel}>
+          <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={onCancel}>
             Cancel
           </button>
         </div>
       </form>
-    </Card>
+    </Modal>
+  )
+}
+
+// Edit-only: a Super Admin can add another Client Admin to an org that is
+// already active, from that org's Edit popup specifically. Never rendered
+// in create mode — see the `isEdit` gate where this is used below. Also
+// gated defensively on `org.status === 'active'`, matching the backend's
+// own check, since the Edit popup can still be opened for a suspended org.
+function InviteAdminSection({ org }: { org: OrgDetail }) {
+  const toast = useToast()
+  const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  if (org.status !== 'active') return null
+
+  // Not a <form>: this section lives inside OrgFormModal's own <form>, and
+  // HTML does not allow a nested <form> — the browser would misattribute
+  // submit events between the two. This button submits directly instead.
+  const submit = async () => {
+    setBusy(true)
+    setFieldErrors({})
+    try {
+      await api.post(`/orgs/${org.id}/invite-admin`, { full_name: fullName, email })
+      toast.show('success', 'Client Admin invited', `An invitation was emailed to ${email}.`)
+      setFullName('')
+      setEmail('')
+    } catch (caught) {
+      if (caught instanceof ApiError) {
+        toast.show('critical', 'Could not create Client Admin', caught.message)
+        setFieldErrors(caught.fieldErrors())
+      } else {
+        toast.show('critical', 'Could not create Client Admin', 'That did not work.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t border-ink-200 pt-4 dark:border-ink-700">
+      <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+        Add another Client Admin
+      </span>
+      <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
+        <Field
+          label="Name"
+          value={fullName}
+          onChange={(event) => setFullName(event.target.value)}
+          error={fieldErrors.full_name}
+          required
+        />
+        <Field
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          error={fieldErrors.email}
+          required
+        />
+        <button
+          type="button"
+          className="btn-secondary px-3 py-1.5 text-sm"
+          disabled={busy || !fullName.trim() || !email.trim()}
+          onClick={() => void submit()}
+        >
+          {busy && <Spinner />}
+          Create Client Admin
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -405,12 +509,14 @@ function ReasonForm({
   label,
   confirmLabel,
   tone,
+  required = true,
   onSubmit,
   onCancel,
 }: {
   label: string
   confirmLabel: string
   tone: 'critical' | 'neutral'
+  required?: boolean
   onSubmit: (reason: string) => Promise<void>
   onCancel: () => void
 }) {
@@ -440,8 +546,8 @@ function ReasonForm({
         label={label}
         value={reason}
         onChange={(event) => setReason(event.target.value)}
-        required
-        minLength={3}
+        required={required}
+        minLength={required ? 3 : undefined}
         placeholder="Recorded in the audit trail"
       />
       <div className="mt-3 flex gap-2">
@@ -475,11 +581,9 @@ export function Organizations() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<Pending>(null)
-  const [provisioning, setProvisioning] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [editOrgId, setEditOrgId] = useState<string | null>(null)
-  const [logoOrgId, setLogoOrgId] = useState<string | null>(null)
-  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
-  const [logoBusy, setLogoBusy] = useState(false)
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null)
 
   // Guards against an out-of-order response overwriting a newer one. Without
   // this, rejecting an org and immediately switching tabs could have the
@@ -513,8 +617,22 @@ export function Organizations() {
   useEffect(load, [status, search, page])
   useRefetchOnFocus(load)
 
-  const finish = (message: string) => {
+  // Applied immediately from whatever the mutating request itself returned,
+  // rather than waiting on the follow-up load() below — that request goes
+  // out in parallel and reconciles anything this missed, but the row updates
+  // the instant the action's own response comes back, not whenever the
+  // second request happens to land.
+  const patchOrg = (updated: OrgDetail) => {
+    setData((current) =>
+      current
+        ? { ...current, items: current.items.map((o) => (o.id === updated.id ? updated : o)) }
+        : current,
+    )
+  }
+
+  const finish = (message: string, updated?: OrgDetail) => {
     setPending(null)
+    if (updated) patchOrg(updated)
     toast.show('success', 'Done', message)
     load()
   }
@@ -525,17 +643,14 @@ export function Organizations() {
         title="Organizations"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Every tenant on the platform. Self-registered organizations stay blocked until they are approved here."
         actions={
-          !provisioning && (
-            <button
-              type="button"
-              className="btn-primary px-3 py-1.5"
-              onClick={() => setProvisioning(true)}
-            >
-              Provision organization
-            </button>
-          )
+          <button
+            type="button"
+            className="btn-primary px-3 py-1.5"
+            onClick={() => setShowCreateModal(true)}
+          >
+            Create organization
+          </button>
         }
       />
 
@@ -545,19 +660,33 @@ export function Organizations() {
         </Banner>
       )}
 
-      {provisioning && (
-        <ProvisionForm
-          onCancel={() => setProvisioning(false)}
-          onDone={(name) => {
-            setProvisioning(false)
-            toast.show(
-              'success',
-              'Organization provisioned',
-              `${name} provisioned and active. The client admin has been invited.`,
-            )
-            load()
+      {showCreateModal && (
+        <OrgFormModal
+          org={null}
+          onCancel={() => setShowCreateModal(false)}
+          onDone={(message, updated) => {
+            setShowCreateModal(false)
+            finish(message, updated)
           }}
         />
+      )}
+
+      {editOrgId && data && (
+        <>
+          {data.items
+            .filter((org) => org.id === editOrgId)
+            .map((org) => (
+              <OrgFormModal
+                key={org.id}
+                org={org}
+                onCancel={() => setEditOrgId(null)}
+                onDone={(message, updated) => {
+                  setEditOrgId(null)
+                  finish(message, updated)
+                }}
+              />
+            ))}
+        </>
       )}
 
       <Card padded={false}>
@@ -631,19 +760,30 @@ export function Organizations() {
                       )}
                     </p>
                     <p className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
-                      {org.contact_name} &middot; {org.contact_email} &middot; {org.timezone}
-                      {' '}&middot; <span className="tabular">{org.user_count}</span> user
-                      {org.user_count === 1 ? '' : 's'}
+                      {org.contact_name} &middot; {org.contact_email} &middot;{' '}
+                      <Link
+                        to={`/people?org_id=${org.id}`}
+                        state={{ orgName: org.name, from: 'organizations' }}
+                        className="underline decoration-dotted underline-offset-2 hover:text-ink-800 dark:hover:text-ink-100"
+                      >
+                        <span className="tabular">{org.user_count}</span> user
+                        {org.user_count === 1 ? '' : 's'}
+                      </Link>
                     </p>
                     {org.rejection_reason && (
                       <p className="mt-1 text-xs text-critical">
                         Rejected: {org.rejection_reason}
                       </p>
                     )}
+                    {org.suspension_reason && (
+                      <p className="mt-1 text-xs text-caution">
+                        Suspended: {org.suspension_reason}
+                      </p>
+                    )}
                   </div>
 
                   {/* Inline confirm and cancel rather than a modal. */}
-                  <div className="flex shrink-0 flex-wrap gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center gap-3">
                     {org.status === 'pending' && (
                       <>
                         <button
@@ -662,111 +802,58 @@ export function Organizations() {
                         </button>
                       </>
                     )}
-                    {org.status === 'active' && (
+                    {(org.status === 'active' || org.status === 'suspended') && (
+                      <span className="flex items-center gap-2 text-xs text-ink-500 dark:text-ink-400">
+                        {org.status === 'active' ? 'Active' : 'Suspended'}
+                        <Switch
+                          checked={org.status === 'active'}
+                          disabled={reactivatingId === org.id}
+                          ariaLabel={org.status === 'active' ? `Suspend ${org.name}` : `Reactivate ${org.name}`}
+                          onChange={() => {
+                            if (org.status === 'active') {
+                              // Suspension has real consequences (kills every
+                              // session in the org) — worth a reason. Turning
+                              // it back on doesn't, so the toggle just acts,
+                              // the way a switch is expected to behave.
+                              setPending({ id: org.id, action: 'suspend' })
+                              return
+                            }
+                            setReactivatingId(org.id)
+                            api
+                              .post<OrgDetail>(`/orgs/${org.id}/reactivate`, {})
+                              .then((updated) => finish(`${org.name} is active again.`, updated))
+                              .catch((caught) => {
+                                toast.show(
+                                  'critical',
+                                  'Reactivation failed',
+                                  caught instanceof ApiError ? caught.message : 'That did not work.',
+                                )
+                              })
+                              .finally(() => setReactivatingId(null))
+                          }}
+                        />
+                      </span>
+                    )}
+                    {org.status !== 'rejected' && (
                       <button
                         type="button"
-                        className="btn-secondary px-3 py-1.5 text-sm"
-                        onClick={() => setPending({ id: org.id, action: 'suspend' })}
+                        className="btn-secondary p-1.5"
+                        aria-label={`Edit ${org.name}`}
+                        title="Edit"
+                        onClick={() => setEditOrgId(org.id)}
                       >
-                        Suspend
+                        <IconEdit width={15} height={15} />
                       </button>
                     )}
-                    {org.status === 'suspended' && (
-                      <button
-                        type="button"
-                        className="btn-secondary px-3 py-1.5 text-sm"
-                        onClick={() => setPending({ id: org.id, action: 'reactivate' })}
-                      >
-                        Reactivate
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="btn-secondary px-3 py-1.5 text-sm"
-                      onClick={() => {
-                        setLogoOrgId(logoOrgId === org.id ? null : org.id)
-                      }}
-                    >
-                      {org.branding?.logo_url ? 'Change logo' : 'Upload logo'}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary px-3 py-1.5 text-sm"
-                      onClick={() => setEditOrgId(editOrgId === org.id ? null : org.id)}
-                    >
-                      Edit
-                    </button>
                   </div>
                 </div>
-
-                {editOrgId === org.id && (
-                  <EditOrgForm
-                    org={org}
-                    onCancel={() => setEditOrgId(null)}
-                    onDone={(message) => {
-                      setEditOrgId(null)
-                      finish(message)
-                    }}
-                  />
-                )}
-
-                {logoOrgId === org.id && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-ink-200 bg-ink-50 p-3 dark:border-ink-700 dark:bg-ink-900/60">
-                    {(logoPreviewUrl || org.branding?.logo_url) && (
-                      <img
-                        src={logoPreviewUrl ?? org.branding?.logo_url ?? undefined}
-                        alt=""
-                        className={clsx(
-                          'h-8 w-8 shrink-0 rounded object-contain',
-                          logoBusy && 'opacity-60',
-                        )}
-                      />
-                    )}
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                      className="field max-w-xs py-1.5 text-sm"
-                      disabled={logoBusy}
-                      onChange={async (event) => {
-                        const file = event.target.files?.[0]
-                        if (!file) return
-                        const localPreview = URL.createObjectURL(file)
-                        setLogoPreviewUrl(localPreview)
-                        setLogoBusy(true)
-                        try {
-                          await uploadFile(`/orgs/${org.id}/logo`, file)
-                          setLogoOrgId(null)
-                          finish(`Logo updated for ${org.name}.`)
-                        } catch (caught) {
-                          toast.show(
-                            'critical',
-                            'Logo upload failed',
-                            caught instanceof ApiError ? caught.message : 'Logo upload failed.',
-                          )
-                        } finally {
-                          setLogoBusy(false)
-                          setLogoPreviewUrl(null)
-                          URL.revokeObjectURL(localPreview)
-                        }
-                      }}
-                    />
-                    {logoBusy && <Spinner />}
-                    <button
-                      type="button"
-                      className="btn-secondary px-2.5 py-1 text-xs"
-                      onClick={() => setLogoOrgId(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
 
                 {pending?.id === org.id && pending.action === 'approve' && (
                   <ApprovalForm
                     org={org}
                     onCancel={() => setPending(null)}
-                    onDone={() =>
-                      finish(`${org.name} approved and the client admin invited.`)
+                    onDone={(updated) =>
+                      finish(`${org.name} approved and the client admin invited.`, updated)
                     }
                   />
                 )}
@@ -777,8 +864,8 @@ export function Organizations() {
                     tone="critical"
                     onCancel={() => setPending(null)}
                     onSubmit={async (reason) => {
-                      await api.post(`/orgs/${org.id}/reject`, { reason })
-                      finish(`${org.name} was rejected.`)
+                      const updated = await api.post<OrgDetail>(`/orgs/${org.id}/reject`, { reason })
+                      finish(`${org.name} was rejected.`, updated)
                     }}
                   />
                 )}
@@ -789,20 +876,8 @@ export function Organizations() {
                     tone="critical"
                     onCancel={() => setPending(null)}
                     onSubmit={async (reason) => {
-                      await api.post(`/orgs/${org.id}/suspend`, { reason })
-                      finish(`${org.name} suspended. All of its sessions were revoked.`)
-                    }}
-                  />
-                )}
-                {pending?.id === org.id && pending.action === 'reactivate' && (
-                  <ReasonForm
-                    label="Reason for reactivation"
-                    confirmLabel="Reactivate"
-                    tone="neutral"
-                    onCancel={() => setPending(null)}
-                    onSubmit={async (reason) => {
-                      await api.post(`/orgs/${org.id}/reactivate`, { reason })
-                      finish(`${org.name} is active again.`)
+                      const updated = await api.post<OrgDetail>(`/orgs/${org.id}/suspend`, { reason })
+                      finish(`${org.name} suspended. All of its sessions were revoked.`, updated)
                     }}
                   />
                 )}

@@ -643,44 +643,59 @@ async def target_results(
 
 @me_router.get("/results")
 async def my_results(session: DbSession, actor: CurrentUser) -> list[dict[str, Any]]:
-    """Every closed cycle in which this person was reviewed."""
-    target = (
-        await session.execute(
-            select(FeedbackTarget).where(FeedbackTarget.subject_user_id == actor.id)
-        )
-    ).scalar_one_or_none()
-    if target is None:
-        return []
+    """Every cycle in which this person was reviewed.
 
-    cycle_ids = (
+    A person can be the subject of more than one target — their normal
+    EMPLOYEE/MANAGER target from internal cycles, and separately a
+    CLIENT-typed target if a Client Review has ever named them via
+    about_user_id — so every target they're the subject of is checked, not
+    just one.
+    """
+    targets = (
         (
             await session.execute(
-                select(FeedbackResponse.cycle_id)
-                .where(FeedbackResponse.target_id == target.id)
-                .distinct()
+                select(FeedbackTarget).where(FeedbackTarget.subject_user_id == actor.id)
             )
         )
         .scalars()
         .all()
     )
-    if not cycle_ids:
+    if not targets:
         return []
 
-    found = (
-        (
-            await session.execute(
-                select(ReviewCycle)
-                .where(ReviewCycle.id.in_(cycle_ids))
-                .order_by(ReviewCycle.created_at.desc())
+    results: list[dict[str, Any]] = []
+    for target in targets:
+        cycle_ids = (
+            (
+                await session.execute(
+                    select(FeedbackResponse.cycle_id)
+                    .where(FeedbackResponse.target_id == target.id)
+                    .distinct()
+                )
             )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
+        if not cycle_ids:
+            continue
 
-    return [
-        await results_service.target_results(
-            session, cycle=cycle, target_id=target.id, viewer_is_admin=False
+        found = (
+            (
+                await session.execute(
+                    select(ReviewCycle)
+                    .where(ReviewCycle.id.in_(cycle_ids))
+                    .order_by(ReviewCycle.created_at.desc())
+                )
+            )
+            .scalars()
+            .all()
         )
-        for cycle in found
-    ]
+
+        for cycle in found:
+            results.append(
+                await results_service.target_results(
+                    session, cycle=cycle, target_id=target.id, viewer_is_admin=False
+                )
+            )
+
+    return results

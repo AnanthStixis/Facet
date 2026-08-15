@@ -102,7 +102,7 @@ function OutcomeForm({
   onCancel,
 }: {
   proposal: Proposal
-  onDone: (message: string) => void
+  onDone: (message: string, updated: Proposal) => void
   onCancel: () => void
 }) {
   const [stage, setStage] = useState<'won' | 'lost' | 'withdrawn'>('won')
@@ -120,14 +120,14 @@ function OutcomeForm({
         event.preventDefault()
         setBusy(true)
         try {
-          await api.post(`/proposals/${proposal.id}/outcome`, {
+          const updated = await api.post<Proposal>(`/proposals/${proposal.id}/outcome`, {
             stage,
             loss_reason: stage === 'lost' ? lossReason : null,
             won_amount: stage === 'won' && wonAmount ? wonAmount : null,
             competitor: competitor || null,
             outcome_note: note || null,
           })
-          onDone(`${proposal.reference} recorded as ${stage}.`)
+          onDone(`${proposal.reference} recorded as ${stage}.`, updated)
         } catch (caught) {
           toast.show(
             'critical',
@@ -223,7 +223,7 @@ function OutcomeForm({
   )
 }
 
-function CreateProposal({ onCreated }: { onCreated: (message: string) => void }) {
+function CreateProposal({ onCreated }: { onCreated: (message: string, proposal: Proposal) => void }) {
   const [open, setOpen] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [form, setForm] = useState({
@@ -260,7 +260,7 @@ function CreateProposal({ onCreated }: { onCreated: (message: string) => void })
           event.preventDefault()
           setBusy(true)
           try {
-            await api.post('/proposals', {
+            const created = await api.post<Proposal>('/proposals', {
               title: form.title,
               client_name: form.client_name,
               currency: form.currency,
@@ -270,7 +270,7 @@ function CreateProposal({ onCreated }: { onCreated: (message: string) => void })
                 : null,
               prospect_contact_id: form.prospect_contact_id || null,
             })
-            onCreated(`${form.title} recorded as a draft.`)
+            onCreated(`${form.title} recorded as a draft.`, created)
             setOpen(false)
             setForm({
               title: '',
@@ -411,6 +411,10 @@ export function Proposals() {
       .catch((caught) =>
         setError(caught instanceof ApiError ? caught.message : 'Could not load proposals.'),
       )
+    loadSummary()
+  }
+
+  const loadSummary = () => {
     api.get<Summary>('/proposals/summary').then(setSummary).catch(() => {})
   }
 
@@ -418,17 +422,28 @@ export function Proposals() {
   useEffect(() => setPage(1), [stage, search])
   useRefetchOnFocus(load)
 
+  // Instant-patch-from-response — see Templates.tsx/Categories.tsx/
+  // Clients.tsx/Campaigns.tsx/Cycles.tsx for the same pattern.
+  const patchProposal = (updated: Proposal) => {
+    setProposals((current) =>
+      current ? current.map((p) => (p.id === updated.id ? updated : p)) : current,
+    )
+  }
+
   const act = async (proposal: Proposal, action: 'submit' | 'request-feedback') => {
     setBusyId(proposal.id)
     try {
       if (action === 'submit') {
-        await api.post(`/proposals/${proposal.id}/submit`)
+        const updated = await api.post<Proposal>(`/proposals/${proposal.id}/submit`)
+        patchProposal(updated)
+        loadSummary()
         toast.show('success', `${proposal.reference} marked as submitted.`)
       } else {
         const result = await api.post<{ sent: boolean; contact: string }>(
           `/proposals/${proposal.id}/request-feedback`,
           {},
         )
+        patchProposal({ ...proposal, feedback_requested: true })
         if (result.sent) {
           toast.show('success', 'Feedback request sent', `Sent to ${result.contact}.`)
         } else {
@@ -439,7 +454,6 @@ export function Proposals() {
           )
         }
       }
-      load()
     } catch (caught) {
       toast.show(
         'critical',
@@ -458,7 +472,15 @@ export function Proposals() {
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
         description="Proposals and SOWs, the prospect's view of them, and what actually happened. The last part is what makes the first two worth collecting."
-        actions={<CreateProposal onCreated={(message) => { toast.show('success', message); load() }} />}
+        actions={
+          <CreateProposal
+            onCreated={(message, proposal) => {
+              toast.show('success', message)
+              setProposals((current) => (current ? [proposal, ...current] : [proposal]))
+              loadSummary()
+            }}
+          />
+        }
       />
 
       {error && (
@@ -633,10 +655,11 @@ export function Proposals() {
                   <OutcomeForm
                     proposal={proposal}
                     onCancel={() => setOutcomeFor(null)}
-                    onDone={(message) => {
+                    onDone={(message, updated) => {
                       setOutcomeFor(null)
                       toast.show('success', message)
-                      load()
+                      patchProposal(updated)
+                      loadSummary()
                     }}
                   />
                 )}

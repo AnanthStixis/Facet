@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { api, downloadExport } from '../lib/api'
 import type { DateRangePreset, FilterState, LookupItem } from '../lib/types'
@@ -7,7 +7,7 @@ import { IconCalendar, IconChevronDown, IconDownload, IconSearch, IconX } from '
 import { Spinner } from './ui'
 
 /** Close a popover when the user clicks outside its trigger or its panel, or presses Escape. */
-function useDismiss(open: boolean, close: () => void) {
+export function useDismiss(open: boolean, close: () => void) {
   const triggerRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -40,7 +40,7 @@ function useDismiss(open: boolean, close: () => void) {
  * the anchor's actual screen position, is what makes it float above
  * everything regardless of where in the tree it was opened.
  */
-function FloatingPanel({
+export function FloatingPanel({
   anchorRef,
   panelRef,
   open,
@@ -53,34 +53,102 @@ function FloatingPanel({
   className?: string
   children: ReactNode
 }) {
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
+  const [position, setPosition] = useState<{
+    left: number
+    maxHeight: number
+    anchor: 'top' | 'bottom'
+    offset: number
+  } | null>(null)
+  const observerRef = useRef<ResizeObserver | null>(null)
+
+  // Opens below the trigger by default, but flips above it when there isn't
+  // room below (e.g. a field near the bottom of the form) and there is more
+  // room above — otherwise the panel spills past the viewport and visually
+  // overlaps whatever sits underneath it.
+  //
+  // When flipped, the panel is anchored by its *bottom* edge (CSS `bottom`,
+  // not a computed `top`) rather than by top = trigger.top - estimatedHeight.
+  // That estimate raced the panel's real height whenever content loaded in
+  // asynchronously (e.g. a contact list arriving after the panel had already
+  // painted with just a "loading" placeholder) — the panel would flip using
+  // the placeholder's short height, then grow downward from that stale top,
+  // overlapping the trigger it was supposed to clear. Anchoring the edge
+  // closest to the trigger and letting the box grow away from it (up to
+  // `maxHeight`) is correct regardless of when or how much content arrives.
+  const recalc = () => {
+    const rect = anchorRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const margin = 8
+    const spaceBelow = window.innerHeight - rect.bottom - margin
+    const spaceAbove = rect.top - margin
+    const panelHeight = panelRef.current?.scrollHeight ?? 0
+    const openAbove = panelHeight > spaceBelow && spaceAbove > spaceBelow
+    setPosition(
+      openAbove
+        ? { anchor: 'bottom', offset: window.innerHeight - rect.top + 6, left: rect.left, maxHeight: Math.max(80, spaceAbove) }
+        : { anchor: 'top', offset: rect.bottom + 6, left: rect.left, maxHeight: Math.max(80, spaceBelow) },
+    )
+  }
+  const recalcRef = useRef(recalc)
+  recalcRef.current = recalc
 
   useEffect(() => {
     if (!open) {
       setPosition(null)
       return
     }
-    const update = () => {
-      const rect = anchorRef.current?.getBoundingClientRect()
-      if (rect) setPosition({ top: rect.bottom + 6, left: rect.left })
-    }
-    update()
-    window.addEventListener('scroll', update, true)
-    window.addEventListener('resize', update)
+    recalc()
+    const onScroll = () => recalcRef.current()
+    const onResize = () => recalcRef.current()
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
     return () => {
-      window.removeEventListener('scroll', update, true)
-      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
+      observerRef.current?.disconnect()
+      observerRef.current = null
     }
-  }, [open, anchorRef])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, anchorRef, panelRef])
+
+  // A callback ref, not a plain effect — it fires synchronously the instant
+  // React attaches the portal's DOM node, independent of requestAnimationFrame
+  // (which browsers throttle or skip entirely on a backgrounded/non-composited
+  // tab). That's what makes the very first measurement of the panel's real
+  // height reliable instead of racy.
+  //
+  // Memoized with an empty dependency array — an inline function here would
+  // get a new identity on every render (including the ones this callback
+  // itself triggers via setPosition), and React detaches+reattaches a ref
+  // whenever its identity changes. That turned into recalc -> setPosition ->
+  // re-render -> new callback identity -> detach/reattach -> recalc again,
+  // an infinite loop ("Maximum update depth exceeded").
+  const attachPanel = useCallback((node: HTMLDivElement | null) => {
+    ;(panelRef as { current: HTMLDivElement | null }).current = node
+    observerRef.current?.disconnect()
+    observerRef.current = null
+    if (node) {
+      recalcRef.current()
+      const observer = new ResizeObserver(() => recalcRef.current())
+      observer.observe(node)
+      observerRef.current = observer
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (!open || !position) return null
 
   return createPortal(
     <div
-      ref={panelRef}
-      style={{ top: position.top, left: position.left }}
+      ref={attachPanel}
+      style={{
+        left: position.left,
+        maxHeight: position.maxHeight,
+        top: position.anchor === 'top' ? position.offset : 'auto',
+        bottom: position.anchor === 'bottom' ? position.offset : 'auto',
+      }}
       className={clsx(
-        'fixed z-50 w-72 rounded-lg border border-ink-200 bg-white p-1.5 shadow-lift dark:border-ink-700 dark:bg-ink-900',
+        'fixed z-50 w-72 overflow-y-auto rounded-lg border border-ink-200 bg-white p-1.5 shadow-lift dark:border-ink-700 dark:bg-ink-900',
         className,
       )}
     >

@@ -1,0 +1,2270 @@
+<title>Create Feedback</title>
+<style>
+:root{
+  /* Pulled straight from frontend/tailwind.config.js + index.css so this reads
+     as a screen from the real app, not a separate mockup style. */
+  --ink-50:#F6F7F9; --ink-100:#ECEEF1; --ink-200:#DDE1E6; --ink-300:#C2C8D0;
+  --ink-400:#8A93A0; --ink-500:#5A6472; --ink-600:#39414D; --ink-700:#252C36;
+  --ink-800:#181D25; --ink-900:#12161C; --ink-950:#0B0E12;
+  --accent:#2F6F62;
+  --accent-soft:rgba(47,111,98,0.12);
+  --positive:#2F8F5B; --caution:#C4791F; --critical:#C23B33; --info:#3572B0;
+  --internal:#3572B0; --external:#C08A2E;
+
+  --bg:var(--ink-50);
+  --surface:#FFFFFF;
+  --surface-sunken:var(--ink-50);
+  --ink:var(--ink-900);
+  --muted:var(--ink-500);
+  --faint:var(--ink-400);
+  --border:var(--ink-200);
+  --accent-ink:var(--accent);
+  --accent-soft-border:rgba(47,111,98,0.28);
+  --success:var(--positive); --success-soft:rgba(47,143,91,0.12);
+  --shadow: 0 1px 2px rgba(18,22,28,0.04), 0 1px 1px rgba(18,22,28,0.03);
+  --shadow-lift: 0 8px 24px -8px rgba(18,22,28,0.18), 0 2px 6px rgba(18,22,28,0.06);
+  --radius: 10px;
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme: dark){
+    --accent:#4FA893;
+    --accent-soft:rgba(79,168,147,0.16);
+    --bg:var(--ink-950);
+    --surface:var(--ink-900);
+    --surface-sunken:var(--ink-800);
+    --ink:#F6F7F9;
+    --muted:var(--ink-400);
+    --faint:var(--ink-500);
+    --border:var(--ink-700);
+    --accent-ink:#7FC3B2;
+    --accent-soft-border:rgba(79,168,147,0.32);
+    --success-soft:rgba(79,168,147,0.16);
+  }
+}
+:root[data-theme="dark"]{
+  --accent:#4FA893;
+  --accent-soft:rgba(79,168,147,0.16);
+  --bg:var(--ink-950);
+  --surface:var(--ink-900);
+  --surface-sunken:var(--ink-800);
+  --ink:#F6F7F9;
+  --muted:var(--ink-400);
+  --faint:var(--ink-500);
+  --border:var(--ink-700);
+  --accent-ink:#7FC3B2;
+  --accent-soft-border:rgba(79,168,147,0.32);
+  --success-soft:rgba(79,168,147,0.16);
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:Inter,"Inter Tight",-apple-system,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  font-size:14px;
+}
+::selection{background:var(--accent-soft);}
+
+/* ============== app shell (matches frontend/src/layout/AppShell.tsx) ============== */
+.shell{
+  display:flex;
+  min-height:100vh;
+}
+.rail{
+  width:224px;
+  flex:none;
+  display:flex;
+  flex-direction:column;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+}
+.rail-head{
+  height:56px;
+  flex:none;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0 16px;
+  border-bottom:1px solid var(--border);
+}
+.rail-mark{
+  width:32px;height:32px;border-radius:9px;
+  background:var(--accent);
+  color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  flex:none;
+  font-weight:700;
+  font-size:14px;
+}
+.rail-product{
+  font-size:15px;
+  font-weight:600;
+  letter-spacing:-0.02em;
+}
+.rail-nav{
+  flex:1;
+  overflow-y:auto;
+  padding:16px 10px;
+}
+.nav-section{margin-bottom:20px;}
+.nav-section:last-child{margin-bottom:0;}
+.nav-label{
+  padding:0 10px 6px;
+  font-size:11px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color:var(--faint);
+}
+.nav-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 10px;
+  border-radius:8px;
+  font-size:14px;
+  color:var(--muted);
+  text-decoration:none;
+  cursor:pointer;
+  border:none;
+  background:none;
+  width:100%;
+  text-align:left;
+}
+.nav-item:hover{background:var(--surface-sunken);color:var(--ink);}
+.nav-item.active{
+  background:var(--accent-soft);
+  color:var(--accent-ink);
+  font-weight:600;
+}
+.nav-item svg{flex:none;}
+.nav-sub{
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+  margin:2px 0 4px 14px;
+  padding-left:12px;
+  border-left:1px solid var(--border);
+}
+.nav-subitem{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 8px;
+  border-radius:6px;
+  font-size:12.5px;
+  color:var(--muted);
+  background:none;
+  border:none;
+  cursor:pointer;
+  text-align:left;
+}
+.nav-subitem:hover{background:var(--surface-sunken);color:var(--ink);}
+.nav-subitem.active{background:var(--accent-soft);color:var(--accent-ink);font-weight:600;}
+.nav-sub-dot{width:7px;height:7px;border-radius:2px;flex:none;}
+.rail-foot{
+  border-top:1px solid var(--border);
+  padding:12px 16px;
+}
+.rail-foot .signedas{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color:var(--faint);
+  margin-bottom:2px;
+}
+.rail-foot .who{font-size:13.5px;font-weight:600;}
+.rail-foot .email{font-size:11.5px;color:var(--faint);}
+.rail-foot .rolechip{
+  display:inline-block;
+  margin-top:6px;
+  font-size:11px;
+  font-weight:600;
+  padding:2px 8px;
+  border-radius:100px;
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  color:var(--muted);
+  text-transform:capitalize;
+}
+
+.main-col{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+.topbar{
+  height:56px;
+  flex:none;
+  position:sticky;
+  top:0;
+  z-index:5;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:0 24px;
+  border-bottom:1px solid var(--border);
+  background:color-mix(in srgb, var(--surface) 85%, transparent);
+  backdrop-filter:blur(8px);
+}
+.tenant{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.tenant-badge{
+  width:28px;height:28px;border-radius:6px;
+  background:var(--accent-soft);
+  color:var(--accent-ink);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;
+  flex:none;
+}
+.tenant-name{font-size:14px;font-weight:600;}
+.top-actions{display:flex;align-items:center;gap:4px;}
+.icon-btn{
+  border:none;background:none;
+  color:var(--faint);
+  width:32px;height:32px;
+  border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+}
+.icon-btn:hover{background:var(--surface-sunken);color:var(--ink);}
+.avatar-btn{
+  width:30px;height:30px;border-radius:50%;
+  background:var(--accent-soft);
+  color:var(--accent-ink);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;
+  border:none;cursor:pointer;
+  margin-left:4px;
+}
+
+.page{
+  flex:1;
+  padding:28px 32px 80px;
+  max-width:1180px;
+  width:100%;
+}
+
+/* page header, matches the app's PageHeader component */
+.pagehead{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:22px;
+}
+.pagehead .backlink{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  color:var(--muted);
+  text-decoration:none;
+  margin-bottom:10px;
+}
+.pagehead h1{
+  margin:0;
+  font-size:26px;
+  font-weight:600;
+  letter-spacing:-0.02em;
+}
+.pagehead p{
+  margin:6px 0 0;
+  font-size:13.5px;
+  color:var(--muted);
+  max-width:56ch;
+}
+.mock-flag{
+  font-size:11px;
+  font-weight:600;
+  color:var(--accent-ink);
+  background:var(--accent-soft);
+  border:1px solid var(--accent-soft-border);
+  padding:3px 9px;
+  border-radius:100px;
+  display:inline-block;
+  margin-bottom:8px;
+}
+
+/* ============== the create-feedback panel itself ============== */
+.layout{
+  display:grid;
+  grid-template-columns:250px 1fr;
+  gap:20px;
+  align-items:start;
+}
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr;}
+}
+
+.menu{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  position:sticky;
+  top:76px;
+}
+
+/* ============== results page ============== */
+.results-layout{
+  display:grid;
+  grid-template-columns:1fr 360px;
+  gap:20px;
+  align-items:start;
+}
+@media (max-width:980px){
+  .results-layout{grid-template-columns:1fr;}
+}
+.results-list-panel{padding-bottom:4px;}
+.results-list-head{
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+}
+.results-filters{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.filter-pill{
+  font-family:inherit;
+  font-size:12.5px;
+  font-weight:600;
+  padding:6px 12px;
+  border-radius:100px;
+  border:1px solid var(--border);
+  background:var(--surface-sunken);
+  color:var(--muted);
+  cursor:pointer;
+}
+.filter-pill.active{
+  background:var(--accent-soft);
+  border-color:var(--accent-soft-border);
+  color:var(--accent-ink);
+}
+.results-table-wrap{overflow-x:auto;}
+.results-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+.results-table thead th{
+  position:sticky;
+  top:0;
+  text-align:left;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  font-weight:700;
+  color:var(--faint);
+  padding:10px 14px;
+  background:var(--surface-sunken);
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+.results-table tbody tr{
+  cursor:pointer;
+  border-bottom:1px solid var(--border);
+}
+.results-table tbody tr:last-child{border-bottom:none;}
+.results-table tbody tr:hover{background:var(--surface-sunken);}
+.results-table tbody tr.selected{background:var(--accent-soft);}
+.results-table td{
+  padding:11px 14px;
+  vertical-align:middle;
+  white-space:nowrap;
+}
+.results-table td.wrap{white-space:normal;}
+.type-tag{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-weight:600;
+}
+.type-tag .dot{width:8px;height:8px;border-radius:2px;flex:none;}
+.resp-bar-wrap{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:110px;
+}
+.resp-bar-track{
+  flex:1;
+  height:6px;
+  border-radius:100px;
+  background:var(--border);
+  overflow:hidden;
+}
+.resp-bar-fill{
+  height:100%;
+  border-radius:100px;
+  background:var(--accent);
+}
+.resp-count{
+  font-variant-numeric:tabular-nums;
+  font-size:12px;
+  color:var(--muted);
+  flex:none;
+}
+.status-pill{
+  font-size:11px;
+  font-weight:700;
+  padding:3px 9px;
+  border-radius:100px;
+  text-transform:capitalize;
+}
+.status-pill.open{background:rgba(53,114,176,0.14);color:var(--internal);}
+.status-pill.closed{background:var(--surface-sunken);color:var(--muted);border:1px solid var(--border);}
+
+.results-detail-panel{
+  padding:18px;
+  align-self:start;
+  position:sticky;
+  top:76px;
+  min-height:200px;
+}
+.detail-empty{
+  color:var(--faint);
+  font-size:13px;
+  padding:30px 6px;
+  text-align:center;
+}
+.detail-head{margin-bottom:14px;}
+.detail-type{
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  color:var(--accent-ink);
+}
+.detail-title{
+  font-size:17px;
+  font-weight:700;
+  margin:2px 0 3px;
+}
+.detail-sub{font-size:12.5px;color:var(--muted);}
+.detail-stats{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin:14px 0;
+}
+.stat-tile{
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:10px 12px;
+}
+.stat-tile .v{
+  font-size:19px;
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+}
+.stat-tile .k{font-size:11px;color:var(--faint);margin-top:1px;}
+.detail-q{
+  padding:12px 0;
+  border-top:1px solid var(--border);
+}
+.detail-q:first-of-type{border-top:none;padding-top:6px;}
+.detail-q .qtext{font-size:13px;font-weight:600;margin-bottom:8px;}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:2px;}
+.score-track{
+  flex:1;height:8px;border-radius:100px;background:var(--border);overflow:hidden;
+}
+.score-fill{height:100%;border-radius:100px;background:var(--accent);}
+.score-val{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;width:34px;text-align:right;flex:none;}
+.comment-list{display:flex;flex-direction:column;gap:8px;}
+.comment{
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:9px 10px;
+  font-size:12.5px;
+}
+.comment .who{font-weight:700;font-size:11.5px;color:var(--muted);margin-bottom:3px;}
+
+/* ============== people page ============== */
+.people-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+}
+.people-toolbar.has-selection{background:var(--accent-soft);}
+.people-toolbar-info{
+  font-size:13px;
+  color:var(--muted);
+}
+.people-toolbar.has-selection .people-toolbar-info{color:var(--accent-ink);font-weight:600;}
+.people-toolbar-actions{display:flex;align-items:center;gap:8px;}
+.people-send-panel{
+  padding:20px 24px;
+  border-bottom:1px solid var(--border);
+  background:var(--surface-sunken);
+}
+.people-send-panel .psp-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:16px;
+  flex-wrap:wrap;
+}
+.people-send-panel .psp-head h3{
+  margin:0 0 3px;
+  font-size:16px;
+  font-weight:700;
+}
+.people-send-panel .psp-head p{
+  margin:0;
+  font-size:12.5px;
+  color:var(--muted);
+}
+.people-send-panel .field-group{gap:14px;}
+.people-table td.text-right, .people-table th.text-right{text-align:right;}
+.people-table input[type=checkbox]{
+  width:15px;height:15px;
+  accent-color:var(--accent);
+  cursor:pointer;
+}
+.person-name{font-weight:600;}
+.person-email{display:block;font-size:11.5px;color:var(--faint);margin-top:1px;}
+.role-chip{
+  display:inline-block;
+  font-size:11px;
+  font-weight:600;
+  padding:3px 9px;
+  border-radius:100px;
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  color:var(--muted);
+  text-transform:capitalize;
+}
+.status-dot-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:12.5px;
+  color:var(--muted);
+}
+.status-dot-chip .d{width:7px;height:7px;border-radius:50%;background:var(--success);flex:none;}
+.feedback-count-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-family:inherit;
+  font-size:12.5px;
+  font-weight:700;
+  padding:5px 11px;
+  border-radius:100px;
+  border:1px solid var(--accent-soft-border);
+  background:var(--accent-soft);
+  color:var(--accent-ink);
+  cursor:pointer;
+}
+.feedback-count-btn:hover{filter:brightness(0.97);}
+.feedback-count-btn.empty{
+  background:var(--surface-sunken);
+  border-color:var(--border);
+  color:var(--faint);
+  font-weight:600;
+}
+.row-action-btn{
+  font-family:inherit;
+  font-size:12.5px;
+  font-weight:600;
+  padding:5px 11px;
+  border-radius:7px;
+  border:1px solid var(--border);
+  background:none;
+  color:var(--muted);
+  cursor:pointer;
+}
+.row-action-btn:hover{background:var(--surface-sunken);color:var(--ink);}
+
+/* person feedback popup — double-classed selectors so this beats the later .success-card rule regardless of source order */
+.success-card.person-modal-card{
+  max-width:460px;
+  width:100%;
+  text-align:left;
+  max-height:82vh;
+  display:flex;
+  flex-direction:column;
+}
+.person-modal-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.person-feedback-list{
+  margin-top:16px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  flex:1;
+}
+.pf-card{
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  border-radius:9px;
+  padding:11px 12px;
+  text-align:left;
+}
+.pf-card-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:6px;
+}
+.pf-card .qtext{font-size:12px;color:var(--muted);margin-top:4px;}
+.pf-card .qtext + .qtext{margin-top:6px;}
+.menu-label{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--faint);
+  font-weight:700;
+  padding:8px 10px 6px;
+}
+.menu-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 10px;
+  border-radius:8px;
+  cursor:pointer;
+  border:1px solid transparent;
+  background:none;
+  text-align:left;
+  font-size:14px;
+  color:var(--ink);
+  font-weight:500;
+  width:100%;
+}
+.menu-item:hover{background:var(--surface-sunken);}
+.menu-item.active{
+  background:var(--accent-soft);
+  border-color:var(--accent-soft-border);
+  color:var(--accent-ink);
+  font-weight:700;
+}
+.menu-item .dot{
+  width:9px;height:9px;border-radius:3px;flex:none;
+}
+.menu-item .sub{
+  display:block;
+  font-size:11.5px;
+  font-weight:500;
+  color:var(--faint);
+  margin-top:1px;
+}
+.menu-item.active .sub{color:var(--accent-ink);opacity:0.75;}
+
+.panel{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.panel-head{
+  padding:20px 24px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+}
+.panel-head h2{
+  margin:0 0 4px;
+  font-size:18px;
+  font-weight:700;
+  letter-spacing:-0.01em;
+}
+.panel-head p{
+  margin:0;
+  font-size:13.5px;
+  color:var(--muted);
+  max-width:52ch;
+}
+.template-picker{
+  flex:none;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:220px;
+}
+.template-picker label{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  font-weight:700;
+  color:var(--faint);
+}
+.template-picker select{
+  font-family:inherit;
+  font-size:13.5px;
+  font-weight:600;
+  color:var(--accent-ink);
+  background:var(--accent-soft);
+  border:1px solid var(--accent-soft-border);
+  border-radius:8px;
+  padding:8px 10px;
+  cursor:pointer;
+}
+.template-picker select:focus{
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}
+
+.form-body{
+  padding:22px 24px 8px;
+  display:grid;
+  grid-template-columns:1fr 300px;
+  gap:28px;
+}
+@media (max-width:760px){
+  .form-body{grid-template-columns:1fr;}
+}
+
+.field-group{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+.row2{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+@media (max-width:520px){ .row2{grid-template-columns:1fr;} }
+
+.field{position:relative;}
+.field label{
+  display:block;
+  font-size:12.5px;
+  font-weight:700;
+  color:var(--ink);
+  margin-bottom:6px;
+}
+.field .hint{
+  font-weight:500;
+  color:var(--faint);
+  font-size:11.5px;
+  margin-left:4px;
+}
+.field input[type=text],
+.field input[type=date],
+.field select,
+.field textarea{
+  width:100%;
+  font-family:inherit;
+  font-size:14px;
+  color:var(--ink);
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:10px 12px;
+}
+.field textarea{resize:vertical;min-height:64px;}
+.field input:focus,
+.field select:focus,
+.field textarea:focus{
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+  background:var(--surface);
+}
+
+.chiprow{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+}
+.person-chip{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  border-radius:100px;
+  padding:5px 6px 5px 6px;
+  font-size:13px;
+  font-weight:500;
+}
+.person-chip .avatar{
+  width:20px;height:20px;border-radius:50%;
+  background:var(--accent);
+  color:#fff;
+  font-size:10px;
+  font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  flex:none;
+}
+.person-chip button{
+  border:none;background:none;color:var(--faint);
+  font-size:14px;line-height:1;cursor:pointer;padding:0 2px;
+}
+.add-chip{
+  border:1px dashed var(--border);
+  background:none;
+  color:var(--muted);
+  border-radius:100px;
+  padding:6px 12px;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+}
+.add-chip:hover{border-color:var(--accent);color:var(--accent-ink);}
+.field-note{
+  font-size:11.5px;
+  color:var(--faint);
+  margin-top:6px;
+}
+
+.picker-pop{
+  position:absolute;
+  top:calc(100% + 6px);
+  left:0;
+  z-index:20;
+  width:280px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  box-shadow:var(--shadow-lift);
+  padding:8px;
+  display:none;
+}
+.picker-pop.open{display:block;}
+.picker-list{
+  max-height:180px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+}
+.picker-row{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:7px 8px;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:13.5px;
+}
+.picker-row:hover{background:var(--surface-sunken);}
+.picker-row input[type=checkbox]{
+  width:15px;height:15px;
+  accent-color:var(--accent);
+  flex:none;
+}
+.picker-row .porg{color:var(--faint);font-size:12px;}
+.picker-empty{
+  font-size:12.5px;
+  color:var(--faint);
+  padding:10px 8px;
+  text-align:center;
+}
+.picker-new{
+  border-top:1px solid var(--border);
+  margin-top:6px;
+  padding-top:8px;
+  display:flex;
+  gap:6px;
+}
+.picker-new input{
+  flex:1;
+  min-width:0;
+  font-family:inherit;
+  font-size:12.5px;
+  border:1px solid var(--border);
+  background:var(--surface-sunken);
+  border-radius:6px;
+  padding:7px 8px;
+}
+.picker-new input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+.picker-new button{
+  flex:none;
+  font-family:inherit;
+  font-size:12.5px;
+  font-weight:700;
+  background:var(--accent);
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  padding:0 12px;
+  cursor:pointer;
+}
+.picker-new button:disabled{opacity:0.45;cursor:not-allowed;}
+.picker-hint{
+  font-size:11px;
+  color:var(--faint);
+  padding:6px 8px 2px;
+}
+
+.toggle-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 0;
+  border-top:1px solid var(--border);
+}
+.toggle-row:first-child{border-top:none;}
+.toggle-row .t-label{font-size:13.5px;font-weight:600;}
+.toggle-row .t-sub{font-size:12px;color:var(--muted);margin-top:1px;}
+.switch{
+  position:relative;
+  width:38px;height:22px;
+  border-radius:100px;
+  background:var(--border);
+  flex:none;
+  cursor:pointer;
+  border:none;
+  padding:0;
+}
+.switch::after{
+  content:"";
+  position:absolute;
+  top:2px;left:2px;
+  width:18px;height:18px;
+  border-radius:50%;
+  background:var(--surface);
+  box-shadow:0 1px 2px rgba(0,0,0,0.25);
+  transition:transform .15s ease;
+}
+.switch.on{background:var(--accent);}
+.switch.on::after{transform:translateX(16px);}
+
+.preview{
+  background:var(--surface-sunken);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:16px;
+  align-self:start;
+  position:sticky;
+  top:76px;
+}
+.preview h3{
+  margin:0 0 3px;
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  color:var(--faint);
+  font-weight:700;
+}
+.preview .tname{
+  font-size:15px;
+  font-weight:700;
+  margin-bottom:2px;
+}
+.preview .tdesc{
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:10px;
+}
+.preview .qitem{
+  font-size:12.5px;
+  color:var(--muted);
+  padding:8px 0;
+  border-top:1px solid var(--border);
+  display:flex;
+  gap:8px;
+}
+.preview .qitem:first-of-type{border-top:none;}
+.preview .qitem .n{
+  font-variant-numeric:tabular-nums;
+  color:var(--faint);
+  font-weight:700;
+  flex:none;
+}
+.preview .qtype{
+  display:inline-block;
+  margin-top:4px;
+  font-size:10.5px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  color:var(--accent-ink);
+  background:var(--accent-soft);
+  border-radius:4px;
+  padding:2px 6px;
+}
+
+.footer-bar{
+  padding:16px 24px 20px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border-top:1px solid var(--border);
+  margin-top:8px;
+}
+.footer-note{
+  font-size:12px;
+  color:var(--faint);
+  max-width:40ch;
+}
+.btn{
+  font-family:inherit;
+  font-size:14px;
+  font-weight:700;
+  border-radius:8px;
+  padding:11px 20px;
+  cursor:pointer;
+  border:1px solid transparent;
+}
+.btn-primary{
+  background:var(--accent);
+  color:#fff;
+}
+.btn-primary:hover{filter:brightness(0.92);}
+.btn-ghost{
+  background:none;
+  border-color:var(--border);
+  color:var(--muted);
+}
+
+.success-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(11,14,18,0.45);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:50;
+  padding:20px;
+}
+.success-overlay.show{display:flex;}
+.success-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:var(--shadow-lift);
+  padding:32px 28px;
+  max-width:360px;
+  text-align:center;
+}
+.success-card .check{
+  width:48px;height:48px;border-radius:50%;
+  background:var(--success-soft);
+  color:var(--success);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 14px;
+  font-size:22px;
+}
+.success-card h3{margin:0 0 6px;font-size:17px;}
+.success-card p{margin:0 0 20px;font-size:13.5px;color:var(--muted);}
+
+@media (prefers-reduced-motion: reduce){
+  .switch::after{transition:none;}
+}
+</style>
+
+<div class="shell">
+  <!-- ===== left rail — mirrors AppShell.tsx section-for-section ===== -->
+  <aside class="rail">
+    <div class="rail-head">
+      <span class="rail-mark">F</span>
+      <span class="rail-product">Facet</span>
+    </div>
+    <nav class="rail-nav" id="railNav"><!-- injected --></nav>
+    <div class="rail-foot">
+      <div class="signedas">Signed in as</div>
+      <div class="who">Mahesh Puttaswamy</div>
+      <div class="email">mahesh@northwind.example</div>
+      <span class="rolechip">client_admin</span>
+    </div>
+  </aside>
+
+  <div class="main-col">
+    <header class="topbar">
+      <div class="tenant">
+        <span class="tenant-badge">NW</span>
+        <span class="tenant-name">Northwind</span>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn" type="button" title="Refresh" aria-label="Refresh">&#8635;</button>
+        <button class="icon-btn" type="button" title="Toggle theme" aria-label="Toggle theme">&#9788;</button>
+        <button class="avatar-btn" type="button" aria-label="Account">MP</button>
+      </div>
+    </header>
+
+    <div class="page">
+      <div class="pagehead">
+        <div>
+          <span class="mock-flag">Mock-up for approval</span>
+          <h1 id="pageTitle">Create Feedback</h1>
+          <p id="pageDesc">Pick a type from the menu on the left, fill in only what applies, and click Create. Nothing to draft, publish or confirm.</p>
+        </div>
+      </div>
+
+      <div id="createView">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2 id="panelTitle">Client Review</h2>
+                <p id="panelDesc">Ask a client to rate the relationship and the last piece of work.</p>
+              </div>
+              <div class="template-picker">
+                <label for="templateSelect">Template</label>
+                <select id="templateSelect"></select>
+              </div>
+            </div>
+
+            <div class="form-body">
+              <div class="field-group" id="fields"><!-- injected --></div>
+
+              <aside class="preview">
+                <h3>Questions in this template</h3>
+                <div class="tname" id="previewName">Standard Client Review</div>
+                <div class="tdesc" id="previewDesc"></div>
+                <div id="previewList"><!-- injected --></div>
+              </aside>
+            </div>
+
+            <div class="footer-bar">
+              <div class="footer-note">One page, one click. No draft/publish/confirm steps &mdash; Create sends it immediately.</div>
+              <div style="display:flex;gap:10px;">
+                <button class="btn btn-ghost" type="button">Cancel</button>
+                <button class="btn btn-primary" type="button" id="createBtn">Create Feedback</button>
+              </div>
+            </div>
+          </section>
+      </div>
+
+      <div id="resultsView" style="display:none;">
+        <section class="panel results-list-panel">
+          <div class="results-list-head">
+            <div class="results-filters" id="resultsFilters"><!-- injected --></div>
+          </div>
+          <div class="results-table-wrap">
+            <table class="results-table" id="resultsTable">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>About / Subject</th>
+                  <th>Sent to</th>
+                  <th>Template</th>
+                  <th>Sent</th>
+                  <th>Responses</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="resultsTableBody"><!-- injected --></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div id="peopleView" style="display:none;">
+        <section class="panel">
+          <div class="people-toolbar" id="peopleToolbar"><!-- injected --></div>
+          <div id="peopleSendPanel"><!-- injected when send is open --></div>
+          <div class="results-table-wrap">
+            <table class="results-table people-table">
+              <thead>
+                <tr>
+                  <th style="width:34px;"><input type="checkbox" id="peopleSelectAll"></th>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Department</th>
+                  <th>Status</th>
+                  <th>Feedback</th>
+                  <th class="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="peopleTableBody"><!-- injected --></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="success-overlay" id="personModal">
+  <div class="success-card person-modal-card">
+    <div class="person-modal-head">
+      <div>
+        <div class="detail-type" id="personModalRole">Employee</div>
+        <div class="detail-title" id="personModalName">—</div>
+        <div class="detail-sub" id="personModalMeta">—</div>
+      </div>
+      <button class="btn btn-primary" type="button" id="personModalSend">+ Send feedback</button>
+    </div>
+    <div class="person-feedback-list" id="personModalList"><!-- injected --></div>
+    <button class="btn btn-ghost" type="button" id="personModalClose" style="width:100%;margin-top:14px;">Close</button>
+  </div>
+</div>
+
+<div class="success-overlay" id="resultModal">
+  <div class="success-card person-modal-card" id="resultModalCard"><!-- injected --></div>
+</div>
+
+<div class="success-overlay" id="successOverlay">
+  <div class="success-card">
+    <div class="check">&#10003;</div>
+    <h3 id="successTitle">Client Review sent</h3>
+    <p id="successBody">Northwind &mdash; Priya Raman will get an email today. You'll see responses on the results page as they come in.</p>
+    <button class="btn btn-primary" type="button" id="successClose" style="width:100%;">Done</button>
+  </div>
+</div>
+
+<script>
+/* ---------- left-rail nav, copied from frontend/src/layout/AppShell.tsx NAV ---------- */
+const ICONS = {
+  dashboard:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+  inbox:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 3h6l2-3h4"/><path d="M5 5h14l2 7v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6z"/></svg>',
+  spark:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>',
+  building:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="10" height="18"/><rect x="14" y="9" width="6" height="12"/><path d="M7 7h1M11 7h1M7 11h1M11 11h1M7 15h1M11 15h1"/></svg>',
+  clock:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  send:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>',
+  file:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>',
+  users:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="8.5" r="2.6"/><path d="M15 14.5a5.7 5.7 0 0 1 6.5 5.5"/></svg>',
+  layers:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 2 9 5-9 5-9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>',
+  shield:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 11 4.6-2.3 8-6 8-11V5z"/></svg>',
+  settings:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+};
+
+const NAV = [
+  { section:'Overview', items:[ {label:'Dashboard', icon:'dashboard'} ] },
+  { section:'For me', items:[ {label:'My feedback', icon:'inbox'}, {label:'My results', icon:'spark'} ] },
+  { section:'Platform', items:[ {label:'Organizations', icon:'building'} ] },
+  { section:'Manage', items:[
+      {label:'Create Feedback', icon:'send', page:'create', showTypes:true},
+      {label:'Results', icon:'spark', page:'results'},
+      {label:'People', icon:'users', page:'people'},
+      {label:'Templates', icon:'layers'},
+    ] },
+  { section:'Governance', items:[
+      {label:'Reports', icon:'file'},
+      {label:'Audit trail', icon:'shield'},
+      {label:'Settings', icon:'settings'},
+    ] },
+];
+
+let currentPage = 'create';
+
+function renderRailNav(){
+  const nav = document.getElementById('railNav');
+  nav.innerHTML = NAV.map(group => `
+    <div class="nav-section">
+      <div class="nav-label">${group.section}</div>
+      ${group.items.map(item => `
+        <${item.page ? 'button type="button"' : 'span'} class="nav-item${item.page === currentPage ? ' active' : ''}"${item.page ? ` data-page="${item.page}"` : ''}>
+          ${ICONS[item.icon] || ''}${item.label}
+        </${item.page ? 'button' : 'span'}>
+        ${item.showTypes ? `
+          <div class="nav-sub">
+            ${TYPES.map(t => `
+              <button type="button" class="nav-subitem${currentPage==='create' && active===t.key ? ' active' : ''}" data-type="${t.key}">
+                <span class="nav-sub-dot" style="background:${t.color}"></span>${t.label}
+              </button>
+            `).join('')}
+          </div>
+        ` : ''}
+      `).join('')}
+    </div>
+  `).join('');
+  nav.querySelectorAll('[data-page]').forEach(btn=>{
+    btn.addEventListener('click', ()=>switchPage(btn.getAttribute('data-page')));
+  });
+  nav.querySelectorAll('[data-type]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      active = btn.getAttribute('data-type');
+      openPopoverKey = null;
+      switchPage('create');
+    });
+  });
+}
+
+const PAGE_COPY = {
+  create:{ title:'Create Feedback', desc:'Pick a type from the menu on the left, fill in only what applies, and click Create. Nothing to draft, publish or confirm.' },
+  results:{ title:'Results', desc:'Every feedback request you have sent, whoever it went to. Click one to see the answers as they come in.' },
+  people:{ title:'People', desc:'Everyone with access to this workspace, with how much feedback exists on each of them.' },
+};
+
+function switchPage(page){
+  currentPage = page;
+  document.getElementById('createView').style.display = page === 'create' ? '' : 'none';
+  document.getElementById('resultsView').style.display = page === 'results' ? '' : 'none';
+  document.getElementById('peopleView').style.display = page === 'people' ? '' : 'none';
+  document.getElementById('pageTitle').textContent = PAGE_COPY[page].title;
+  document.getElementById('pageDesc').textContent = PAGE_COPY[page].desc;
+  renderRailNav();
+  if (page === 'results'){ renderResultsList(); }
+  if (page === 'people'){ renderPeopleList(); }
+}
+
+/* ---------- saved contacts / people, reusable across future feedback requests ---------- */
+const STORAGE_KEY = "facet_mock_directories_v1";
+const DEFAULT_DIRECTORIES = {
+  employee: [
+    {id:"e1", name:"Vikram S.", org:"Engineering", managerId:"e2"},
+    {id:"e2", name:"Anita Desai", org:"Operations", managerId:null},
+    {id:"e3", name:"Karan Bhatt", org:"Engineering", managerId:"e2"},
+  ],
+  clientContact: [
+    {id:"c1", name:"Priya Raman", org:"Northwind"},
+    {id:"c2", name:"Rahul Mehta", org:"Case #4021"},
+  ],
+  prospect: [
+    {id:"p1", name:"Meera Iyer", org:"Solstice Retail"},
+  ],
+  audience: [
+    {id:"a1", name:"Beta users — Payments v2", org:"Segment"},
+  ],
+};
+function loadDirectories(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT_DIRECTORIES));
+}
+function saveDirectories(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(directories)); }catch(e){}
+}
+let directories = loadDirectories();
+
+const KIND_LABEL = {
+  employee:"employee",
+  clientContact:"client contact",
+  prospect:"prospect",
+  audience:"audience",
+};
+
+/* anyone who shows up as someone else's manager, pulled straight from the org chart */
+function managersPool(){
+  const managerIds = new Set(
+    (directories.employee||[]).map(e=>e.managerId).filter(Boolean)
+  );
+  return (directories.employee||[]).filter(e=>managerIds.has(e.id));
+}
+
+/* ---------- feedback types: each has its own recipient pool and template choices ---------- */
+const TYPES = [
+  {
+    key:"client",
+    label:"Client Review",
+    sub:"External · one email",
+    color:"#3572B0",
+    desc:"Ask a client to rate the relationship, or rate one of your people who works with them.",
+    about:{label:"About", hint:"optional", kind:"employee", optional:true,
+      note:"Leave blank to review the client relationship as a whole. Set this and their answers also show up on that person's own results."},
+    recipient:{label:"Ask", hint:"required", kind:"clientContact",
+      note:"They'll get one email with the template's questions below."},
+    templates:[
+      {key:"standard", name:"Standard Client Review", desc:"Relationship + last deliverable", questions:[
+        {n:1,t:"How likely are you to recommend us to a peer?",type:"Score 0–10"},
+        {n:2,t:"Rate the quality of the work — or of the named person, if this is about one",type:"Score 1–5"},
+        {n:3,t:"What should we keep doing?",type:"Comment"},
+        {n:4,t:"What should we change?",type:"Comment"},
+      ]},
+      {key:"quick", name:"Quick Pulse", desc:"Two questions, fast to answer", questions:[
+        {n:1,t:"How satisfied are you right now?",type:"Score 1–5"},
+        {n:2,t:"Anything we should know?",type:"Comment"},
+      ]},
+    ],
+  },
+  {
+    key:"employee",
+    label:"Employees Review",
+    sub:"Internal · 360°",
+    color:"#3572B0",
+    desc:"Peer, manager and self input on one person, in one round.",
+    recipient:{label:"Reviewing", hint:"required", kind:"employee", mode:"dropdown",
+      note:"Their manager and peers answer the same template about them."},
+    manager:{label:"Manager", hint:"auto-filled", kind:"employee", mode:"dropdown", onlyManagers:true,
+      note:"Loaded from the org chart — change it if this isn't right."},
+    templates:[
+      {key:"standard", name:"Standard 360", desc:"Delivery, communication, growth", questions:[
+        {n:1,t:"Delivers reliable, quality work",type:"Score 1–5"},
+        {n:2,t:"Communicates clearly with the team",type:"Score 1–5"},
+        {n:3,t:"One thing they should do more of",type:"Comment"},
+        {n:4,t:"One thing they should do less of",type:"Comment"},
+      ]},
+      {key:"probation", name:"Probation Check-in", desc:"Shorter, for new hires", questions:[
+        {n:1,t:"Ramping up at the expected pace",type:"Score 1–5"},
+        {n:2,t:"Would you want them on your next project?",type:"Yes/No"},
+      ]},
+    ],
+  },
+  {
+    key:"management",
+    label:"Management Review",
+    sub:"Internal · upward",
+    color:"#3572B0",
+    desc:"Team gives anonymous, upward feedback on a manager.",
+    recipient:{label:"Manager being reviewed", hint:"required", kind:"employee", mode:"dropdown", onlyManagers:true,
+      note:"Pulled from the org chart — everyone with direct reports. Their team answers anonymously."},
+    templates:[
+      {key:"standard", name:"Upward Management Review", desc:"Blockers, direction, coaching", questions:[
+        {n:1,t:"Removes blockers for the team",type:"Score 1–5"},
+        {n:2,t:"Gives clear, timely direction",type:"Score 1–5"},
+        {n:3,t:"What would help them lead better?",type:"Comment"},
+      ]},
+    ],
+  },
+  {
+    key:"product",
+    label:"Product Review",
+    sub:"Internal or external",
+    color:"#C08A2E",
+    desc:"Gather structured feedback on a feature or release.",
+    recipient:{label:"Audience", hint:"required", kind:"audience",
+      note:"Everyone selected gets the same questions in one email."},
+    templates:[
+      {key:"standard", name:"Product Feedback", desc:"Usability + gaps", questions:[
+        {n:1,t:"How easy was this to use?",type:"Score 1–5"},
+        {n:2,t:"Did it solve your problem?",type:"Yes/No"},
+        {n:3,t:"What's missing?",type:"Comment"},
+      ]},
+      {key:"nps", name:"Release NPS", desc:"Single-question pulse after a release", questions:[
+        {n:1,t:"How likely are you to recommend this release?",type:"Score 0–10"},
+      ]},
+    ],
+  },
+  {
+    key:"service",
+    label:"Service Review",
+    sub:"External · post-delivery",
+    color:"#C08A2E",
+    desc:"Short pulse check after a support case or delivery closes.",
+    recipient:{label:"Customer", hint:"required", kind:"clientContact",
+      note:"They'll get a short survey about this interaction."},
+    templates:[
+      {key:"standard", name:"Service Satisfaction", desc:"CSAT + resolution time", questions:[
+        {n:1,t:"How satisfied were you with this service?",type:"Score 1–5"},
+        {n:2,t:"Was it resolved in a reasonable time?",type:"Yes/No"},
+        {n:3,t:"Anything we should have done differently?",type:"Comment"},
+      ]},
+    ],
+  },
+  {
+    key:"proposal",
+    label:"Proposal Review",
+    sub:"External · prospect",
+    color:"#C08A2E",
+    desc:"Find out why a prospect said yes, no, or is still deciding.",
+    recipient:{label:"Prospect", hint:"required", kind:"prospect",
+      note:"They'll be asked what they thought of the proposal you sent them."},
+    templates:[
+      {key:"standard", name:"Proposal Feedback", desc:"Fit, decision driver, outcome", questions:[
+        {n:1,t:"How well did the proposal fit your needs?",type:"Score 1–5"},
+        {n:2,t:"What tipped your decision?",type:"Comment"},
+        {n:3,t:"Would you consider us again?",type:"Yes/No"},
+      ]},
+    ],
+  },
+];
+
+/* per-type UI state: which template is selected, which people are selected */
+const state = {};
+TYPES.forEach(t=>{
+  const recipientPool = t.recipient.onlyManagers ? managersPool() : (directories[t.recipient.kind]||[]);
+  const defaultRecipient = recipientPool[0] ? recipientPool[0].id : "";
+  state[t.key] = {
+    template: t.templates[0].key,
+    about: t.about ? [t.about.kind === "employee" ? "e1" : ""] .filter(Boolean) : [],
+    recipient: [defaultRecipient].filter(Boolean),
+  };
+  if (t.manager){
+    const emp = (directories.employee||[]).find(e=>e.id===defaultRecipient);
+    state[t.key].manager = (emp && emp.managerId) ? [emp.managerId] : [];
+  }
+});
+
+let active = TYPES[0].key;
+let anonymous = false;
+let reminder = true;
+let openPopoverKey = null; /* "about" | "recipient" | null */
+
+const fieldsEl = document.getElementById("fields");
+const previewListEl = document.getElementById("previewList");
+const templateSelect = document.getElementById("templateSelect");
+
+function current(){ return TYPES.find(t=>t.key===active); }
+function currentTemplate(){
+  const t = current();
+  return t.templates.find(tp => tp.key === state[t.key].template) || t.templates[0];
+}
+
+function renderTemplatePicker(){
+  const t = current();
+  templateSelect.innerHTML = t.templates.map(tp =>
+    `<option value="${tp.key}">${tp.name}</option>`
+  ).join("");
+  templateSelect.value = state[t.key].template;
+}
+
+function renderPreview(){
+  const tpl = currentTemplate();
+  document.getElementById("previewName").textContent = tpl.name;
+  document.getElementById("previewDesc").textContent = tpl.desc;
+  previewListEl.innerHTML = tpl.questions.map(q => `
+    <div class="qitem">
+      <span class="n">${String(q.n).padStart(2,"0")}</span>
+      <span>${q.t}<span class="qtype">${q.type}</span></span>
+    </div>
+  `).join("");
+}
+
+function initials(name){
+  return name.split(" ").map(w=>w[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
+}
+
+/* single-select dropdown, for org-chart-driven fields (reviewing an employee, picking their manager) */
+function renderNativeSelectField(containerId, popKey, fieldDef){
+  const t = current();
+  const wrap = document.getElementById(containerId);
+  const pool = fieldDef.onlyManagers ? managersPool() : (directories[fieldDef.kind] || []);
+  const selectedId = (state[t.key][popKey] || [])[0] || "";
+
+  wrap.innerHTML = `
+    <select id="${containerId}-select">
+      <option value="">— select —</option>
+      ${pool.map(p => `<option value="${p.id}" ${p.id===selectedId?"selected":""}>${p.name} — ${p.org}</option>`).join("")}
+    </select>
+    <button class="add-chip" type="button" id="${containerId}-newBtn" style="margin-top:8px;">+ Add new ${KIND_LABEL[fieldDef.kind]}</button>
+    <div class="picker-new" id="${containerId}-newRow" style="display:none;margin-top:8px;"></div>
+    ${fieldDef.note ? `<div class="field-note">${fieldDef.note}</div>` : ""}
+  `;
+
+  const sel = document.getElementById(`${containerId}-select`);
+  sel.addEventListener("change", ()=>{
+    state[t.key][popKey] = sel.value ? [sel.value] : [];
+    if (containerId === "recipientField" && t.key === "employee" && t.manager){
+      const emp = (directories.employee||[]).find(e=>e.id===sel.value);
+      state[t.key].manager = (emp && emp.managerId) ? [emp.managerId] : [];
+    }
+    render();
+  });
+
+  const newBtn = document.getElementById(`${containerId}-newBtn`);
+  const newRow = document.getElementById(`${containerId}-newRow`);
+  newBtn.addEventListener("click", ()=>{
+    const willOpen = newRow.style.display === "none";
+    newRow.style.display = willOpen ? "flex" : "none";
+    if (!willOpen) return;
+    newRow.innerHTML = `
+      <input type="text" id="${containerId}-newName" placeholder="Name">
+      <input type="text" id="${containerId}-newOrg" placeholder="${fieldDef.kind === 'employee' ? 'Team' : 'Company'}">
+      <button type="button" id="${containerId}-newAdd">Add</button>
+    `;
+    document.getElementById(`${containerId}-newAdd`).addEventListener("click", ()=>{
+      const nameInput = document.getElementById(`${containerId}-newName`);
+      const name = nameInput.value.trim();
+      if (!name){ nameInput.focus(); return; }
+      const org = document.getElementById(`${containerId}-newOrg`).value.trim() || "—";
+      const id = fieldDef.kind.slice(0,1) + Date.now();
+      directories[fieldDef.kind] = directories[fieldDef.kind] || [];
+      directories[fieldDef.kind].push({id, name, org, managerId: fieldDef.onlyManagers ? null : undefined});
+      saveDirectories();
+      state[t.key][popKey] = [id];
+      render();
+    });
+  });
+}
+
+/* selected-chip row + "+ Select" trigger for a multi-select field */
+function renderSelectField(containerId, popKey, fieldDef){
+  if (fieldDef.mode === "dropdown"){ renderNativeSelectField(containerId, popKey, fieldDef); return; }
+  const t = current();
+  const wrap = document.getElementById(containerId);
+  const pool = directories[fieldDef.kind] || [];
+  const selectedIds = state[t.key][popKey] || [];
+  const selected = selectedIds.map(id => pool.find(p=>p.id===id)).filter(Boolean);
+
+  wrap.innerHTML = `
+    <div class="chiprow" id="${containerId}-chips"></div>
+    <button class="add-chip" type="button" id="${containerId}-trigger">+ Select ${KIND_LABEL[fieldDef.kind]}</button>
+    <div class="picker-pop" id="${containerId}-pop"></div>
+    ${fieldDef.note ? `<div class="field-note">${fieldDef.note}</div>` : ""}
+  `;
+
+  const chipsEl = document.getElementById(`${containerId}-chips`);
+  chipsEl.innerHTML = selected.map(p => `
+    <span class="person-chip" data-id="${p.id}">
+      <span class="avatar">${initials(p.name)}</span>
+      ${p.name} <span style="color:var(--faint);font-weight:400;">— ${p.org}</span>
+      <button type="button" aria-label="Remove" data-remove="${p.id}">&times;</button>
+    </span>
+  `).join("");
+  chipsEl.querySelectorAll("[data-remove]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const id = btn.getAttribute("data-remove");
+      state[t.key][popKey] = (state[t.key][popKey]||[]).filter(x=>x!==id);
+      render();
+    });
+  });
+
+  const trigger = document.getElementById(`${containerId}-trigger`);
+  const pop = document.getElementById(`${containerId}-pop`);
+  pop.classList.toggle("open", openPopoverKey === popKey);
+
+  trigger.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    openPopoverKey = (openPopoverKey === popKey) ? null : popKey;
+    render();
+  });
+
+  if (openPopoverKey === popKey){
+    renderPopoverBody(pop, fieldDef, popKey);
+    pop.addEventListener("click", e=>e.stopPropagation());
+  }
+}
+
+function renderPopoverBody(pop, fieldDef, popKey){
+  const t = current();
+  const pool = directories[fieldDef.kind] || [];
+  const selectedIds = new Set(state[t.key][popKey] || []);
+
+  pop.innerHTML = `
+    <div class="picker-hint">Saved ${KIND_LABEL[fieldDef.kind]}s — reuse without re-entering them</div>
+    <div class="picker-list">
+      ${pool.length ? pool.map(p => `
+        <label class="picker-row">
+          <input type="checkbox" value="${p.id}" ${selectedIds.has(p.id) ? "checked" : ""}>
+          <span>${p.name} <span class="porg">— ${p.org}</span></span>
+        </label>
+      `).join("") : `<div class="picker-empty">None saved yet — add one below.</div>`}
+    </div>
+    <div class="picker-new">
+      <input type="text" id="newName" placeholder="Name">
+      <input type="text" id="newOrg" placeholder="${fieldDef.kind === 'employee' ? 'Team' : 'Company'}">
+      <button type="button" id="newAdd">Add</button>
+    </div>
+  `;
+
+  pop.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener("change", ()=>{
+      const set = new Set(state[t.key][popKey] || []);
+      if (cb.checked) set.add(cb.value); else set.delete(cb.value);
+      state[t.key][popKey] = Array.from(set);
+      renderSelectFieldForKey(popKey);
+    });
+  });
+
+  const nameInput = pop.querySelector("#newName");
+  const orgInput = pop.querySelector("#newOrg");
+  const addBtn = pop.querySelector("#newAdd");
+  addBtn.addEventListener("click", ()=>{
+    const name = nameInput.value.trim();
+    if (!name) { nameInput.focus(); return; }
+    const org = orgInput.value.trim() || "—";
+    const id = fieldDef.kind.slice(0,1) + Date.now();
+    directories[fieldDef.kind] = directories[fieldDef.kind] || [];
+    directories[fieldDef.kind].push({id, name, org});
+    saveDirectories();
+    const set = new Set(state[t.key][popKey] || []);
+    set.add(id);
+    state[t.key][popKey] = Array.from(set);
+    render();
+  });
+}
+
+function renderSelectFieldForKey(popKey){
+  const t = current();
+  if (popKey === "about" && t.about){
+    renderSelectField("aboutField", "about", t.about);
+  } else if (popKey === "recipient"){
+    renderSelectField("recipientField", "recipient", t.recipient);
+  }
+}
+
+function renderForm(){
+  const t = current();
+  document.getElementById("panelTitle").textContent = t.label;
+  document.getElementById("panelDesc").textContent = t.desc;
+
+  renderTemplatePicker();
+  renderPreview();
+
+  const aboutBlock = t.about ? `
+    <div class="field">
+      <label>${t.about.label} <span class="hint">${t.about.hint}</span></label>
+      <div id="aboutField"></div>
+    </div>
+  ` : "";
+
+  fieldsEl.innerHTML = `
+    ${aboutBlock}
+    <div class="field">
+      <label>${t.recipient.label} <span class="hint">${t.recipient.hint}</span></label>
+      <div id="recipientField"></div>
+    </div>
+
+    ${t.manager ? `
+    <div class="field">
+      <label>${t.manager.label} <span class="hint">${t.manager.hint}</span></label>
+      <div id="managerField"></div>
+    </div>
+    ` : ""}
+
+    <div class="field">
+      <label>Message <span class="hint">optional</span></label>
+      <textarea placeholder="Add a short note — this appears above the questions, not instead of them.">Thanks for taking a few minutes — this helps us do better work with you.</textarea>
+      <div class="field-note">Shown to them right above the template's questions. Leave blank to send just the questions.</div>
+    </div>
+
+    <div>
+      <div class="toggle-row">
+        <div>
+          <div class="t-label">Anonymous responses</div>
+          <div class="t-sub">Their name is never linked to what they submit</div>
+        </div>
+        <button class="switch" id="anonSwitch" type="button"></button>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="t-label">Auto-remind if no response</div>
+          <div class="t-sub">One reminder after 5 days, then it closes</div>
+        </div>
+        <button class="switch" id="remindSwitch" type="button"></button>
+      </div>
+    </div>
+  `;
+
+  if (t.about) renderSelectField("aboutField", "about", t.about);
+  renderSelectField("recipientField", "recipient", t.recipient);
+  if (t.manager) renderSelectField("managerField", "manager", t.manager);
+
+  const anonSwitch = document.getElementById("anonSwitch");
+  const remindSwitch = document.getElementById("remindSwitch");
+  anonSwitch.classList.toggle("on", anonymous);
+  remindSwitch.classList.toggle("on", reminder);
+  anonSwitch.addEventListener("click", ()=>{ anonymous = !anonymous; anonSwitch.classList.toggle("on", anonymous); });
+  remindSwitch.addEventListener("click", ()=>{ reminder = !reminder; remindSwitch.classList.toggle("on", reminder); });
+}
+
+function render(){
+  renderForm();
+  renderRailNav();
+}
+
+/* ---------- Results page: everything sent from Create Feedback, one place to check it ---------- */
+const REQUESTS = [
+  {
+    id:"r1", typeKey:"client", personId:"e1",
+    title:"Northwind — Q3 delivery", about:"About Vikram S.",
+    sentTo:"Priya Raman — Northwind", template:"Standard Client Review",
+    sent:"2026-07-28", total:1, responded:1, status:"closed",
+    stats:[{k:"Avg score",v:"4.5 / 5"},{k:"Recommend",v:"9 / 10"}],
+    questions:[
+      {q:"How likely are you to recommend us to a peer?", kind:"score", val:9, max:10},
+      {q:"Rate the quality of the work — or of the named person", kind:"score", val:4.5, max:5},
+      {q:"What should we keep doing?", kind:"comment"},
+    ],
+    comments:[
+      {who:"Priya Raman", date:"2026-07-29", text:"Vikram has been excellent to work with — always responsive and catches issues before we have to raise them."},
+    ],
+  },
+  {
+    id:"r2", typeKey:"employee", personId:"e1",
+    title:"Vikram S. — Standard 360", about:"Reviewing Vikram S.",
+    sentTo:"Manager + 3 peers", template:"Standard 360",
+    sent:"2026-07-20", total:4, responded:3, status:"open",
+    stats:[{k:"Avg score",v:"4.2 / 5"},{k:"Responses",v:"3 of 4"}],
+    questions:[
+      {q:"Delivers reliable, quality work", kind:"score", val:4.3, max:5},
+      {q:"Communicates clearly with the team", kind:"score", val:4.0, max:5},
+      {q:"One thing they should do more of", kind:"comment"},
+    ],
+    comments:[
+      {who:"Anonymous", date:"2026-07-22", text:"Could speak up earlier in planning instead of after estimates are locked."},
+      {who:"Anonymous", date:"2026-07-24", text:"Great at unblocking others without being asked."},
+    ],
+  },
+  {
+    id:"r3", typeKey:"management", personId:"e2",
+    title:"Anita Desai — Upward Review", about:"Manager: Anita Desai",
+    sentTo:"2 direct reports", template:"Upward Management Review",
+    sent:"2026-07-15", total:2, responded:2, status:"closed",
+    stats:[{k:"Avg score",v:"4.6 / 5"},{k:"Responses",v:"2 of 2"}],
+    questions:[
+      {q:"Removes blockers for the team", kind:"score", val:4.5, max:5},
+      {q:"Gives clear, timely direction", kind:"score", val:4.7, max:5},
+      {q:"What would help them lead better?", kind:"comment"},
+    ],
+    comments:[
+      {who:"Anonymous", date:"2026-07-16", text:"More context up front on why priorities shift would help."},
+    ],
+  },
+  {
+    id:"r4", typeKey:"product",
+    title:"Payments v2", about:"Beta users — Payments v2",
+    sentTo:"14 recipients", template:"Product Feedback",
+    sent:"2026-08-01", total:14, responded:6, status:"open",
+    stats:[{k:"Avg score",v:"3.8 / 5"},{k:"Responses",v:"6 of 14"}],
+    questions:[
+      {q:"How easy was this to use?", kind:"score", val:3.8, max:5},
+      {q:"What's missing?", kind:"comment"},
+    ],
+    comments:[
+      {who:"Anonymous", date:"2026-08-02", text:"Refund flow is confusing — took three tries to find it."},
+      {who:"Anonymous", date:"2026-08-03", text:"Faster than the old flow overall, good job."},
+    ],
+  },
+  {
+    id:"r5", typeKey:"service",
+    title:"Case #4021 — resolved", about:"Support case",
+    sentTo:"Rahul Mehta", template:"Service Satisfaction",
+    sent:"2026-08-05", total:1, responded:0, status:"open",
+    stats:[{k:"Avg score",v:"—"},{k:"Responses",v:"0 of 1"}],
+    questions:[
+      {q:"How satisfied were you with this service?", kind:"score", val:0, max:5},
+    ],
+    comments:[],
+  },
+  {
+    id:"r6", typeKey:"proposal",
+    title:"Solstice Retail — Platform bid", about:"Proposal feedback",
+    sentTo:"Meera Iyer", template:"Proposal Feedback",
+    sent:"2026-06-30", total:1, responded:1, status:"closed",
+    stats:[{k:"Avg score",v:"4.0 / 5"},{k:"Outcome",v:"Won"}],
+    questions:[
+      {q:"How well did the proposal fit your needs?", kind:"score", val:4.0, max:5},
+      {q:"What tipped your decision?", kind:"comment"},
+    ],
+    comments:[
+      {who:"Meera Iyer", date:"2026-07-01", text:"The delivery timeline was the deciding factor over the other bid."},
+    ],
+  },
+];
+
+let resultsFilter = "all";
+let selectedResultId = null;
+
+function renderResultsFilters(){
+  const el = document.getElementById("resultsFilters");
+  const counts = {};
+  REQUESTS.forEach(r => counts[r.typeKey] = (counts[r.typeKey]||0) + 1);
+  const pills = [{key:"all", label:`All (${REQUESTS.length})`}].concat(
+    TYPES.map(t => ({key:t.key, label:`${t.label} (${counts[t.key]||0})`}))
+  );
+  el.innerHTML = pills.map(p =>
+    `<button type="button" class="filter-pill${resultsFilter===p.key?' active':''}" data-filter="${p.key}">${p.label}</button>`
+  ).join("");
+  el.querySelectorAll("[data-filter]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{ resultsFilter = btn.getAttribute("data-filter"); renderResultsList(); });
+  });
+}
+
+function renderResultsList(){
+  renderResultsFilters();
+  const body = document.getElementById("resultsTableBody");
+  const rows = REQUESTS.filter(r => resultsFilter === "all" || r.typeKey === resultsFilter);
+  body.innerHTML = rows.map(r => {
+    const t = TYPES.find(tt => tt.key === r.typeKey);
+    const pct = r.total ? Math.round((r.responded / r.total) * 100) : 0;
+    return `
+      <tr data-id="${r.id}" class="${selectedResultId===r.id?'selected':''}">
+        <td><span class="type-tag"><span class="dot" style="background:${t.color}"></span>${t.label}</span></td>
+        <td class="wrap">${r.title}<div style="color:var(--faint);font-size:11.5px;">${r.about}</div></td>
+        <td>${r.sentTo}</td>
+        <td>${r.template}</td>
+        <td>${r.sent}</td>
+        <td>
+          <div class="resp-bar-wrap">
+            <div class="resp-bar-track"><div class="resp-bar-fill" style="width:${pct}%"></div></div>
+            <span class="resp-count">${r.responded}/${r.total}</span>
+          </div>
+        </td>
+        <td><span class="status-pill ${r.status}">${r.status}</span></td>
+      </tr>
+    `;
+  }).join("") || `<tr><td colspan="7" style="text-align:center;color:var(--faint);padding:30px;">No requests of this type yet.</td></tr>`;
+
+  body.querySelectorAll("tr[data-id]").forEach(tr=>{
+    tr.addEventListener("click", ()=>openResultModal(tr.getAttribute("data-id")));
+  });
+}
+
+function openResultModal(id){
+  selectedResultId = id;
+  const card = document.getElementById("resultModalCard");
+  const r = REQUESTS.find(x => x.id === id);
+  if (!r) return;
+  const t = TYPES.find(tt => tt.key === r.typeKey);
+  const lastResponse = r.comments.reduce((max, c) => (c.date && (!max || c.date > max)) ? c.date : max, null);
+  card.innerHTML = `
+    <div class="detail-head">
+      <div class="detail-type">${t.label}</div>
+      <div class="detail-title">${r.title}</div>
+      <div class="detail-sub">${r.sentTo} &middot; sent ${r.sent}${lastResponse ? ` &middot; last response ${lastResponse}` : ""} &middot; <span class="status-pill ${r.status}">${r.status}</span></div>
+    </div>
+    <div class="detail-stats">
+      ${r.stats.map(s => `<div class="stat-tile"><div class="v">${s.v}</div><div class="k">${s.k}</div></div>`).join("")}
+    </div>
+    <div style="overflow-y:auto;">
+      ${r.questions.map(q => `
+        <div class="detail-q">
+          <div class="qtext">${q.q}</div>
+          ${q.kind === "score" ? `
+            <div class="score-row">
+              <div class="score-track"><div class="score-fill" style="width:${q.max ? (q.val/q.max)*100 : 0}%"></div></div>
+              <div class="score-val">${q.val || "—"}${q.max ? `/${q.max}` : ""}</div>
+            </div>
+          ` : `
+            <div class="comment-list">
+              ${r.comments.length ? r.comments.map(c => `<div class="comment"><div class="who">${c.who} &middot; submitted ${c.date || r.sent}</div>${c.text}</div>`).join("") : `<div class="detail-empty" style="padding:10px 0;">No comments yet.</div>`}
+            </div>
+          `}
+        </div>
+      `).join("")}
+    </div>
+    <button class="btn btn-ghost" type="button" id="resultModalClose" style="width:100%;margin-top:14px;">Close</button>
+  `;
+  document.getElementById("resultModalClose").addEventListener("click", closeResultModal);
+  document.getElementById("resultModal").classList.add("show");
+}
+
+function closeResultModal(){
+  document.getElementById("resultModal").classList.remove("show");
+  selectedResultId = null;
+}
+document.getElementById("resultModal").addEventListener("click", (e)=>{
+  if (e.target.id === "resultModal") closeResultModal();
+});
+
+/* ---------- People page: same roster as the org chart, now with a feedback count per person ---------- */
+const PEOPLE = [
+  {id:"e1", email:"vikram.s@northwind.example", role:"employee", status:"active", mfa:true},
+  {id:"e2", email:"anita.desai@northwind.example", role:"manager", status:"active", mfa:true},
+  {id:"e3", email:"karan.bhatt@northwind.example", role:"employee", status:"active", mfa:false},
+];
+
+function feedbackForPerson(personId){
+  return REQUESTS.filter(r => r.personId === personId);
+}
+
+/* multi-select send, entirely on this page — no trip to Create Feedback */
+let selectedPeopleIds = new Set();
+let peopleSendOpen = false;
+const EMPLOYEE_TYPE = TYPES.find(t => t.key === "employee");
+let peopleSendState = {
+  template: EMPLOYEE_TYPE.templates[0].key,
+  message: "Thanks for taking a few minutes — this helps us do better work with you.",
+  anonymous: false,
+  reminder: true,
+};
+
+function personDisplay(id){
+  const emp = (directories.employee || []).find(e => e.id === id);
+  const p = PEOPLE.find(x => x.id === id);
+  return { name: emp ? emp.name : (p ? p.email : id), org: emp ? emp.org : "—" };
+}
+
+function renderPeopleToolbar(){
+  const el = document.getElementById("peopleToolbar");
+  const n = selectedPeopleIds.size;
+  el.className = "people-toolbar" + (n > 0 ? " has-selection" : "");
+  el.innerHTML = `
+    <div class="people-toolbar-info">
+      ${n > 0 ? `<strong>${n}</strong> selected` : `${PEOPLE.length} people — check any of them to send one request to several at once`}
+    </div>
+    <div class="people-toolbar-actions">
+      ${n > 0 ? `
+        <button class="btn btn-ghost" type="button" id="peopleClearSel">Clear</button>
+        <button class="btn btn-primary" type="button" id="peopleSendBtn">${peopleSendOpen ? "Hide form" : `Send feedback to ${n}`}</button>
+      ` : ""}
+    </div>
+  `;
+  if (n > 0){
+    document.getElementById("peopleClearSel").addEventListener("click", ()=>{
+      selectedPeopleIds.clear();
+      peopleSendOpen = false;
+      renderPeopleList();
+    });
+    document.getElementById("peopleSendBtn").addEventListener("click", ()=>{
+      peopleSendOpen = !peopleSendOpen;
+      renderPeopleList();
+    });
+  }
+}
+
+function renderPeopleSendPanel(){
+  const container = document.getElementById("peopleSendPanel");
+  if (!(peopleSendOpen && selectedPeopleIds.size > 0)){
+    container.innerHTML = "";
+    return;
+  }
+  const ids = Array.from(selectedPeopleIds);
+  container.innerHTML = `
+    <div class="people-send-panel">
+      <div class="psp-head">
+        <div>
+          <h3>Send Employees Review to ${ids.length} ${ids.length===1?'person':'people'}</h3>
+          <p>Each person gets their own 360 round, from the same template — nothing to repeat per person.</p>
+        </div>
+        <div class="template-picker">
+          <label for="pspTemplate">Template</label>
+          <select id="pspTemplate"></select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <div class="field">
+          <label>Recipients <span class="hint">uncheck below to remove someone</span></label>
+          <div class="chiprow" id="pspChips"></div>
+        </div>
+
+        <div class="field">
+          <label>Message <span class="hint">optional, sent with the request</span></label>
+          <textarea id="pspMessage">${peopleSendState.message}</textarea>
+        </div>
+
+        <div>
+          <div class="toggle-row">
+            <div>
+              <div class="t-label">Anonymous responses</div>
+              <div class="t-sub">Their name is never linked to what reviewers submit</div>
+            </div>
+            <button class="switch${peopleSendState.anonymous?' on':''}" id="pspAnon" type="button"></button>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="t-label">Auto-remind if no response</div>
+              <div class="t-sub">One reminder after 5 days, then it closes</div>
+            </div>
+            <button class="switch${peopleSendState.reminder?' on':''}" id="pspRemind" type="button"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bar" style="padding:16px 0 0;">
+        <div class="footer-note">Sends immediately — no draft or confirm step.</div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-ghost" type="button" id="pspCancel">Cancel</button>
+          <button class="btn btn-primary" type="button" id="pspSend">Send to ${ids.length}</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const tplSelect = document.getElementById("pspTemplate");
+  tplSelect.innerHTML = EMPLOYEE_TYPE.templates.map(tp => `<option value="${tp.key}">${tp.name}</option>`).join("");
+  tplSelect.value = peopleSendState.template;
+  tplSelect.addEventListener("change", ()=>{ peopleSendState.template = tplSelect.value; });
+
+  const chips = document.getElementById("pspChips");
+  chips.innerHTML = ids.map(id => {
+    const { name, org } = personDisplay(id);
+    return `
+      <span class="person-chip">
+        <span class="avatar">${initials(name)}</span>
+        ${name} <span style="color:var(--faint);font-weight:400;">— ${org}</span>
+        <button type="button" aria-label="Remove" data-unselect="${id}">&times;</button>
+      </span>
+    `;
+  }).join("");
+  chips.querySelectorAll("[data-unselect]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      selectedPeopleIds.delete(btn.getAttribute("data-unselect"));
+      if (selectedPeopleIds.size === 0) peopleSendOpen = false;
+      renderPeopleList();
+    });
+  });
+
+  document.getElementById("pspMessage").addEventListener("input", (e)=>{ peopleSendState.message = e.target.value; });
+  document.getElementById("pspAnon").addEventListener("click", (e)=>{
+    peopleSendState.anonymous = !peopleSendState.anonymous;
+    e.target.classList.toggle("on", peopleSendState.anonymous);
+  });
+  document.getElementById("pspRemind").addEventListener("click", (e)=>{
+    peopleSendState.reminder = !peopleSendState.reminder;
+    e.target.classList.toggle("on", peopleSendState.reminder);
+  });
+  document.getElementById("pspCancel").addEventListener("click", ()=>{ peopleSendOpen = false; renderPeopleList(); });
+  document.getElementById("pspSend").addEventListener("click", ()=>sendBulkFeedback(ids));
+}
+
+function sendBulkFeedback(ids){
+  const tpl = EMPLOYEE_TYPE.templates.find(tp => tp.key === peopleSendState.template);
+  const today = new Date().toISOString().slice(0,10);
+  ids.forEach(id => {
+    const { name } = personDisplay(id);
+    REQUESTS.unshift({
+      id: "r" + Date.now() + Math.random().toString(36).slice(2,6),
+      typeKey: "employee",
+      personId: id,
+      title: `${name} — ${tpl.name}`,
+      about: `Reviewing ${name}`,
+      sentTo: "Manager + peers",
+      template: tpl.name,
+      sent: today,
+      total: 4, responded: 0, status: "open",
+      stats: [{k:"Avg score", v:"—"}, {k:"Responses", v:"0 of 4"}],
+      questions: tpl.questions.map(q => ({ q: q.t, kind: q.type.toLowerCase().includes("score") ? "score" : "comment", val: 0, max: 5 })),
+      comments: [],
+    });
+  });
+
+  document.getElementById("successTitle").textContent = `Sent to ${ids.length} ${ids.length===1?'person':'people'}`;
+  document.getElementById("successBody").textContent =
+    `${ids.map(id => personDisplay(id).name).join(", ")} will each get their own request today. You'll see responses on the Results page and on each person's card here as they come in.`;
+  document.getElementById("successOverlay").classList.add("show");
+
+  selectedPeopleIds.clear();
+  peopleSendOpen = false;
+  renderPeopleList();
+}
+
+function renderPeopleList(){
+  renderPeopleToolbar();
+  renderPeopleSendPanel();
+
+  const body = document.getElementById("peopleTableBody");
+  body.innerHTML = PEOPLE.map(p => {
+    const { name, org } = personDisplay(p.id);
+    const count = feedbackForPerson(p.id).length;
+    const checked = selectedPeopleIds.has(p.id);
+    return `
+      <tr class="${checked ? 'selected' : ''}">
+        <td><input type="checkbox" class="people-row-check" data-id="${p.id}" ${checked ? "checked" : ""}></td>
+        <td><span class="person-name">${name}</span><span class="person-email">${p.email}</span></td>
+        <td><span class="role-chip">${p.role}</span></td>
+        <td>${org}</td>
+        <td><span class="status-dot-chip"><span class="d"></span>${p.status}</span></td>
+        <td>
+          <button type="button" class="feedback-count-btn${count===0?' empty':''}" data-person="${p.id}">
+            ${count} feedback${count===1?'':'s'}
+          </button>
+        </td>
+        <td class="text-right">
+          <button type="button" class="row-action-btn" data-send="${p.id}">Send feedback</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  const selectAll = document.getElementById("peopleSelectAll");
+  selectAll.checked = PEOPLE.length > 0 && selectedPeopleIds.size === PEOPLE.length;
+  selectAll.onclick = ()=>{
+    if (selectAll.checked) PEOPLE.forEach(p => selectedPeopleIds.add(p.id));
+    else { selectedPeopleIds.clear(); peopleSendOpen = false; }
+    renderPeopleList();
+  };
+
+  body.querySelectorAll(".people-row-check").forEach(cb=>{
+    cb.addEventListener("change", ()=>{
+      const id = cb.getAttribute("data-id");
+      if (cb.checked) selectedPeopleIds.add(id);
+      else { selectedPeopleIds.delete(id); if (selectedPeopleIds.size === 0) peopleSendOpen = false; }
+      renderPeopleList();
+    });
+  });
+  body.querySelectorAll("[data-person]").forEach(btn=>{
+    btn.addEventListener("click", ()=>openPersonModal(btn.getAttribute("data-person")));
+  });
+  body.querySelectorAll("[data-send]").forEach(btn=>{
+    btn.addEventListener("click", ()=>sendFeedbackTo(btn.getAttribute("data-send")));
+  });
+}
+
+let personModalId = null;
+
+function openPersonModal(personId){
+  personModalId = personId;
+  const emp = (directories.employee || []).find(e => e.id === personId);
+  const person = PEOPLE.find(p => p.id === personId);
+  const items = feedbackForPerson(personId);
+
+  document.getElementById("personModalRole").textContent = person ? person.role : "";
+  document.getElementById("personModalName").textContent = emp ? emp.name : "—";
+  document.getElementById("personModalMeta").textContent = `${emp ? emp.org : ""} &middot; ${items.length} feedback${items.length===1?'':'s'} on file`.replace("&middot;","·");
+
+  const list = document.getElementById("personModalList");
+  list.innerHTML = items.length ? items.map(r => {
+    const t = TYPES.find(tt => tt.key === r.typeKey);
+    const scoreQs = r.questions.filter(q => q.kind === "score");
+    return `
+      <div class="pf-card">
+        <div class="pf-card-head">
+          <span class="type-tag"><span class="dot" style="background:${t.color}"></span>${t.label}</span>
+          <span class="status-pill ${r.status}">${r.status}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--faint);">${r.sent} &middot; ${r.sentTo}</div>
+        ${scoreQs.map(q => `<div class="qtext"><strong>${q.val || "—"}${q.max?`/${q.max}`:""}</strong> — ${q.q}</div>`).join("")}
+        ${r.comments.slice(0,1).map(c => `<div class="qtext">"${c.text}" — ${c.who}, submitted ${c.date || r.sent}</div>`).join("")}
+      </div>
+    `;
+  }).join("") : `<div class="detail-empty">No feedback on file yet. Use "Send feedback" to start one.</div>`;
+
+  document.getElementById("personModal").classList.add("show");
+}
+
+function closePersonModal(){
+  document.getElementById("personModal").classList.remove("show");
+  personModalId = null;
+}
+
+function sendFeedbackTo(personId){
+  closePersonModal();
+  active = "employee";
+  openPopoverKey = null;
+  state.employee.recipient = [personId];
+  const emp = (directories.employee || []).find(e => e.id === personId);
+  state.employee.manager = (emp && emp.managerId) ? [emp.managerId] : [];
+  switchPage("create");
+  render();
+}
+
+document.getElementById("personModalClose").addEventListener("click", closePersonModal);
+document.getElementById("personModal").addEventListener("click", (e)=>{
+  if (e.target.id === "personModal") closePersonModal();
+});
+document.getElementById("personModalSend").addEventListener("click", ()=>{
+  if (personModalId) sendFeedbackTo(personModalId);
+});
+
+templateSelect.addEventListener("change", ()=>{
+  state[current().key].template = templateSelect.value;
+  renderPreview();
+});
+
+document.addEventListener("click", ()=>{
+  if (openPopoverKey !== null){ openPopoverKey = null; render(); }
+});
+
+document.getElementById("createBtn").addEventListener("click", ()=>{
+  const t = current();
+  const pool = directories[t.recipient.kind] || [];
+  const recipients = (state[t.key].recipient || []).map(id => pool.find(p=>p.id===id)).filter(Boolean);
+  const first = recipients[0];
+  document.getElementById("successTitle").textContent = `${t.label} sent`;
+  document.getElementById("successBody").textContent = first
+    ? `${first.org} — ${first.name}${recipients.length>1 ? ` and ${recipients.length-1} other${recipients.length>2?'s':''}` : ""} will get an email today. You'll see responses on the results page as they come in.`
+    : `Select at least one recipient. You'll see responses on the results page as they come in.`;
+  document.getElementById("successOverlay").classList.add("show");
+});
+document.getElementById("successClose").addEventListener("click", ()=>{
+  document.getElementById("successOverlay").classList.remove("show");
+});
+
+render();
+switchPage('create');
+</script>

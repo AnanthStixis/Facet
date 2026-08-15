@@ -247,7 +247,7 @@ function AssignmentPlanner({
   onDone,
 }: {
   cycle: Cycle
-  onDone: (message: string) => void
+  onDone: (message: string, created: number) => void
 }) {
   const toast = useToast()
   const [reviewees, setReviewees] = useState<string[]>([])
@@ -324,6 +324,7 @@ function AssignmentPlanner({
               onDone(
                 `${result.created} assignment(s) created${breakdown ? ` — ${breakdown}` : ''}` +
                   (result.skipped_existing ? `. ${result.skipped_existing} already existed.` : '.'),
+                result.created,
               )
             } catch (caught) {
               toast.show(
@@ -371,14 +372,25 @@ export function Cycles() {
   useEffect(load, [])
   useRefetchOnFocus(load)
 
+  // Instant-patch-from-response — see Templates.tsx/Categories.tsx/
+  // Clients.tsx/Campaigns.tsx for the same pattern.
+  const patchCycle = (updated: Cycle) => {
+    setCycles((current) => (current ? current.map((c) => (c.id === updated.id ? updated : c)) : current))
+  }
+
+  const removeCycle = (id: string) => {
+    setCycles((current) => (current ? current.filter((c) => c.id !== id) : current))
+  }
+
   if (viewing) {
     return <CycleResults cycle={viewing} onBack={() => setViewing(null)} />
   }
 
   const act = async (cycle: Cycle, action: 'open' | 'close') => {
     try {
-      await api.post(`/cycles/${cycle.id}/${action}`)
+      const updated = await api.post<Cycle>(`/cycles/${cycle.id}/${action}`)
       setConfirming(null)
+      patchCycle(updated)
       toast.show(
         'success',
         action === 'open' ? 'Cycle opened' : 'Cycle closed',
@@ -386,7 +398,6 @@ export function Cycles() {
           ? `'${cycle.name}' is open. Reviewers can now see it in My feedback.`
           : `'${cycle.name}' is closed. Results are final.`,
       )
-      load()
     } catch (caught) {
       toast.show('critical', 'That did not work', caught instanceof ApiError ? caught.message : undefined)
     }
@@ -408,7 +419,7 @@ export function Cycles() {
               } else {
                 toast.show('success', 'Cycle opened', `'${cycle.name}' is open. Reviewers can now see it in My feedback.`)
               }
-              load()
+              setCycles((current) => (current ? [cycle, ...current] : [cycle]))
             }}
           />
         }
@@ -556,7 +567,7 @@ export function Cycles() {
                               await api.delete(`/cycles/${cycle.id}`)
                               setDeleting(null)
                               toast.show('success', 'Cycle deleted', `'${cycle.name}' deleted.`)
-                              load()
+                              removeCycle(cycle.id)
                             } catch (caught) {
                               toast.show(
                                 'critical',
@@ -607,8 +618,14 @@ export function Cycles() {
               {planning === cycle.id && (
                 <AssignmentPlanner
                   cycle={cycle}
-                  onDone={(message) => {
+                  onDone={(message, created) => {
                     toast.show('success', 'Assignments generated', message)
+                    if (created > 0) {
+                      patchCycle({
+                        ...cycle,
+                        progress: { ...cycle.progress, total: cycle.progress.total + created },
+                      })
+                    }
                     load()
                   }}
                 />

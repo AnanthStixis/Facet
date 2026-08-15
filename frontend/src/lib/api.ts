@@ -150,14 +150,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       .catch(() => undefined)
     // Reuse detection means the session was deliberately destroyed. Retrying
     // would be pointless and would mask a security event from the user.
-    // if (code !== 'token_reuse_detected') {
-    //   const session = await refreshSession()
-    //   if (session) return request<T>(path, { ...options, retry: false })
-    // }
-      if (code === 'session_expired' || code === 'unauthenticated') {
+    if (code === 'session_expired' || code === 'unauthenticated') {
       const session = await refreshSession()
       if (session) return request<T>(path, { ...options, retry: false })
-     }
+    }
   }
 
   return parse<T>(response)

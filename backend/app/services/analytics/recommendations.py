@@ -31,7 +31,6 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import FeedbackTarget
 from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
@@ -539,7 +538,7 @@ async def generate(
     narrative = None
     provider_name = "rules"
     model_id = "facet-rules-1"
-    if findings and settings.ai_enabled:
+    if findings:
         from app.services.ai.providers import build_provider
 
         provider = provider or build_provider()

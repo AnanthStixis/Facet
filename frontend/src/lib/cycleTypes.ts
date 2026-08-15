@@ -139,7 +139,7 @@ export interface TargetResults {
     average: number | null
   }[]
   questions?: QuestionResult[]
-  comments?: { comment: string; relationship: Relationship }[]
+  comments?: { comment: string; relationship: Relationship; submitted_at: string }[]
 }
 
 export interface TemplateVersionSummary {

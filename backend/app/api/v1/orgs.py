@@ -31,7 +31,9 @@ from app.schemas.org import (
     BrandingUpdateRequest,
     OrgApprovalRequest,
     OrgDetail,
+    OrgInviteAdminRequest,
     OrgProvisionRequest,
+    OrgReactivateRequest,
     OrgRegistrationRequest,
     OrgRejectionRequest,
     OrgStatusChangeRequest,
@@ -40,6 +42,18 @@ from app.schemas.org import (
 from app.services import audit, email as email_service, storage
 
 router = APIRouter(prefix="/orgs", tags=["organizations"])
+
+
+@router.get("/check-email")
+async def check_email(email: str, session: DbSession, actor: SuperAdmin) -> dict[str, bool]:
+    """Field-level availability check for the client-admin email on the
+    create/approve org forms — lets the UI flag a duplicate before submit
+    rather than only after, given email is unique platform-wide (see
+    migration 0013)."""
+    taken = (
+        await session.execute(select(User.id).where(func.lower(User.email) == email.strip().lower()))
+    ).first() is not None
+    return {"available": not taken}
 
 
 def _slugify(value: str) -> str:
@@ -92,6 +106,7 @@ def _detail(org: Organization, user_count: int = 0) -> OrgDetail:
         seat_limit=org.seat_limit,
         approved_at=org.approved_at,
         rejection_reason=org.rejection_reason,
+        suspension_reason=org.suspension_reason,
         created_at=org.created_at,
         user_count=user_count,
         branding=(
@@ -556,6 +571,7 @@ async def suspend_organization(
         raise NotFound("That organization does not exist.")
 
     org.status = OrgStatus.SUSPENDED
+    org.suspension_reason = payload.reason
 
     # Suspension has to take effect now, not whenever the current access tokens
     # happen to expire, so every session in the tenant is killed here.
@@ -591,7 +607,7 @@ async def suspend_organization(
 @router.post("/{org_id}/reactivate", response_model=OrgDetail)
 async def reactivate_organization(
     org_id: uuid.UUID,
-    payload: OrgStatusChangeRequest,
+    payload: OrgReactivateRequest,
     request: Request,
     session: DbSession,
     actor: SuperAdmin,
@@ -605,6 +621,7 @@ async def reactivate_organization(
         raise Conflict("Only a suspended organization can be reactivated.")
 
     org.status = OrgStatus.ACTIVE
+    org.suspension_reason = None
     await audit.record(
         session,
         action=AuditAction.ORG_REACTIVATED,
@@ -619,6 +636,76 @@ async def reactivate_organization(
     )
     await session.commit()
     return _detail(org)
+
+
+@router.post("/{org_id}/invite-admin", response_model=OrgDetail, status_code=201)
+async def invite_org_admin(
+    org_id: uuid.UUID,
+    payload: OrgInviteAdminRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session: DbSession,
+    actor: SuperAdmin,
+) -> OrgDetail:
+    """Add a new Client Admin to an already-active organization.
+
+    The third path to a Client Admin, alongside approve_organization
+    (pending -> active) and provision_organization (create-time admin
+    fields) — this one is reachable only from an active org's Edit popup,
+    never from the create-org flow, and can be used more than once (e.g. a
+    second Client Admin for the same tenant). Reuses `_invite_admin`, the
+    same helper the other two paths call, so the invitation email and audit
+    shape are identical.
+    """
+    org = (
+        await session.execute(select(Organization).where(Organization.id == org_id))
+    ).scalar_one_or_none()
+    if org is None:
+        raise NotFound("That organization does not exist.")
+    if org.status != OrgStatus.ACTIVE:
+        raise Conflict("Client Admins can only be added to an active organization.")
+
+    admin, raw_token = await _invite_admin(
+        session,
+        org=org,
+        full_name=payload.full_name,
+        email=payload.email,
+        role=UserRole.CLIENT_ADMIN,
+        invited_by=actor.user,
+    )
+
+    await audit.record(
+        session,
+        action=AuditAction.ORG_APPROVED,
+        summary=f"{actor.user.full_name} added Client Admin {admin.email} to {org.name}",
+        org_id=org.id,
+        actor=actor.user,
+        target_type="organization",
+        target_id=org.id,
+        target_label=org.name,
+        context={"admin_email": admin.email, "source": "invite_admin_from_edit"},
+        request=request,
+    )
+    await session.commit()
+
+    invite_url = f"{settings.public_app_url}/accept-invite?token={raw_token}"
+    background_tasks.add_task(
+        email_service.send_invitation,
+        to=admin.email,
+        full_name=admin.full_name,
+        org_name=org.name,
+        invite_url=invite_url,
+        branding=email_service.Branding(org_name=org.name),
+    )
+
+    count = int(
+        (
+            await session.execute(
+                select(func.count()).select_from(User).where(User.org_id == org_id)
+            )
+        ).scalar_one()
+    )
+    return _detail(org, count)
 
 
 # --- Branding (Module E) ----------------------------------------------------

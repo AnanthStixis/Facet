@@ -16,11 +16,6 @@ class LoginRequest(BaseModel):
     remember_device: bool = False
 
 
-class MfaChallengeRequest(BaseModel):
-    # Accepts a 6-digit TOTP code or a formatted recovery code.
-    code: str = Field(min_length=6, max_length=12)
-
-
 class BrandingSummary(ORMModel):
     accent_color: str
     logo_url: str | None = None
@@ -42,7 +37,6 @@ class UserSummary(ORMModel):
     job_title: str | None = None
     role: str
     status: str
-    mfa_enabled: bool
     must_change_password: bool
     last_login_at: datetime | None = None
 
@@ -59,23 +53,8 @@ class SessionResponse(BaseModel):
     token_type: str = "bearer"
     expires_at: datetime
     csrf_token: str
-    mfa_required: bool = False
     user: UserSummary | None = None
     organization: OrgSummary | None = None
-
-
-class MfaEnrolStartResponse(BaseModel):
-    secret: str
-    otpauth_uri: str
-    qr_svg: str
-
-
-class MfaEnrolConfirmRequest(BaseModel):
-    code: str = Field(min_length=6, max_length=6)
-
-
-class MfaEnrolConfirmResponse(BaseModel):
-    recovery_codes: list[str]
 
 
 PASSWORD_MIN_LENGTH = 6

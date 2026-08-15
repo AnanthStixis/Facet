@@ -43,7 +43,7 @@ async def ai_status(session: DbSession, actor: CurrentUser) -> dict[str, Any]:
         await monthly_tokens_used(session, actor.org_id) if actor.org_id else 0
     )
     return {
-        "enabled": settings.ai_enabled,
+        "enabled": True,
         "provider": provider.name,
         "is_local_fallback": provider.name == "local",
         "sentiment_model": provider.sentiment_model,

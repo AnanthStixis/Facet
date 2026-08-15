@@ -64,6 +64,13 @@ class Category(UUIDPrimaryKey, Timestamped, Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # Nullable: existing rows predate this column and have no known author.
+    # SET NULL on delete rather than RESTRICT — a category must never become
+    # undeletable just because the user who made it was later removed.
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+
     __table_args__ = (
         Index("uq_categories_global_key", "key", unique=True,
               postgresql_where="org_id IS NULL"),
@@ -119,6 +126,18 @@ class FeedbackTemplate(UUIDPrimaryKey, Timestamped, Base):
     # withheld. Anonymity that leaks under aggregation is not anonymity.
     min_responses_to_reveal: Mapped[int] = mapped_column(
         Integer, nullable=False, default=4
+    )
+
+    # Independent of draft/published status: an admin can take a template out
+    # of circulation (it stops appearing in CreateFeedback.tsx's dropdown)
+    # without touching its version history. Additive column, defaults true so
+    # every existing template stays selectable after this migration.
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # Nullable for the same reason as Category.created_by_id above: existing
+    # rows predate this column.
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
 
     versions: Mapped[list["FeedbackTemplateVersion"]] = relationship(

@@ -3,9 +3,9 @@ import { Fragment, useEffect, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { LookupFilter, SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
-import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner } from '../components/ui'
+import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, Switch } from '../components/ui'
 import { useToast } from '../components/Toast'
-import { IconUsers } from '../components/icons'
+import { IconEdit, IconUsers } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, downloadFile, uploadFile } from '../lib/api'
@@ -16,6 +16,252 @@ interface InviteResult {
   user: User
   invite_url: string | null
   email_sent: boolean
+}
+
+interface UserFeedbackItem {
+  cycle_id: string
+  cycle_name: string
+  kind: string
+  template_name: string | null
+  relationship: string
+  submitted_at: string
+  overall_score: number | null
+  comment: string | null
+}
+
+interface TemplateOption {
+  id: string
+  name: string
+  status: string | null
+  target_type: string
+  is_anonymous: boolean
+}
+
+/** Popup showing everything collected about one person, plus a way to send
+ * more — the People-page counterpart to Results.tsx's per-round detail. */
+function FeedbackHistoryModal({
+  person,
+  canSend,
+  onClose,
+  onSend,
+}: {
+  person: User
+  canSend: boolean
+  onClose: () => void
+  onSend: () => void
+}) {
+  const [items, setItems] = useState<UserFeedbackItem[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api
+      .get<UserFeedbackItem[]>(`/users/${person.id}/feedback`)
+      .then(setItems)
+      .catch((caught) =>
+        setError(caught instanceof ApiError ? caught.message : 'Could not load feedback.'),
+      )
+  }, [person.id])
+
+  return (
+    <Modal
+      title={person.full_name}
+      hint="Every piece of feedback collected about this person."
+      onClose={onClose}
+    >
+      {error && <Banner tone="error">{error}</Banner>}
+      {!error && !items && <Skeleton className="h-32 w-full rounded-lg" />}
+      {items && items.length === 0 && (
+        <p className="py-6 text-center text-sm text-ink-500">No feedback collected yet.</p>
+      )}
+      {items && items.length > 0 && (
+        <ul className="space-y-3">
+          {items.map((item, index) => (
+            <li key={index} className="rounded-lg border border-ink-200 p-3 dark:border-ink-700">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-medium text-ink-900 dark:text-ink-50">
+                  {item.cycle_name}
+                </span>
+                <span className="text-2xs text-ink-400">
+                  {new Date(item.submitted_at).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
+              </div>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-2xs text-ink-400">
+                <Chip value={item.kind} />
+                {item.template_name && <span>{item.template_name}</span>}
+                {item.overall_score !== null && (
+                  <span className="tabular">Score {item.overall_score.toFixed(2)}</span>
+                )}
+              </p>
+              {item.comment && (
+                <p className="mt-1.5 text-sm text-ink-700 dark:text-ink-200">{item.comment}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-4 flex justify-end gap-2">
+        <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={onClose}>
+          Close
+        </button>
+        {/* An org-less Super Admin can only send feedback about a Client
+            Admin — they aren't part of any org's own reporting chart, so an
+            Employees Review against an employee/manager row wouldn't make
+            sense. A Client Admin (or anyone acting within an org) can send
+            to anyone in their own org's list — org membership is what
+            unlocks this, not a specific role. */}
+        {canSend && (
+          <button
+            type="button"
+            className="btn-primary px-3 py-1.5 text-sm"
+            onClick={() => {
+              onClose()
+              onSend()
+            }}
+          >
+            Send feedback
+          </button>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+/** Inline panel (not a route change) to send one Employees Review to several
+ * people at once — each selected person gets their own POST /feedback call,
+ * since each gets their own ReviewCycle underneath. */
+function BulkSendPanel({
+  people,
+  onRemove,
+  onDone,
+  onCancel,
+}: {
+  people: User[]
+  onRemove: (id: string) => void
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const toast = useToast()
+  const [templates, setTemplates] = useState<TemplateOption[]>([])
+  const [templateId, setTemplateId] = useState('')
+  const [name, setName] = useState('')
+  const [closesAt, setClosesAt] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    api
+      .get<{ templates: TemplateOption[] }[]>('/catalog/categories')
+      .then((categories) =>
+        setTemplates(
+          categories
+            .flatMap((category) => category.templates)
+            .filter((t) => t.status === 'published' && t.target_type === 'employee'),
+        ),
+      )
+      .catch(() => setTemplates([]))
+  }, [])
+
+  const send = async () => {
+    setBusy(true)
+    let sent = 0
+    const failed: string[] = []
+    for (const person of people) {
+      try {
+        await api.post('/feedback', {
+          kind: 'employee',
+          template_id: templateId,
+          name: name.trim() || `${person.full_name} — feedback`,
+          closes_at: closesAt ? new Date(closesAt).toISOString() : null,
+          reviewee_user_id: person.id,
+        })
+        sent += 1
+      } catch {
+        failed.push(person.full_name)
+      }
+    }
+    setBusy(false)
+    toast.show(
+      failed.length ? 'warning' : 'success',
+      'Feedback sent',
+      failed.length
+        ? `${sent} of ${people.length} sent. Failed for: ${failed.join(', ')}.`
+        : `Sent to ${sent} ${sent === 1 ? 'person' : 'people'}.`,
+    )
+    onDone()
+  }
+
+  return (
+    <Card className="mb-4" title="Send feedback to selected people">
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {people.map((person) => (
+          <span
+            key={person.id}
+            className="flex items-center gap-1.5 rounded-full bg-ink-100 py-1 pl-2.5 pr-1.5 text-xs text-ink-700 dark:bg-ink-800 dark:text-ink-200"
+          >
+            {person.full_name}
+            <button
+              type="button"
+              className="rounded-full p-0.5 hover:bg-ink-200 dark:hover:bg-ink-700"
+              onClick={() => onRemove(person.id)}
+              aria-label={`Remove ${person.full_name}`}
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+            Template
+          </span>
+          <select
+            className="field"
+            value={templateId}
+            onChange={(event) => setTemplateId(event.target.value)}
+          >
+            <option value="">Choose a template</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Field
+          label="Name (optional)"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Defaults to each person's own name"
+        />
+        <Field
+          label="Closes on (optional)"
+          type="date"
+          value={closesAt}
+          onChange={(event) => setClosesAt(event.target.value)}
+        />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          className="btn-primary px-3 py-1.5 text-sm"
+          disabled={busy || people.length === 0 || !templateId}
+          onClick={send}
+        >
+          {busy && <Spinner />}
+          Send to {people.length}
+        </button>
+        <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </Card>
+  )
 }
 
 const ROLES: { value: Role; label: string; hint: string }[] = [
@@ -34,6 +280,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
     full_name: '',
     email: '',
     role: 'employee' as Role,
+    manager_id: null as string | null,
     job_title: '',
     department: '',
   })
@@ -43,7 +290,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
   if (!open) {
     return (
       <button type="button" className="btn-primary px-3 py-1.5" onClick={() => setOpen(true)}>
-        Invite someone
+        Create
       </button>
     )
   }
@@ -53,14 +300,23 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
     setBusy(true)
     setFieldErrors({})
     try {
+      const isOrgChartRole = form.role === 'employee' || form.role === 'manager'
       const result = await api.post<InviteResult>('/users', {
         ...form,
+        manager_id: isOrgChartRole ? form.manager_id : null,
         job_title: form.job_title || null,
         department: form.department || null,
       })
       onInvited(result)
       setOpen(false)
-      setForm({ full_name: '', email: '', role: 'employee', job_title: '', department: '' })
+      setForm({
+        full_name: '',
+        email: '',
+        role: 'employee',
+        manager_id: null,
+        job_title: '',
+        department: '',
+      })
     } catch (caught) {
       if (caught instanceof ApiError) {
         toast.show('critical', 'Invitation failed', caught.message)
@@ -74,9 +330,9 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
   }
 
   return (
-    <Card className="mb-5" title="Invite someone" hint="They set their own password from a single-use link that expires in 72 hours.">
+    <Card className="mb-5" title="Create" hint="They set their own password from a single-use link that expires in 72 hours.">
       <form onSubmit={submit}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field
             label="Full name"
             value={form.full_name}
@@ -92,6 +348,46 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
             error={fieldErrors.email}
             required
           />
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+              Role
+            </span>
+            <select
+              className="field"
+              value={form.role}
+              onChange={(event) =>
+                setForm({ ...form, role: event.target.value as Role, manager_id: null })
+              }
+            >
+              {ROLES.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-ink-500 dark:text-ink-400">
+              {ROLES.find((role) => role.value === form.role)?.hint}
+            </span>
+          </label>
+          {(form.role === 'employee' || form.role === 'manager') && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                Manager
+              </span>
+              <LookupFilter
+                entity="users"
+                label="Choose a manager"
+                selected={form.manager_id ? [form.manager_id] : []}
+                onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field
             label="Job title"
             value={form.job_title}
@@ -104,42 +400,10 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
           />
         </div>
 
-        <fieldset className="mt-4">
-          <legend className="mb-1.5 text-sm font-medium text-ink-700 dark:text-ink-200">
-            Role
-          </legend>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {ROLES.map((role) => (
-              <label
-                key={role.value}
-                className={
-                  form.role === role.value
-                    ? 'cursor-pointer rounded-lg border-2 border-[color:var(--accent)] p-3'
-                    : 'cursor-pointer rounded-lg border border-ink-200 p-3 hover:border-ink-300 dark:border-ink-700'
-                }
-              >
-                <input
-                  type="radio"
-                  name="role"
-                  className="sr-only"
-                  checked={form.role === role.value}
-                  onChange={() => setForm({ ...form, role: role.value })}
-                />
-                <span className="block text-sm font-medium text-ink-900 dark:text-ink-50">
-                  {role.label}
-                </span>
-                <span className="block text-xs text-ink-500 dark:text-ink-400">
-                  {role.hint}
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
         <div className="mt-4 flex gap-2">
           <button type="submit" className="btn-primary px-3 py-1.5" disabled={busy}>
             {busy && <Spinner />}
-            Send invitation
+            Submit
           </button>
           <button
             type="button"
@@ -163,7 +427,7 @@ function EditUserForm({
   person: User
   canChangeRole: boolean
   onCancel: () => void
-  onDone: () => void
+  onDone: (updated: User) => void
 }) {
   const toast = useToast()
   const [form, setForm] = useState({
@@ -171,7 +435,6 @@ function EditUserForm({
     job_title: person.job_title ?? '',
     department: person.department ?? '',
     role: person.role,
-    manager_id: person.manager_id ?? null,
   })
   const [busy, setBusy] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -204,19 +467,13 @@ function EditUserForm({
     setBusy(true)
     setFieldErrors({})
     try {
-      const isOrgChartRole = form.role === 'employee' || form.role === 'manager'
-      // Promoting someone to an admin role takes them out of the org chart
-      // this drives — clear it rather than leave a stale manager hidden
-      // behind a field that no longer shows.
-      const nextManagerId = isOrgChartRole ? form.manager_id : null
-      await api.patch(`/users/${person.id}`, {
+      const updated = await api.patch<User>(`/users/${person.id}`, {
         full_name: form.full_name,
         job_title: form.job_title || null,
         department: form.department || null,
         role: canChangeRole && form.role !== person.role ? form.role : undefined,
-        manager_id: nextManagerId !== (person.manager_id ?? null) ? nextManagerId : undefined,
       })
-      onDone()
+      onDone(updated)
     } catch (caught) {
       if (caught instanceof ApiError) {
         toast.show('critical', 'Save failed', caught.message)
@@ -285,23 +542,6 @@ function EditUserForm({
                   Role
                 </span>
                 <p className="text-xs text-ink-400">You cannot change your own role.</p>
-              </div>
-            )}
-            {/* An admin role sits outside the org chart this drives (self /
-                manager / upward / peer assignment generation) — showing it
-                for a Client Admin or Super Admin would just be a field with
-                no effect. */}
-            {(form.role === 'employee' || form.role === 'manager') && (
-              <div className="sm:col-span-2">
-                <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                  Manager
-                </span>
-                <LookupFilter
-                  entity="users"
-                  label="Choose a manager"
-                  selected={form.manager_id ? [form.manager_id] : []}
-                  onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
-                />
               </div>
             )}
           </div>
@@ -480,22 +720,27 @@ export function People() {
   const toast = useToast()
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
-  const { user } = useAuth()
+  const { user, organization } = useAuth()
   const [params, setParams] = useSearchParams()
   const role = params.get('role') ?? ''
+  const orgId = params.get('org_id') ?? ''
+  const orgName = (location.state as { orgName?: string } | null)?.orgName
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<Paged<User> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [confirmDisable, setConfirmDisable] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [viewingFeedbackId, setViewingFeedbackId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [showSendPanel, setShowSendPanel] = useState(false)
 
   const load = () => {
     setLoading(true)
     const query = new URLSearchParams({ page_size: String(PAGE_SIZE), page: String(page) })
     if (search) query.set('search', search)
     if (role) query.set('role', role)
+    if (orgId) query.set('org_id', orgId)
     api
       .get<Paged<User>>(`/users?${query}`)
       .then((result) => {
@@ -508,21 +753,45 @@ export function People() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [search, role, page])
+  useEffect(load, [search, role, orgId, page])
   useRefetchOnFocus(load)
+
+  // Same pattern as patchOrg (Organizations.tsx), patchTemplate (Templates.tsx)
+  // and patchCategory (Categories.tsx): apply what the mutating call itself
+  // returned/implies immediately, rather than waiting on load()'s separate
+  // round trip to land — that one still fires in the background to reconcile
+  // anything this missed (e.g. pagination shifting).
+  const patchPerson = (id: string, patch: Partial<User>) => {
+    setData((current) =>
+      current
+        ? { ...current, items: current.items.map((p) => (p.id === id ? { ...p, ...patch } : p)) }
+        : current,
+    )
+  }
 
   const canManage = user?.role === 'client_admin' || user?.role === 'super_admin'
   const isPlatform = user?.role === 'super_admin'
+  // A Super Admin with no org has no organization to create a user into —
+  // creating/bulk-inviting only makes sense once they're linked to one
+  // (they can add themselves a Client Admin from an org's own edit popup
+  // instead, on the Organizations page).
+  const canCreateUsers = user?.role === 'client_admin' || (user?.role === 'super_admin' && !!organization)
+  // Whether the viewer is limited to sending feedback about Client Admin
+  // rows only — true for an org-less Super Admin (not part of any org's own
+  // chart, so only a Client Admin relationship makes sense to them). Anyone
+  // acting within an org — a Client Admin, or a Super Admin who becomes
+  // linked to one — can select/send to any row in their own org's list.
+  const restrictedToClientAdmins = user?.role === 'super_admin' && !organization
+  const canSelect = (person: User) => !restrictedToClientAdmins || person.role === 'client_admin'
 
   return (
     <>
       <PageHeader
-        title="People"
+        title="Users"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Everyone with access to this workspace. External respondents are not listed here — they never hold an account."
         actions={
-          canManage && (
+          canCreateUsers && (
             <span className="flex flex-wrap items-start gap-2">
               <InvitePanel
                 onInvited={(result) => {
@@ -567,10 +836,64 @@ export function People() {
         }
       />
 
+      {orgId && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-ink-600 dark:text-ink-300">
+          <span>
+            Filtered to <strong>{orgName ?? 'this organization'}</strong>
+          </span>
+          <button
+            type="button"
+            className="text-xs text-ink-400 underline hover:text-ink-700 dark:hover:text-ink-100"
+            onClick={() => {
+              const next = new URLSearchParams(params)
+              next.delete('org_id')
+              setParams(next)
+            }}
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
+
       {error && (
         <Banner tone="error" className="mb-4">
           {error}
         </Banner>
+      )}
+
+      {selectedIds.length > 0 && !showSendPanel && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-ink-200 bg-ink-50 px-4 py-2.5 dark:border-ink-700 dark:bg-ink-900/60">
+          <span className="text-sm text-ink-700 dark:text-ink-200">
+            {selectedIds.length} selected
+          </span>
+          <button
+            type="button"
+            className="btn-primary px-3 py-1.5 text-sm"
+            onClick={() => setShowSendPanel(true)}
+          >
+            Send feedback to {selectedIds.length}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost px-2 py-1 text-xs"
+            onClick={() => setSelectedIds([])}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {showSendPanel && selectedIds.length > 0 && data && (
+        <BulkSendPanel
+          people={data.items.filter((person) => selectedIds.includes(person.id))}
+          onRemove={(id) => setSelectedIds((current) => current.filter((item) => item !== id))}
+          onDone={() => {
+            setShowSendPanel(false)
+            setSelectedIds([])
+            load()
+          }}
+          onCancel={() => setShowSendPanel(false)}
+        />
       )}
 
       <Card padded={false}>
@@ -630,12 +953,39 @@ export function People() {
             <table className="data-table">
               <thead>
                 <tr>
+                  {canManage && (
+                    <th className="w-8">
+                      {/* An org-less Super Admin can only select Client
+                          Admin rows (see restrictedToClientAdmins above);
+                          anyone viewing within an org can select any row. */}
+                      {(() => {
+                        const selectableIds = data.items
+                          .filter(canSelect)
+                          .map((p) => p.id)
+                        return selectableIds.length > 0 ? (
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-[color:var(--accent)]"
+                            checked={selectableIds.every((id) => selectedIds.includes(id))}
+                            onChange={(event) =>
+                              setSelectedIds(
+                                event.target.checked
+                                  ? Array.from(new Set([...selectedIds, ...selectableIds]))
+                                  : selectedIds.filter((id) => !selectableIds.includes(id)),
+                              )
+                            }
+                            aria-label="Select all Client Admins on this page"
+                          />
+                        ) : null
+                      })()}
+                    </th>
+                  )}
                   <th>Name</th>
                   <th>Role</th>
                   {isPlatform && <th>Organization</th>}
                   <th>Department</th>
                   <th>Status</th>
-                  <th>Two-factor</th>
+                  <th>Feedback</th>
                   {canManage && <th className="text-right">Actions</th>}
                 </tr>
               </thead>
@@ -643,6 +993,25 @@ export function People() {
                 {data.items.map((person) => (
                   <Fragment key={person.id}>
                   <tr>
+                    {canManage && (
+                      <td>
+                        {canSelect(person) && (
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-[color:var(--accent)]"
+                            checked={selectedIds.includes(person.id)}
+                            onChange={() =>
+                              setSelectedIds((current) =>
+                                current.includes(person.id)
+                                  ? current.filter((id) => id !== person.id)
+                                  : [...current, person.id],
+                              )
+                            }
+                            aria-label={`Select ${person.full_name}`}
+                          />
+                        )}
+                      </td>
+                    )}
                     <td>
                       <span className="block font-medium text-ink-900 dark:text-ink-50">
                         {person.full_name}
@@ -664,76 +1033,60 @@ export function People() {
                       <Chip value={person.status} />
                     </td>
                     <td>
-                      <span
-                        className={
-                          person.mfa_enabled
-                            ? 'text-xs text-positive'
-                            : 'text-xs text-ink-400'
-                        }
+                      <button
+                        type="button"
+                        className={clsx(
+                          'rounded-full px-2 py-0.5 text-xs font-medium',
+                          person.feedback_count
+                            ? 'accent-soft-bg accent-text hover:opacity-80'
+                            : 'bg-ink-100 text-ink-400 hover:bg-ink-200 dark:bg-ink-800 dark:hover:bg-ink-700',
+                        )}
+                        onClick={() => setViewingFeedbackId(person.id)}
                       >
-                        {person.mfa_enabled ? 'Enabled' : 'Not enabled'}
-                      </span>
+                        {person.feedback_count ?? 0}
+                      </button>
                     </td>
                     {canManage && (
                       <td className="text-right">
-                        {confirmDisable === person.id ? (
-                          <span className="flex justify-end gap-1.5">
-                            <button
-                              type="button"
-                              className="btn-danger px-2 py-1 text-xs"
-                              onClick={async () => {
-                                await api.post(`/users/${person.id}/disable`)
-                                setConfirmDisable(null)
-                                toast.show('success', 'User disabled', `${person.email} can no longer sign in.`)
-                                load()
-                              }}
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-secondary px-2 py-1 text-xs"
-                              onClick={() => setConfirmDisable(null)}
-                            >
-                              Cancel
-                            </button>
-                          </span>
-                        ) : (
-                          <span className="flex justify-end gap-1.5">
-                            <button
-                              type="button"
-                              className="btn-ghost px-2 py-1 text-xs"
-                              onClick={() => setEditingId(editingId === person.id ? null : person.id)}
-                            >
-                              Edit
-                            </button>
-                            {person.id === user?.id ? (
-                              <span className="flex w-[52px] items-center justify-center px-2 py-1 text-xs text-ink-600 dark:text-ink-300">
-                                You
-                              </span>
-                            ) : person.status === 'disabled' ? (
-                              <button
-                                type="button"
-                                className="btn-secondary px-2 py-1 text-xs"
-                                onClick={async () => {
-                                  await api.post(`/users/${person.id}/enable`)
-                                  toast.show('success', 'User enabled', `${person.email} can sign in again.`)
+                        <span className="flex items-center justify-end gap-2.5">
+                          {person.id === user?.id ? (
+                            <span className="text-xs text-ink-500 dark:text-ink-400">You</span>
+                          ) : (
+                            <Switch
+                              checked={person.status !== 'disabled'}
+                              ariaLabel={person.status === 'disabled' ? `Enable ${person.full_name}` : `Disable ${person.full_name}`}
+                              onChange={async () => {
+                                try {
+                                  if (person.status === 'disabled') {
+                                    await api.post(`/users/${person.id}/enable`)
+                                    patchPerson(person.id, { status: 'active' })
+                                    toast.show('success', 'User enabled', `${person.email} can sign in again.`)
+                                  } else {
+                                    await api.post(`/users/${person.id}/disable`)
+                                    patchPerson(person.id, { status: 'disabled' })
+                                    toast.show('success', 'User disabled', `${person.email} can no longer sign in.`)
+                                  }
                                   load()
-                                }}
-                              >
-                                Enable
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn-ghost px-2 py-1 text-xs"
-                                onClick={() => setConfirmDisable(person.id)}
-                              >
-                                Disable
-                              </button>
-                            )}
-                          </span>
-                        )}
+                                } catch (caught) {
+                                  toast.show(
+                                    'critical',
+                                    'Action failed',
+                                    caught instanceof ApiError ? caught.message : 'Could not change this user.',
+                                  )
+                                }
+                              }}
+                            />
+                          )}
+                          <button
+                            type="button"
+                            className="btn-secondary p-1.5"
+                            aria-label={`Edit ${person.full_name}`}
+                            title="Edit"
+                            onClick={() => setEditingId(editingId === person.id ? null : person.id)}
+                          >
+                            <IconEdit width={15} height={15} />
+                          </button>
+                        </span>
                       </td>
                     )}
                   </tr>
@@ -742,8 +1095,9 @@ export function People() {
                       person={person}
                       canChangeRole={person.id !== user?.id}
                       onCancel={() => setEditingId(null)}
-                      onDone={() => {
+                      onDone={(updated) => {
                         setEditingId(null)
+                        patchPerson(person.id, updated)
                         toast.show('success', 'Person updated', `${person.full_name}'s details were updated.`)
                         load()
                       }}
@@ -765,6 +1119,29 @@ export function People() {
           />
         )}
       </Card>
+
+      {viewingFeedbackId && data && (
+        (() => {
+          const person = data.items.find((item) => item.id === viewingFeedbackId)
+          if (!person) return null
+          return (
+            <FeedbackHistoryModal
+              person={person}
+              canSend={canSelect(person)}
+              onClose={() => setViewingFeedbackId(null)}
+              onSend={() => {
+                setSelectedIds([person.id])
+                setShowSendPanel(true)
+                // The send panel renders above the table, near the top of
+                // the page — if this was opened from a person scrolled deep
+                // into a long, paginated list, it would appear entirely off
+                // screen without this.
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+            />
+          )
+        })()
+      )}
     </>
   )
 }

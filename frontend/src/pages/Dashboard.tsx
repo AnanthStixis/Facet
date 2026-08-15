@@ -6,11 +6,8 @@ import {
   IconAlert,
   IconBuilding,
   IconClock,
-  IconFile,
   IconInbox,
-  IconLock,
   IconSend,
-  IconShield,
   IconSpark,
   IconUsers,
 } from '../components/icons'
@@ -102,18 +99,6 @@ export function Dashboard() {
         </Banner>
       )}
 
-      {user && !user.mfa_enabled && (
-        <Banner tone="info" className="mb-5">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <IconShield width={15} height={15} />
-            Two-factor authentication is not enabled on your account.
-            <Link to="/security" state={{ from: 'dashboard' }} className="font-medium underline">
-              Set it up
-            </Link>
-          </span>
-        </Banner>
-      )}
-
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {isPlatform && data.platform ? (
           <>
@@ -170,15 +155,6 @@ export function Dashboard() {
               sub="Not yet activated"
               icon={<IconInbox width={17} height={17} />}
               to="/people"
-              state={{ from: 'dashboard' }}
-            />
-            <StatTile
-              label="Two-factor adoption"
-              value={`${data.metrics.mfa_adoption_pct}%`}
-              tone={data.metrics.mfa_adoption_pct < 50 ? 'caution' : 'neutral'}
-              sub="Of all accounts"
-              icon={<IconLock width={17} height={17} />}
-              to="/security"
               state={{ from: 'dashboard' }}
             />
             <StatTile
@@ -245,15 +221,6 @@ export function Dashboard() {
               sub="Responses received about you"
               icon={<IconSpark width={17} height={17} />}
               to="/my-results"
-              state={{ from: 'dashboard' }}
-            />
-            <StatTile
-              label="Two-factor"
-              value={user?.mfa_enabled ? 'On' : 'Off'}
-              tone={user?.mfa_enabled ? 'neutral' : 'caution'}
-              sub="Your account security"
-              icon={<IconLock width={17} height={17} />}
-              to="/security"
               state={{ from: 'dashboard' }}
             />
           </>
@@ -335,14 +302,6 @@ export function Dashboard() {
                   tone={data.attention.closing_soon ? 'caution' : 'neutral'}
                   icon={<IconAlert width={16} height={16} />}
                   to="/cycles"
-                  state={{ from: 'dashboard' }}
-                />
-                <StatTile
-                  label="Proposals awaiting outcome"
-                  value={data.attention.proposals_awaiting_outcome ?? 0}
-                  tone={data.attention.proposals_awaiting_outcome ? 'caution' : 'neutral'}
-                  icon={<IconFile width={16} height={16} />}
-                  to="/proposals"
                   state={{ from: 'dashboard' }}
                 />
               </div>
@@ -450,7 +409,6 @@ export function Dashboard() {
             {[
               { title: 'Review cycles', to: '/cycles', icon: IconClock },
               { title: 'Client campaigns', to: '/campaigns', icon: IconSend },
-              { title: 'Proposals', to: '/proposals', icon: IconFile },
             ].map((item) => (
               <Link
                 key={item.title}

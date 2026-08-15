@@ -69,6 +69,7 @@ class TargetType(StrEnum):
     MANAGER = "manager"
     TEAM = "team"
     DEPARTMENT = "department"
+    CLIENT = "client"
     PRODUCT = "product"
     SERVICE = "service"
     PROPOSAL = "proposal"
@@ -284,6 +285,8 @@ class AuditAction(StrEnum):
 
     TEMPLATE_CLONED = "template.cloned"
     TEMPLATE_DRAFT_SAVED = "template.draft_saved"
+    TEMPLATE_ENABLED = "template.enabled"
+    TEMPLATE_DISABLED = "template.disabled"
 
     CYCLE_CREATED = "cycle.created"
     CYCLE_OPENED = "cycle.opened"

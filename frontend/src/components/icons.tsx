@@ -46,6 +46,14 @@ export const IconUsers = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export const IconBriefcase = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <rect x="2" y="7" width="20" height="14" rx="2" />
+    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    <path d="M2 13h20" />
+  </svg>
+)
+
 export const IconShield = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
@@ -57,6 +65,13 @@ export const IconLayers = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="m12 2 9 5-9 5-9-5 9-5Z" />
     <path d="m3 17 9 5 9-5M3 12l9 5 9-5" />
+  </svg>
+)
+
+export const IconTag = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M12.59 2.59 20 10l-8 8-7.41-7.41A2 2 0 0 1 4 9.17V4a2 2 0 0 1 2-2h5.17a2 2 0 0 1 1.42.59Z" />
+    <circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
   </svg>
 )
 
@@ -199,6 +214,22 @@ export const IconUpload = (p: SVGProps<SVGSVGElement>) => (
     <path d="M12 16V4" />
     <path d="M7 9l5-5 5 5" />
     <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+  </svg>
+)
+
+export const IconEdit = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    <path d="m15 5 4 4" />
+  </svg>
+)
+
+export const IconTrash = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M3 6h18" />
+    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+    <path d="M10 11v6M14 11v6" />
   </svg>
 )
 

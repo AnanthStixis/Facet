@@ -447,7 +447,7 @@ function RecipientPicker({
   onDone,
 }: {
   campaign: Campaign
-  onDone: (message: string) => void
+  onDone: (message: string, added: number) => void
 }) {
   const toast = useToast()
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -511,6 +511,7 @@ function RecipientPicker({
                 onDone(
                   `${result.imported} of ${result.total_rows} contacts imported.` +
                     (result.skipped.length ? ` ${result.skipped.length} skipped.` : ''),
+                  0,
                 )
                 load()
               } catch (caught) {
@@ -656,6 +657,7 @@ function RecipientPicker({
                     ? `, ${result.skipped_unsubscribed} unsubscribed`
                     : '') +
                   '.',
+                result.added,
               )
             } catch (caught) {
               toast.show(
@@ -797,6 +799,19 @@ export function Campaigns() {
   useEffect(load, [])
   useRefetchOnFocus(load)
 
+  // Instant-patch-from-response, same pattern used across Templates.tsx/
+  // Categories.tsx/Clients.tsx — the card updates the moment the mutating
+  // request's own response comes back, not whenever load() happens to land.
+  const patchCampaign = (updated: Campaign) => {
+    setCampaigns((current) =>
+      current ? current.map((c) => (c.id === updated.id ? updated : c)) : current,
+    )
+  }
+
+  const removeCampaign = (id: string) => {
+    setCampaigns((current) => (current ? current.filter((c) => c.id !== id) : current))
+  }
+
   // The results endpoint already exists on the backend for campaigns — a
   // campaign is a ReviewCycle underneath — but there was no button anywhere
   // to reach it, so nobody could ever see what a recipient actually said.
@@ -839,8 +854,9 @@ export function Campaigns() {
 
   const act = async (campaign: Campaign, action: 'open' | 'close') => {
     try {
-      await api.post(`/campaigns/${campaign.id}/${action}`)
+      const updated = await api.post<Campaign>(`/campaigns/${campaign.id}/${action}`)
       setConfirming(null)
+      patchCampaign(updated)
       toast.show(
         'success',
         action === 'open' ? 'Campaign opened' : 'Campaign closed',
@@ -848,7 +864,6 @@ export function Campaigns() {
           ? `'${campaign.name}' is open. Send the invitations when you are ready.`
           : `'${campaign.name}' is closed.`,
       )
-      load()
     } catch (caught) {
       toast.show(
         'critical',
@@ -866,6 +881,17 @@ export function Campaigns() {
         failed: number
         skipped: number
       }>(`/campaigns/${campaign.id}/send`, { resend })
+      // The send endpoint returns a summary, not the campaign itself — patch
+      // the delivery funnel locally from that summary so it updates
+      // instantly, then reconcile with the server in the background.
+      patchCampaign({
+        ...campaign,
+        delivery: {
+          ...campaign.delivery,
+          pending: resend ? campaign.delivery.pending : Math.max(0, campaign.delivery.pending - result.sent),
+          sent: campaign.delivery.sent + result.sent,
+        },
+      })
       toast.show(
         'success',
         'Invitations sent',
@@ -904,7 +930,7 @@ export function Campaigns() {
                   : `'${campaign.name}' is open. Add recipients and send when ready.`,
               )
               setPanel({ id: campaign.id, view: 'recipients' })
-              load()
+              setCampaigns((current) => (current ? [campaign, ...current] : [campaign]))
             }}
           />
         }
@@ -1050,7 +1076,7 @@ export function Campaigns() {
                               await api.delete(`/campaigns/${campaign.id}`)
                               setDeleting(null)
                               toast.show('success', 'Campaign deleted', `'${campaign.name}' deleted.`)
-                              load()
+                              removeCampaign(campaign.id)
                             } catch (caught) {
                               toast.show(
                                 'critical',
@@ -1127,8 +1153,18 @@ export function Campaigns() {
               {panel?.id === campaign.id && panel.view === 'recipients' && (
                 <RecipientPicker
                   campaign={campaign}
-                  onDone={(message) => {
+                  onDone={(message, added) => {
                     toast.show('success', 'Recipients updated', message)
+                    if (added > 0) {
+                      patchCampaign({
+                        ...campaign,
+                        delivery: {
+                          ...campaign.delivery,
+                          total: campaign.delivery.total + added,
+                          pending: campaign.delivery.pending + added,
+                        },
+                      })
+                    }
                     load()
                   }}
                 />

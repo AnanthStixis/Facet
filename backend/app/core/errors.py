@@ -61,16 +61,6 @@ class AccountDisabled(AuthenticationError):
     message = "Your login has been disabled by your organization. Please contact them."
 
 
-class MfaRequired(AuthenticationError):
-    code = "mfa_required"
-    message = "A verification code is required."
-
-
-class InvalidMfaCode(AuthenticationError):
-    code = "invalid_mfa_code"
-    message = "That verification code is not valid."
-
-
 class SessionExpired(AuthenticationError):
     code = "session_expired"
     message = "Your session has expired. Please sign in again."

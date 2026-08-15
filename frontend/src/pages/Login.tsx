@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FacetMark } from '../components/Logo'
-import { IconLock, IconShield } from '../components/icons'
+import { IconLock } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
@@ -140,21 +140,13 @@ function GraphArtwork() {
 }
 
 export function Login() {
-  const { login, submitMfa, phase } = useAuth()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [forgot, setForgot] = useState(false)
-  const codeRef = useRef<HTMLInputElement>(null)
-
-  const awaitingCode = phase === 'mfa_required'
-
-  useEffect(() => {
-    if (awaitingCode) codeRef.current?.focus()
-  }, [awaitingCode])
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -162,11 +154,7 @@ export function Login() {
     setError(null)
     setFieldErrors({})
     try {
-      if (awaitingCode) {
-        await submitMfa(code)
-      } else {
-        await login(email, password)
-      }
+      await login(email, password)
     } catch (caught) {
       if (caught instanceof ApiError) {
         setError(caught.message)
@@ -174,7 +162,6 @@ export function Login() {
       } else {
         setError('Could not reach the server. Check that the API is running.')
       }
-      setCode('')
     } finally {
       setBusy(false)
     }
@@ -247,14 +234,12 @@ export function Login() {
           </div>
 
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-            {forgot ? 'Reset your password' : awaitingCode ? 'Verify it is you' : 'Sign in'}
+            {forgot ? 'Reset your password' : 'Sign in'}
           </h1>
           <p className="mt-1.5 text-sm text-ink-500 dark:text-ink-400">
             {forgot
               ? "Enter your work email and we'll send a link to set a new password, if you have an account."
-              : awaitingCode
-                ? 'Enter the 6-digit code from your authenticator app, or one of your recovery codes.'
-                : 'Use the credentials issued by your administrator.'}
+              : 'Use the credentials issued by your administrator.'}
           </p>
 
           {forgot ? (
@@ -265,71 +250,45 @@ export function Login() {
           <form onSubmit={handleSubmit} className="mt-7 space-y-4">
             {error && <Banner tone="error">{error}</Banner>}
 
-            {awaitingCode ? (
-              <div>
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                    Verification code
-                  </span>
-                  <input
-                    ref={codeRef}
-                    value={code}
-                    onChange={(event) => setCode(event.target.value.toUpperCase())}
-                    inputMode="text"
-                    autoComplete="one-time-code"
-                    maxLength={12}
-                    placeholder="000000"
-                    className="field text-center font-mono text-2xl tracking-[0.3em]"
-                  />
-                </label>
-                <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-400">
-                  <IconShield width={13} height={13} className="mt-0.5 shrink-0" />
-                  A recovery code can be used once and is then discarded.
-                </p>
-              </div>
-            ) : (
-              <>
-                <Field
-                  label="Work email"
-                  type="email"
-                  autoComplete="username"
-                  autoFocus
-                  required
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  error={fieldErrors.email}
-                  placeholder="you@company.com"
-                />
-                <Field
-                  label="Password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  error={fieldErrors.password}
-                  placeholder="••••••••••••"
-                />
-                <p className="text-right">
-                  <button
-                    type="button"
-                    className="accent-text text-xs font-medium hover:underline"
-                    onClick={() => setForgot(true)}
-                  >
-                    Forgot password?
-                  </button>
-                </p>
-              </>
-            )}
+            <Field
+              label="Work email"
+              type="email"
+              autoComplete="username"
+              autoFocus
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              error={fieldErrors.email}
+              placeholder="you@company.com"
+            />
+            <Field
+              label="Password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              error={fieldErrors.password}
+              placeholder="••••••••••••"
+            />
+            <p className="text-right">
+              <button
+                type="button"
+                className="accent-text text-xs font-medium hover:underline"
+                onClick={() => setForgot(true)}
+              >
+                Forgot password?
+              </button>
+            </p>
 
             <button type="submit" disabled={busy} className="btn-primary w-full py-2.5">
               {busy && <Spinner />}
-              {awaitingCode ? 'Verify and continue' : 'Sign in'}
+              Sign in
             </button>
           </form>
           )}
 
-          {!awaitingCode && !forgot && (
+          {!forgot && (
             <>
               <div className="my-7 flex items-center gap-3">
                 <span className="h-px flex-1 bg-ink-200 dark:bg-ink-800" />
@@ -347,7 +306,7 @@ export function Login() {
 
           <p className="mt-9 flex items-center justify-center gap-1.5 text-2xs text-ink-400">
             <IconLock width={12} height={12} />
-            Protected by rotating sessions and optional two-factor authentication.
+            Protected by rotating sessions.
           </p>
         </div>
       </div>

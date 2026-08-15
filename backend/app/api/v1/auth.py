@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import io
 from datetime import UTC, datetime, timedelta
 
-import qrcode
-import qrcode.image.svg
 from fastapi import APIRouter, BackgroundTasks, Request, Response
 from sqlalchemy import select
 
-from app.api.deps import CurrentUser, DbSession, MfaPendingUser
+from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
 from app.core.errors import (
     AuthenticationError,
@@ -21,32 +18,22 @@ from app.core.errors import (
     ValidationFailed,
 )
 from app.core.security import (
-    encrypt_mfa_secret,
-    generate_mfa_secret,
-    generate_recovery_codes,
     generate_token,
-    hash_password,
     hash_token,
-    mfa_provisioning_uri,
     verify_csrf,
     verify_password,
-    verify_totp,
 )
 from app.db.tenancy import TenantContext, bind_tenant
 from app.models.auth import SessionFamily
 from app.models.enums import AuditAction, UserStatus
 from app.models.organization import Organization
-from app.models.user import Invitation, MfaRecoveryCode, PasswordResetToken, User
+from app.models.user import Invitation, PasswordResetToken, User
 from app.schemas.auth import (
     AcceptInviteRequest,
     ActiveSession,
     BrandingSummary,
     ForgotPasswordRequest,
     LoginRequest,
-    MfaChallengeRequest,
-    MfaEnrolConfirmRequest,
-    MfaEnrolConfirmResponse,
-    MfaEnrolStartResponse,
     OrgSummary,
     PasswordChangeRequest,
     PasswordResetCompleteRequest,
@@ -128,24 +115,9 @@ async def login(
     principal = await auth_service.authenticate(
         session, email=payload.email, password=payload.password, request=request
     )
-    mfa_pending = auth_service.mfa_is_required(principal)
 
-    issued = await auth_service.start_session(
-        session, principal, request=request, mfa_pending=mfa_pending
-    )
+    issued = await auth_service.start_session(session, principal, request=request)
     _set_session_cookies(response, issued)
-
-    if mfa_pending:
-        await session.commit()
-        # No user or organization is returned yet. Until the second factor is
-        # verified this is not a session, and handing over profile data would
-        # make the first factor sufficient to read it.
-        return SessionResponse(
-            access_token=issued.access_token,
-            expires_at=issued.access_expires_at,
-            csrf_token=issued.csrf_token,
-            mfa_required=True,
-        )
 
     await bind_tenant(session, principal.tenant_context())
     user = (await session.execute(select(User).where(User.id == principal.id))).scalar_one()
@@ -164,61 +136,6 @@ async def login(
         org_id=user.org_id,
         actor=user,
         context={"method": "password", "session_id": str(issued.session_id)},
-        request=request,
-    )
-    await session.commit()
-
-    return SessionResponse(
-        access_token=issued.access_token,
-        expires_at=issued.access_expires_at,
-        csrf_token=issued.csrf_token,
-        user=UserSummary.model_validate(user),
-        organization=_org_summary(org),
-    )
-
-
-@router.post("/mfa/challenge", response_model=SessionResponse)
-async def mfa_challenge(
-    payload: MfaChallengeRequest,
-    request: Request,
-    response: Response,
-    session: DbSession,
-    actor: MfaPendingUser,
-) -> SessionResponse:
-    """Second step of sign-in: exchange a half-authenticated token for a session."""
-    principal = await auth_service.load_principal(session, user_id=actor.id)
-    if principal is None:
-        raise SessionExpired()
-
-    await auth_service.verify_mfa(session, principal, code=payload.code, request=request)
-
-    # Upgrade the existing family rather than issuing a second one, so the
-    # device list shows one session per sign-in, not two.
-    issued = await auth_service.start_session(
-        session, principal, request=request, mfa_pending=False
-    )
-    await auth_service.revoke_session(
-        session, session_id=actor.session_id, reason="mfa_upgrade"
-    )
-    _set_session_cookies(response, issued)
-
-    await bind_tenant(session, principal.tenant_context())
-    user = (await session.execute(select(User).where(User.id == principal.id))).scalar_one()
-    org = None
-    if user.org_id:
-        org = (
-            await session.execute(
-                select(Organization).where(Organization.id == user.org_id)
-            )
-        ).scalar_one_or_none()
-
-    await audit.record(
-        session,
-        action=AuditAction.AUTH_LOGIN_SUCCEEDED,
-        summary=f"{user.full_name} completed multi-factor sign-in",
-        org_id=user.org_id,
-        actor=user,
-        context={"method": "totp", "session_id": str(issued.session_id)},
         request=request,
     )
     await session.commit()
@@ -600,76 +517,3 @@ async def forgot_password(
         message="If that email matches an account, a reset link is on its way."
     )
 
-
-# --- MFA enrolment ----------------------------------------------------------
-
-@router.post("/mfa/enrol", response_model=MfaEnrolStartResponse)
-async def start_mfa_enrolment(
-    session: DbSession, actor: CurrentUser
-) -> MfaEnrolStartResponse:
-    """Generate a TOTP secret and its QR code.
-
-    The secret is stored immediately but `mfa_enabled` stays false until a code
-    is confirmed. Flipping the flag first would lock a user out of their own
-    account if they never finished scanning.
-    """
-    secret = generate_mfa_secret()
-    actor.user.mfa_secret_encrypted = encrypt_mfa_secret(secret)
-    actor.user.mfa_confirmed_at = None
-    await session.commit()
-
-    uri = mfa_provisioning_uri(secret, actor.user.email)
-    buffer = io.BytesIO()
-    qrcode.make(uri, image_factory=qrcode.image.svg.SvgPathImage).save(buffer)
-
-    return MfaEnrolStartResponse(
-        secret=secret,
-        otpauth_uri=uri,
-        qr_svg=buffer.getvalue().decode("utf-8"),
-    )
-
-
-@router.post("/mfa/enrol/confirm", response_model=MfaEnrolConfirmResponse)
-async def confirm_mfa_enrolment(
-    payload: MfaEnrolConfirmRequest,
-    request: Request,
-    session: DbSession,
-    actor: CurrentUser,
-) -> MfaEnrolConfirmResponse:
-    from app.core.security import decrypt_mfa_secret
-
-    if not actor.user.mfa_secret_encrypted:
-        raise ValidationFailed("Start enrolment before confirming a code.")
-    if not verify_totp(decrypt_mfa_secret(actor.user.mfa_secret_encrypted), payload.code):
-        raise ValidationFailed("That code is not valid. Check your authenticator app.")
-
-    actor.user.mfa_enabled = True
-    actor.user.mfa_confirmed_at = datetime.now(UTC)
-
-    # Replace any previous codes: re-enrolling must not leave old ones live.
-    for existing in await session.execute(
-        select(MfaRecoveryCode).where(MfaRecoveryCode.user_id == actor.id)
-    ):
-        await session.delete(existing[0])
-
-    codes = generate_recovery_codes()
-    for code in codes:
-        session.add(
-            MfaRecoveryCode(
-                user_id=actor.id,
-                code_hash=hash_password(code.replace("-", "")),
-            )
-        )
-
-    await audit.record(
-        session,
-        action=AuditAction.AUTH_MFA_ENROLLED,
-        summary=f"{actor.user.full_name} enabled multi-factor authentication",
-        org_id=actor.org_id,
-        actor=actor.user,
-        request=request,
-    )
-    await session.commit()
-
-    # Shown exactly once. Only hashes are retained, so they cannot be re-issued.
-    return MfaEnrolConfirmResponse(recovery_codes=codes)

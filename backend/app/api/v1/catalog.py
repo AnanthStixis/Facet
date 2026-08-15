@@ -20,6 +20,7 @@ from app.api.deps import AdminUser, DbSession, ManagerUser
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.models.catalog import Category, FeedbackTemplate, FeedbackTemplateVersion
 from app.models.enums import AuditAction, TemplateScope, TemplateStatus
+from app.models.user import User
 from app.schemas.cycle import (
     CategoryCreateRequest,
     CategoryUpdateRequest,
@@ -31,6 +32,22 @@ from app.services import audit
 from app.services.forms import form_payload, normalise_definition, validate_definition
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
+
+
+async def _names_by_id(session: DbSession, user_ids: set[uuid.UUID]) -> dict[uuid.UUID, str]:
+    """Resolve creator ids to full names for list responses.
+
+    A plain dict lookup rather than a per-row join in each query above — the
+    id set here is usually tiny (one creator per category/template, often
+    the same actor repeated), and this keeps the existing queries unchanged.
+    """
+    user_ids = {uid for uid in user_ids if uid is not None}
+    if not user_ids:
+        return {}
+    rows = (
+        await session.execute(select(User.id, User.full_name).where(User.id.in_(user_ids)))
+    ).all()
+    return {row[0]: row[1] for row in rows}
 
 
 def _question_count(definition: dict[str, Any] | None) -> int:
@@ -63,15 +80,15 @@ async def list_categories(session: DbSession, actor: ManagerUser) -> list[dict[s
         .all()
     )
 
-    templates = (
-        (
-            await session.execute(
-                select(FeedbackTemplate).order_by(FeedbackTemplate.name)
-            )
-        )
-        .scalars()
-        .all()
-    )
+    # A Super Admin's DB session has no tenant to scope by, so RLS lets it
+    # through for every org's rows — it is not itself a guarantee that only
+    # global templates come back. Filter explicitly rather than relying on
+    # RLS alone: a Super Admin should see the platform's global templates
+    # here, never another org's private ones.
+    template_query = select(FeedbackTemplate).order_by(FeedbackTemplate.name)
+    if actor.org_id is None:
+        template_query = template_query.where(FeedbackTemplate.org_id.is_(None))
+    templates = (await session.execute(template_query)).scalars().all()
 
     # Latest version per template, preferring a published one over a draft.
     versions = (
@@ -97,6 +114,11 @@ async def list_categories(session: DbSession, actor: ManagerUser) -> list[dict[s
         ):
             latest[version.template_id] = version
 
+    names = await _names_by_id(
+        session,
+        {c.created_by_id for c in categories} | {t.created_by_id for t in templates},
+    )
+
     by_category: dict[Any, list[dict[str, Any]]] = {}
     for template in templates:
         version = latest.get(template.id)
@@ -112,6 +134,14 @@ async def list_categories(session: DbSession, actor: ManagerUser) -> list[dict[s
                 "version": version.version if version else None,
                 "status": str(version.status) if version else None,
                 "question_count": _question_count(version.definition if version else None),
+                # An org admin edits its own templates; a super admin edits the
+                # global defaults it authored. Comparing org ids (both None for
+                # a super admin looking at a global template) gives one flag
+                # that works for every role instead of branching on scope.
+                "editable": template.org_id == actor.org_id,
+                "is_active": template.is_active,
+                "created_by": names.get(template.created_by_id),
+                "created_at": template.created_at,
             }
         )
 
@@ -125,6 +155,8 @@ async def list_categories(session: DbSession, actor: ManagerUser) -> list[dict[s
             "is_global": category.org_id is None,
             "is_enabled": category.is_enabled,
             "templates": by_category.get(category.id, []),
+            "created_by": names.get(category.created_by_id),
+            "created_at": category.created_at,
         }
         for category in categories
     ]
@@ -153,6 +185,7 @@ async def list_categories_for_management(
         .scalars()
         .all()
     )
+    names = await _names_by_id(session, {c.created_by_id for c in categories})
     return [
         {
             "id": str(category.id),
@@ -161,8 +194,11 @@ async def list_categories_for_management(
             "description": category.description,
             "icon": category.icon,
             "sort_order": category.sort_order,
+            "applies_to": category.applies_to,
             "is_enabled": category.is_enabled,
             "is_global": category.org_id is None,
+            "created_by": names.get(category.created_by_id),
+            "created_at": category.created_at,
         }
         for category in categories
     ]
@@ -202,7 +238,9 @@ async def create_category(
         description=payload.description,
         icon=payload.icon,
         sort_order=payload.sort_order,
+        applies_to=[str(t) for t in payload.applies_to],
         is_enabled=True,
+        created_by_id=actor.id,
     )
     session.add(category)
     await session.flush()
@@ -252,6 +290,12 @@ async def update_category(
             changes[field] = [old_value, new_value]
             setattr(category, field, new_value)
 
+    if payload.applies_to is not None:
+        new_applies_to = [str(t) for t in payload.applies_to]
+        if new_applies_to != category.applies_to:
+            changes["applies_to"] = [category.applies_to, new_applies_to]
+            category.applies_to = new_applies_to
+
     if changes:
         await audit.record(
             session,
@@ -267,15 +311,60 @@ async def update_category(
         )
         await session.commit()
 
+    names = await _names_by_id(session, {category.created_by_id})
     return {
         "id": str(category.id),
+        "key": category.key,
         "name": category.name,
         "description": category.description,
         "icon": category.icon,
         "sort_order": category.sort_order,
+        "applies_to": category.applies_to,
         "is_enabled": category.is_enabled,
         "is_global": category.org_id is None,
+        "created_by": names.get(category.created_by_id),
+        "created_at": category.created_at,
     }
+
+
+async def _default_category(session: DbSession, org_id: uuid.UUID | None) -> Category:
+    """The category a newly created template is filed under.
+
+    The redesigned template page has no category picker or category
+    management surface, but `feedback_templates.category_id` is still
+    NOT NULL, so template creation needs somewhere to put a row. This picks
+    the first enabled category visible to the actor's scope (global rows for
+    a Super Admin, global-or-own for a Client Admin) and creates a catch-all
+    "General" category on first use if none exists yet — a one-time,
+    invisible bootstrap rather than something the user is ever asked about.
+    """
+    existing = (
+        await session.execute(
+            select(Category)
+            .where(
+                Category.is_enabled.is_(True),
+                Category.org_id.is_(None) if org_id is None else
+                ((Category.org_id.is_(None)) | (Category.org_id == org_id)),
+            )
+            .order_by(Category.sort_order, Category.name)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return existing
+
+    category = Category(
+        org_id=org_id,
+        key="general",
+        name="General",
+        description=None,
+        icon=None,
+        sort_order=100,
+        is_enabled=True,
+    )
+    session.add(category)
+    await session.flush()
+    return category
 
 
 async def _load_template(session: DbSession, template_id: uuid.UUID) -> FeedbackTemplate:
@@ -320,6 +409,7 @@ async def get_template(
         .all()
     )
     latest = versions[0] if versions else None
+    names = await _names_by_id(session, {template.created_by_id})
     return {
         "id": str(template.id),
         "name": template.name,
@@ -328,7 +418,11 @@ async def get_template(
         "target_type": str(template.target_type),
         "is_anonymous": template.is_anonymous,
         "min_responses_to_reveal": template.min_responses_to_reveal,
-        "editable": template.org_id is not None,
+        "editable": template.org_id == actor.org_id,
+        "is_active": template.is_active,
+        "created_by": names.get(template.created_by_id),
+        "created_at": template.created_at,
+        "question_count": _question_count(versions[0].definition if versions else None),
         "versions": [
             {
                 "id": str(version.id),
@@ -370,7 +464,7 @@ async def delete_template(
     ever backed a cycle cannot be un-asked after the fact.
     """
     template = await _load_template(session, template_id)
-    if template.org_id is None or template.org_id != actor.org_id:
+    if template.org_id != actor.org_id:
         raise NotFound("That template does not exist.")
 
     name = template.name
@@ -412,37 +506,63 @@ async def create_template(
     starting point. The draft ships with one placeholder question so the
     definition is valid immediately — an empty section would fail
     `validate_definition` the moment the author tried to save it.
+
+    A Super Admin has no org, so what it creates here IS the platform
+    default: `org_id` stays NULL and `scope` is GLOBAL, no separate
+    "clone to org" step — every tenant sees it the moment it is created. A
+    Client Admin's create is unchanged: an org-owned draft.
+
+    `FeedbackTemplate.category_id` is a required column. The Templates page
+    now lets a caller pick one of their own visible categories at create
+    time (`payload.category_id`); when omitted, this falls back to the
+    first enabled one visible to the actor, creating a catch-all if none
+    exists yet, so the foreign key is never left dangling.
     """
-    if actor.org_id is None:
-        raise ValidationFailed("A Super Admin must act within an organization to create a template.")
+    if payload.category_id is not None:
+        category = (
+            await session.execute(
+                select(Category).where(Category.id == payload.category_id)
+            )
+        ).scalar_one_or_none()
+        # A category is visible to the actor only if it's global or belongs
+        # to their own org — same boundary `list_categories`/`/manage`
+        # already enforce, checked again here since RLS alone would let a
+        # Super Admin's session read (but not legitimately assign) another
+        # org's category.
+        if category is None or (category.org_id is not None and category.org_id != actor.org_id):
+            raise NotFound("That category does not exist.")
+    else:
+        category = await _default_category(session, actor.org_id)
 
-    category = (
-        await session.execute(select(Category).where(Category.id == payload.category_id))
-    ).scalar_one_or_none()
-    if category is None:
-        raise NotFound("That category does not exist.")
-
+    is_global = actor.org_id is None
     clash = (
         await session.execute(
             select(func.count())
             .select_from(FeedbackTemplate)
             .where(
-                FeedbackTemplate.org_id == actor.org_id, FeedbackTemplate.name == payload.name
+                FeedbackTemplate.org_id.is_(None) if is_global else FeedbackTemplate.org_id == actor.org_id,
+                FeedbackTemplate.name == payload.name,
             )
         )
     ).scalar_one()
     if clash:
-        raise Conflict("A template with that name already exists in your organization.")
+        raise Conflict(
+            "A template with that name already exists"
+            + ("." if is_global else " in your organization.")
+        )
 
     template = FeedbackTemplate(
         org_id=actor.org_id,
-        category_id=payload.category_id,
-        scope=TemplateScope.ORG,
+        category_id=category.id,
+        scope=TemplateScope.GLOBAL if is_global else TemplateScope.ORG,
         name=payload.name,
         description=payload.description,
         target_type=payload.target_type,
         is_anonymous=payload.is_anonymous,
-        min_responses_to_reveal=payload.min_responses_to_reveal,
+        # Vestigial now that results reveal at a single response (see
+        # results.py) — always 0, never taken from the request.
+        min_responses_to_reveal=0,
+        created_by_id=actor.id,
     )
     session.add(template)
     await session.flush()
@@ -550,6 +670,7 @@ async def clone_template(
         cloned_from_id=source.id,
         is_anonymous=source.is_anonymous,
         min_responses_to_reveal=source.min_responses_to_reveal,
+        created_by_id=actor.id,
     )
     session.add(clone)
     await session.flush()
@@ -590,9 +711,10 @@ async def save_draft(
 ) -> dict[str, Any]:
     """Create or update the draft version of an org-owned template."""
     template = await _load_template(session, template_id)
-    if template.org_id is None:
+    if template.org_id != actor.org_id:
         raise Conflict(
-            "Provided templates cannot be edited. Clone it first, then edit the copy."
+            "This template belongs to another organization and cannot be edited. "
+            "Clone it first, then edit the copy."
         )
 
     # Validated before it is stored, so an unusable questionnaire can never
@@ -621,8 +743,6 @@ async def save_draft(
         template.description = payload.description or None
     if payload.is_anonymous is not None:
         template.is_anonymous = payload.is_anonymous
-    if payload.min_responses_to_reveal is not None:
-        template.min_responses_to_reveal = payload.min_responses_to_reveal
 
     await session.flush()
     await audit.record(
@@ -650,8 +770,8 @@ async def publish_template(
 ) -> dict[str, Any]:
     """Publish the draft, making it immutable and usable by a cycle."""
     template = await _load_template(session, template_id)
-    if template.org_id is None:
-        raise Conflict("Provided templates are already published.")
+    if template.org_id != actor.org_id:
+        raise Conflict("This template belongs to another organization.")
 
     draft = await _latest_version(session, template.id)
     if draft is None or draft.status != TemplateStatus.DRAFT:
@@ -683,4 +803,63 @@ async def publish_template(
         "template_id": str(template.id),
         "version": draft.version,
         "status": "published",
+    }
+
+
+@router.post("/templates/{template_id}/toggle")
+async def toggle_template(
+    template_id: uuid.UUID,
+    request: Request,
+    session: DbSession,
+    actor: AdminUser,
+) -> dict[str, Any]:
+    """Flip a template's active flag.
+
+    A disabled template stays exactly as it is (draft or published, any
+    version) - it just stops being offered as selectable in
+    CreateFeedback.tsx's template dropdown. Ownership check mirrors
+    save_draft/delete_template: only the org that owns the template (or a
+    Super Admin for a global one) may toggle it.
+    """
+    template = await _load_template(session, template_id)
+    if template.org_id != actor.org_id:
+        raise Conflict("This template belongs to another organization.")
+
+    template.is_active = not template.is_active
+    await session.flush()
+
+    latest = await _latest_version(session, template.id)
+    names = await _names_by_id(session, {template.created_by_id})
+    await audit.record(
+        session,
+        action=AuditAction.TEMPLATE_ENABLED if template.is_active else AuditAction.TEMPLATE_DISABLED,
+        summary=(
+            f"{actor.user.full_name} "
+            f"{'enabled' if template.is_active else 'disabled'} '{template.name}'"
+        ),
+        org_id=actor.org_id,
+        actor=actor.user,
+        target_type="feedback_template",
+        target_id=template.id,
+        target_label=template.name,
+        context={},
+        request=request,
+    )
+    await session.commit()
+
+    return {
+        "id": str(template.id),
+        "name": template.name,
+        "description": template.description,
+        "target_type": str(template.target_type),
+        "scope": str(template.scope),
+        "is_anonymous": template.is_anonymous,
+        "min_responses_to_reveal": template.min_responses_to_reveal,
+        "version": latest.version if latest else None,
+        "status": str(latest.status) if latest else None,
+        "question_count": _question_count(latest.definition if latest else None),
+        "editable": template.org_id == actor.org_id,
+        "is_active": template.is_active,
+        "created_by": names.get(template.created_by_id),
+        "created_at": template.created_at,
     }

@@ -2,8 +2,8 @@
 
 Phase 1 has no feedback responses yet, so this deliberately reports on what
 does exist and is genuinely useful on day one: tenant health, directory
-coverage, MFA adoption, and activity. Inventing placeholder scores would make
-the dashboard look finished while teaching the user nothing.
+coverage, and activity. Inventing placeholder scores would make the dashboard
+look finished while teaching the user nothing.
 """
 
 from __future__ import annotations
@@ -50,9 +50,6 @@ async def dashboard(session: DbSession, actor: CurrentUser) -> dict[str, Any]:
     )
     pending_users = await scalar(
         select(func.count()).select_from(User).where(User.status == UserStatus.INVITED)
-    )
-    mfa_users = await scalar(
-        select(func.count()).select_from(User).where(User.mfa_enabled.is_(True))
     )
     contacts = await scalar(select(func.count()).select_from(Contact))
     templates = await scalar(select(func.count()).select_from(FeedbackTemplate))
@@ -198,7 +195,6 @@ async def dashboard(session: DbSession, actor: CurrentUser) -> dict[str, Any]:
             "users_total": total_users,
             "users_active": active_users,
             "users_pending": pending_users,
-            "mfa_adoption_pct": round(100 * mfa_users / total_users) if total_users else 0,
             "contacts": contacts,
             "templates": templates,
             "my_pending_feedback": my_pending_feedback,

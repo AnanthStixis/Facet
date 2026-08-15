@@ -172,19 +172,13 @@ async def get_actor(
 
 
 async def get_current_user(actor: Annotated[Actor, Depends(get_actor)]) -> Actor:
-    """Full-scope actor. Rejects a token still waiting on an MFA code."""
+    """Full-scope actor."""
     if actor.scope != "full":
         raise AuthenticationError("Finish signing in before using this endpoint.")
     return actor
 
 
-async def get_mfa_pending_user(actor: Annotated[Actor, Depends(get_actor)]) -> Actor:
-    """Actor for the MFA challenge endpoints only."""
-    return actor
-
-
 CurrentUser = Annotated[Actor, Depends(get_current_user)]
-MfaPendingUser = Annotated[Actor, Depends(get_mfa_pending_user)]
 
 
 async def require_super_admin(actor: CurrentUser) -> Actor:

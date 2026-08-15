@@ -6,8 +6,8 @@ import { FacetMark } from '../components/Logo'
 import { Chip } from '../components/ui'
 import {
   IconArrowLeft,
+  IconBriefcase,
   IconBuilding,
-  IconClock,
   IconFile,
   IconGauge,
   IconInbox,
@@ -16,11 +16,11 @@ import {
   IconMenu,
   IconMoon,
   IconRefresh,
-  IconSend,
   IconSettings,
   IconShield,
   IconSpark,
   IconSun,
+  IconTag,
   IconUsers,
   IconX,
 } from '../components/icons'
@@ -37,9 +37,26 @@ const INSIGHTS_ENABLED = false
 interface NavItem {
   to: string
   label: string
-  icon: typeof IconGauge
+  // Either an icon or a colour dot — the six feedback-type entries use a dot
+  // (matching their type colour across Create Feedback/Results), everything
+  // else uses an icon.
+  icon?: typeof IconGauge
+  dotColor?: string
   roles?: string[]
 }
+
+// Kept in sync with FEEDBACK_TYPES in pages/CreateFeedback.tsx by hand — the
+// nav needs only label/color/route, not the rest of that config (templates,
+// blurbs), so importing the whole module here would pull the API/state
+// machinery of the create-feedback page into every page's nav render.
+const CREATE_FEEDBACK_TYPES = [
+  { kind: 'client', label: 'Client Review', color: '#B4633A' },
+  { kind: 'employee', label: 'Employees Review', color: '#3B82F6' },
+  { kind: 'management', label: 'Management Review', color: '#8B5CF6' },
+  { kind: 'product', label: 'Product Review', color: '#10B981' },
+  { kind: 'service', label: 'Service Review', color: '#F59E0B' },
+  { kind: 'proposal', label: 'Proposal Review', color: '#EC4899' },
+]
 
 const NAV: { section: string; items: NavItem[] }[] = [
   {
@@ -79,32 +96,41 @@ const NAV: { section: string; items: NavItem[] }[] = [
     ],
   },
   {
+    section: 'Create Feedback',
+    items: CREATE_FEEDBACK_TYPES.map((t) => ({
+      to: `/create-feedback?kind=${t.kind}`,
+      label: t.label,
+      dotColor: t.color,
+      roles: ['super_admin', 'client_admin', 'manager'],
+    })),
+  },
+  {
     section: 'Manage',
     items: [
       {
-        to: '/cycles',
-        label: 'Review cycles',
-        icon: IconClock,
-        roles: ['super_admin', 'client_admin', 'manager'],
-      },
-      {
-        to: '/campaigns',
-        label: 'Client campaigns',
-        icon: IconSend,
-        roles: ['super_admin', 'client_admin', 'manager'],
-      },
-      {
-        to: '/proposals',
-        label: 'Proposals',
+        to: '/results',
+        label: 'Results',
         icon: IconFile,
         roles: ['super_admin', 'client_admin', 'manager'],
       },
-      { to: '/people', label: 'People', icon: IconUsers, roles: ['super_admin', 'client_admin'] },
+      {
+        to: '/categories',
+        label: 'Categories',
+        icon: IconTag,
+        roles: ['super_admin', 'client_admin'],
+      },
       {
         to: '/templates',
         label: 'Templates',
         icon: IconLayers,
         roles: ['super_admin', 'client_admin'],
+      },
+      { to: '/people', label: 'Users', icon: IconUsers, roles: ['super_admin', 'client_admin'] },
+      {
+        to: '/clients',
+        label: 'Clients',
+        icon: IconBriefcase,
+        roles: ['client_admin', 'manager'],
       },
     ],
   },
@@ -163,10 +189,30 @@ export function AppShell() {
 
   if (!user) return null
 
-  const visible = NAV.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => !item.roles || item.roles.includes(user.role)),
-  })).filter((group) => group.items.length > 0)
+  // A Super Admin literally can never have an org in this app — that is the
+  // mechanism the Templates redesign relies on (super-admin-creates-with-no-org
+  // IS what makes a template a global default). POST /feedback already
+  // rejects with "A Super Admin must act within an organization." when
+  // actor.org_id is None, so the six review-type entries would only ever
+  // 404 for them. `organization` (from useAuth) mirrors actor.org_id here —
+  // it is null exactly when the signed-in user has no org. Hide "Create
+  // Feedback" for an org-less Super Admin; Templates' own "New template" is
+  // untouched — a Super Admin creating templates is intentional and correct.
+  //
+  // "For me" (My feedback / My results) is about the signed-in user's own
+  // standing as a reviewee/reviewer within an org — an org-less Super Admin
+  // isn't a member of any org's feedback graph, so both pages would only
+  // ever show empty state. Same gate as Create Feedback.
+  const hideOrgScopedNav = user.role === 'super_admin' && !organization
+
+  const visible = NAV.filter(
+    (group) => !(hideOrgScopedNav && (group.section === 'Create Feedback' || group.section === 'For me')),
+  )
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.roles || item.roles.includes(user.role)),
+    }))
+    .filter((group) => group.items.length > 0)
 
   const tenantName = organization?.name ?? 'Platform'
   const logo = organization?.branding?.logo_url
@@ -219,8 +265,19 @@ export function AppShell() {
                 {group.section}
               </p>
               {group.items.map((item) => {
-                const active =
-                  item.to === '/'
+                // Items that carry a query string (the six feedback-type
+                // entries) need an exact pathname+search match, not a prefix
+                // check — otherwise every one of them would light up
+                // together the moment you're anywhere under /create-feedback.
+                // A bare /create-feedback (no kind yet) is treated as the
+                // default 'employee' type, matching CreateFeedback.tsx's own
+                // fallback.
+                const active = item.to.includes('?')
+                  ? `${location.pathname}${location.search}` === item.to ||
+                    (location.pathname === '/create-feedback' &&
+                      !location.search &&
+                      item.to.endsWith('kind=employee'))
+                  : item.to === '/'
                     ? location.pathname === '/'
                     : location.pathname.startsWith(item.to)
                 return (
@@ -234,7 +291,15 @@ export function AppShell() {
                         : 'text-ink-500 hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-ink-800/60 dark:hover:text-ink-100',
                     )}
                   >
-                    <item.icon width={16} height={16} className="shrink-0" />
+                    {item.icon ? (
+                      <item.icon width={16} height={16} className="shrink-0" />
+                    ) : (
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ background: item.dotColor }}
+                        aria-hidden="true"
+                      />
+                    )}
                     {item.label}
                   </NavLink>
                 )
@@ -330,17 +395,6 @@ export function AppShell() {
                         <div className="mt-1.5">
                           <Chip value={user.role} />
                         </div>
-                        <p className="mt-1.5 flex items-center gap-1.5 text-2xs">
-                          <span
-                            className={clsx(
-                              'h-1.5 w-1.5 rounded-full',
-                              user.mfa_enabled ? 'bg-positive' : 'bg-caution',
-                            )}
-                          />
-                          {user.mfa_enabled
-                            ? 'Two-factor enabled'
-                            : 'Two-factor not enabled'}
-                        </p>
                       </div>
                       <NavLink
                         to="/security"

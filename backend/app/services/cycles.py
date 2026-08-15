@@ -51,6 +51,15 @@ async def ensure_person_target(
 
     People are targets like any product or proposal — that uniformity is what
     lets one aggregation path serve every domain instead of one per module.
+
+    Scoped to the person's own EMPLOYEE/MANAGER target specifically: someone
+    can also be the subject of a separate CLIENT-typed target (a Client
+    Review "about" them, from the unified Create Feedback flow), and that is
+    a distinct row on purpose — a template written for CLIENT feedback is not
+    interchangeable with one written for internal EMPLOYEE/MANAGER feedback,
+    so they cannot share a target without mixing incompatible questionnaires
+    under one id. Filtering here is what keeps this call returning exactly
+    one row instead of raising on multiple.
     """
     reference = f"user:{user.email}"
     existing = (
@@ -58,6 +67,7 @@ async def ensure_person_target(
             select(FeedbackTarget).where(
                 FeedbackTarget.org_id == org_id,
                 FeedbackTarget.subject_user_id == user.id,
+                FeedbackTarget.target_type.in_([TargetType.EMPLOYEE, TargetType.MANAGER]),
             )
         )
     ).scalar_one_or_none()

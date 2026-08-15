@@ -20,7 +20,7 @@ from app.models.catalog import (
 )
 from app.models.organization import OrgBranding, Organization
 from app.models.proposal import Proposal
-from app.models.user import Invitation, MfaRecoveryCode, User
+from app.models.user import Invitation, User
 
 __all__ = [
     "Base",
@@ -38,7 +38,6 @@ __all__ = [
     "FeedbackTemplateVersion",
     "Invitation",
     "LoginAttempt",
-    "MfaRecoveryCode",
     "OrgBranding",
     "Organization",
     "Proposal",

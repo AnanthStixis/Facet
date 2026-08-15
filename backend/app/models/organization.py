@@ -66,6 +66,7 @@ class Organization(UUIDPrimaryKey, Timestamped, Base):
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
     rejection_reason: Mapped[str | None] = mapped_column(Text)
+    suspension_reason: Mapped[str | None] = mapped_column(Text)
 
     seat_limit: Mapped[int | None] = mapped_column(Integer)
     settings: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)

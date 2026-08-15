@@ -1,36 +1,21 @@
 """AI providers.
 
-Two implementations behind one interface:
-
-  * `OpenAIProvider` — the production path. Structured Outputs with the strict
-    schemas from `prompts.py`, batching for the cheap high-volume call.
-  * `LocalProvider` — a deterministic lexicon-and-extraction analyser used when
-    no API key is configured.
-
-`LocalProvider` is not a pretend LLM and the UI never claims it is: results it
-produces are labelled with `provider = "local"` and the interface surfaces that
-honestly. It exists so the feature is developable, demonstrable and *testable*
-without a network call, and so the injection and anonymity guarantees can be
-verified deterministically rather than against a probabilistic endpoint.
-
-Switching to OpenAI is a config change — set `AI_ENABLED=true` and
-`OPENAI_API_KEY` — not a rewrite.
+`LocalProvider` is the only implementation: a deterministic lexicon-and-
+extraction analyser. It is not a pretend LLM and the UI never claims it is —
+results it produces are labelled with `provider = "local"` and the interface
+surfaces that honestly. It exists so the feature is developable, demonstrable
+and *testable* without a network call, and so the injection and anonymity
+guarantees can be verified deterministically rather than against a
+probabilistic endpoint.
 """
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-import httpx
-
-from app.core.config import settings
-from app.core.logging import get_logger
 from app.services.ai import prompts
-
-log = get_logger("facet.ai")
 
 
 @dataclass(slots=True)
@@ -67,97 +52,6 @@ class AiProvider(Protocol):
 
     async def classify(self, comments: list[str]) -> ProviderResponse: ...
     async def summarise(self, comments: list[str], context: dict) -> ProviderResponse: ...
-
-
-# --- OpenAI -----------------------------------------------------------------
-
-class OpenAIProvider:
-    """Production provider.
-
-    Not exercised against the live API in this environment — there is no key
-    here — so the wiring is written to the documented Structured Outputs
-    contract and the local provider is what the verification suite runs.
-    """
-
-    name = "openai"
-
-    def __init__(self) -> None:
-        self.sentiment_model = settings.openai_model_fast
-        self.summary_model = settings.openai_model_deep
-        self._headers = {
-            "authorization": f"Bearer {settings.openai_api_key}",
-            "content-type": "application/json",
-        }
-
-    async def _call(
-        self, *, model: str, system: str, user: str, schema: dict, schema_name: str
-    ) -> ProviderResponse:
-        body = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            # Strict schema enforcement is the control that makes an injected
-            # instruction fail closed: anything that is not this shape is not
-            # returned at all.
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": schema_name,
-                    "strict": True,
-                    "schema": schema,
-                },
-            },
-            "temperature": 0.2,
-        }
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{settings.openai_base_url}/chat/completions",
-                headers=self._headers,
-                json=body,
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        content = data["choices"][0]["message"]["content"]
-        usage_raw = data.get("usage") or {}
-        return ProviderResponse(
-            payload=json.loads(content),
-            usage=Usage(
-                prompt_tokens=int(usage_raw.get("prompt_tokens", 0)),
-                completion_tokens=int(usage_raw.get("completion_tokens", 0)),
-            ),
-            model_id=model,
-            provider=self.name,
-        )
-
-    async def classify(self, comments: list[str]) -> ProviderResponse:
-        return await self._call(
-            model=self.sentiment_model,
-            system=prompts.SENTIMENT_SYSTEM,
-            user=(
-                "Classify each numbered comment.\n\n"
-                + prompts.data_block(comments)
-            ),
-            schema=prompts.sentiment_schema(),
-            schema_name="sentiment",
-        )
-
-    async def summarise(self, comments: list[str], context: dict) -> ProviderResponse:
-        header = (
-            f"Subject: {context.get('subject', 'a colleague')}\n"
-            f"Feedback round: {context.get('cycle', 'current')}\n"
-            f"Number of contributors: {context.get('count', len(comments))}\n\n"
-            "Summarise the following comments.\n\n"
-        )
-        return await self._call(
-            model=self.summary_model,
-            system=prompts.SUMMARY_SYSTEM,
-            user=header + prompts.data_block(comments),
-            schema=prompts.summary_schema(),
-            schema_name="summary",
-        )
 
 
 # --- Local ------------------------------------------------------------------
@@ -341,13 +235,5 @@ class LocalProvider:
 
 
 def build_provider() -> AiProvider:
-    """Pick a provider from configuration.
-
-    Falls back to local rather than failing: an unset key should degrade the
-    feature, not take down the results page it appears on.
-    """
-    if settings.ai_enabled and settings.openai_api_key:
-        return OpenAIProvider()
-    if settings.ai_enabled and not settings.openai_api_key:
-        log.warning("ai_enabled_without_key", detail="falling back to local analyser")
+    """The deterministic local analyser is the only provider."""
     return LocalProvider()

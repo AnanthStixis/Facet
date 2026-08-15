@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { api, refreshSession, setSessionExpiredHandler, setTokens } from '../lib/api'
 import type { Organization, SessionResponse, User } from '../lib/types'
 
-type Phase = 'booting' | 'anonymous' | 'mfa_required' | 'authenticated'
+type Phase = 'booting' | 'anonymous' | 'authenticated'
 
 interface AuthState {
   phase: Phase
@@ -13,7 +13,6 @@ interface AuthState {
 
   boot: () => Promise<void>
   login: (email: string, password: string) => Promise<SessionResponse>
-  submitMfa: (code: string) => Promise<void>
   logout: () => Promise<void>
   setTheme: (theme: 'light' | 'dark') => void
   applySession: (session: SessionResponse) => void
@@ -21,14 +20,13 @@ interface AuthState {
   dismissSessionExpiredNotice: () => void
 }
 
-/** Paint the tenant's accent colour into the CSS custom properties. */
-const applyBranding = (organization: Organization | null) => {
-  const accent = organization?.branding?.accent_color || '#2F6F62'
-  const root = document.documentElement
-  root.style.setProperty('--accent', accent)
-  const [r, g, b] = [1, 3, 5].map((index) => parseInt(accent.slice(index, index + 2), 16))
-  root.style.setProperty('--accent-soft', `rgba(${r}, ${g}, ${b}, 0.12)`)
-}
+/** No-op — per-tenant accent branding was removed so every role and every
+ * org sees the identical theme; `--accent`/`--accent-soft` are governed
+ * purely by index.css's `:root`/`.dark` rules now. Kept as a function (with
+ * every call site left in place) rather than deleting the calls throughout
+ * this file, so re-enabling white-labeling later is a one-line change here
+ * instead of hunting down every call site again. */
+const applyBranding = (_organization: Organization | null) => {}
 
 const applyTheme = (theme: 'light' | 'dark') => {
   document.documentElement.classList.toggle('dark', theme === 'dark')
@@ -52,7 +50,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     setTokens(session.access_token, session.csrf_token)
     applyBranding(session.organization)
     set({
-      phase: session.mfa_required ? 'mfa_required' : 'authenticated',
+      phase: 'authenticated',
       user: session.user,
       organization: session.organization,
       sessionExpiredNotice: false,
@@ -80,11 +78,6 @@ export const useAuth = create<AuthState>((set, get) => ({
     const session = await api.post<SessionResponse>('/auth/login', { email, password })
     get().applySession(session)
     return session
-  },
-
-  async submitMfa(code) {
-    const session = await api.post<SessionResponse>('/auth/mfa/challenge', { code })
-    get().applySession(session)
   },
 
   async logout() {

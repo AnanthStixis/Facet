@@ -18,7 +18,6 @@ from app.core.errors import (
     AccountLocked,
     AuthenticationError,
     InvalidCredentials,
-    InvalidMfaCode,
     OrganizationInactive,
     SessionExpired,
     TokenReuseDetected,
@@ -28,24 +27,20 @@ from app.core.logging import get_logger
 from app.core.ratelimit import (
     LOGIN_PER_ACCOUNT,
     LOGIN_PER_IP,
-    MFA_PER_ACCOUNT,
     limiter,
 )
 from app.core.security import (
     create_access_token,
-    decrypt_mfa_secret,
     generate_csrf_token,
     generate_token,
     hash_password,
     hash_token,
-    normalise_recovery_code,
     verify_password,
-    verify_totp,
 )
-from app.db.tenancy import TenantContext, bind_tenant
+from app.db.tenancy import TenantContext
 from app.models.auth import LoginAttempt, RefreshToken, SessionFamily
 from app.models.enums import AuditAction, OrgStatus, UserRole, UserStatus
-from app.models.user import MfaRecoveryCode, User
+from app.models.user import User
 from app.services import audit
 
 log = get_logger("facet.auth")
@@ -67,8 +62,6 @@ class Principal:
     status: UserStatus
     password_hash: str | None
     must_change_password: bool
-    mfa_enabled: bool
-    mfa_secret_encrypted: str | None
     failed_login_count: int
     locked_until: datetime | None
     org_status: OrgStatus | None
@@ -88,7 +81,6 @@ class IssuedSession:
     refresh_token: str
     csrf_token: str
     session_id: uuid.UUID
-    mfa_pending: bool
 
 
 # --- Principal lookup -------------------------------------------------------
@@ -125,8 +117,6 @@ async def load_principal(
         status=UserStatus(row["status"]),
         password_hash=row["password_hash"],
         must_change_password=row["must_change_password"],
-        mfa_enabled=row["mfa_enabled"],
-        mfa_secret_encrypted=row["mfa_secret_encrypted"],
         failed_login_count=row["failed_login_count"],
         locked_until=row["locked_until"],
         org_status=OrgStatus(row["org_status"]) if row["org_status"] else None,
@@ -317,12 +307,6 @@ async def authenticate(
     return principal
 
 
-def mfa_is_required(principal: Principal) -> bool:
-    if principal.mfa_enabled:
-        return True
-    return bool(settings.mfa_required_for_super_admin and principal.is_super_admin)
-
-
 # --- Sessions ---------------------------------------------------------------
 
 async def start_session(
@@ -330,7 +314,6 @@ async def start_session(
     principal: Principal,
     *,
     request: Request | None = None,
-    mfa_pending: bool,
 ) -> IssuedSession:
     now = datetime.now(UTC)
     family = SessionFamily(
@@ -360,10 +343,7 @@ async def start_session(
         org_id=principal.org_id,
         role=str(principal.role),
         session_id=family.id,
-        scope="mfa_pending" if mfa_pending else "full",
-        # A half-authenticated token is short lived by design: it exists only
-        # to carry the user from the password step to the code step.
-        ttl_minutes=5 if mfa_pending else None,
+        scope="full",
     )
     return IssuedSession(
         access_token=access,
@@ -371,7 +351,6 @@ async def start_session(
         refresh_token=raw_refresh,
         csrf_token=generate_csrf_token(),
         session_id=family.id,
-        mfa_pending=mfa_pending,
     )
 
 
@@ -462,7 +441,6 @@ async def rotate_session(
         refresh_token=raw_refresh_new,
         csrf_token=generate_csrf_token(),
         session_id=family.id,
-        mfa_pending=False,
     )
     return principal, issued
 
@@ -514,59 +492,6 @@ async def revoke_all_sessions(
         await _revoke_family(session, family, reason=reason)
         count += 1
     return count
-
-
-# --- MFA --------------------------------------------------------------------
-
-async def verify_mfa(
-    session: AsyncSession,
-    principal: Principal,
-    *,
-    code: str,
-    request: Request | None = None,
-) -> None:
-    """Verify a TOTP code or a single-use recovery code."""
-    await limiter.hit(f"mfa:{principal.id}", MFA_PER_ACCOUNT)
-
-    if not principal.mfa_secret_encrypted:
-        raise InvalidMfaCode("Multi-factor authentication is not set up on this account.")
-
-    secret = decrypt_mfa_secret(principal.mfa_secret_encrypted)
-    if verify_totp(secret, code):
-        return
-
-    # Fall back to recovery codes. Bind the tenant first, because the recovery
-    # table is reached through the ORM and the user row is tenant scoped.
-    await bind_tenant(session, principal.tenant_context())
-    normalised = normalise_recovery_code(code)
-    candidates = (
-        (
-            await session.execute(
-                select(MfaRecoveryCode).where(
-                    MfaRecoveryCode.user_id == principal.id,
-                    MfaRecoveryCode.used_at.is_(None),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    for candidate in candidates:
-        if verify_password(normalised, candidate.code_hash):
-            candidate.used_at = datetime.now(UTC)
-            await audit.record(
-                session,
-                action=AuditAction.AUTH_LOGIN_SUCCEEDED,
-                summary="Signed in using a recovery code",
-                org_id=principal.org_id,
-                actor_email=principal.email,
-                context={"method": "recovery_code",
-                         "remaining": len(candidates) - 1},
-                request=request,
-            )
-            return
-
-    raise InvalidMfaCode()
 
 
 async def set_password(

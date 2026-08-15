@@ -37,7 +37,6 @@ class Limit:
 # times a minute; scripts do.
 LOGIN_PER_IP = Limit(times=20, seconds=300)
 LOGIN_PER_ACCOUNT = Limit(times=8, seconds=900)
-MFA_PER_ACCOUNT = Limit(times=10, seconds=300)
 REFRESH_PER_SESSION = Limit(times=60, seconds=60)
 REGISTRATION_PER_IP = Limit(times=5, seconds=3600)
 EXPORT_PER_USER = Limit(times=30, seconds=3600)

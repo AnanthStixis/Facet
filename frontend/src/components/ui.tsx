@@ -268,6 +268,44 @@ export function EmptyState({
   )
 }
 
+export function Switch({
+  checked,
+  onChange,
+  ariaLabel,
+  disabled,
+}: {
+  checked: boolean
+  onChange: () => void
+  ariaLabel: string
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={onChange}
+      className={clsx(
+        'relative h-4 w-7 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+        checked ? 'accent-bg' : 'bg-ink-300 dark:bg-ink-600',
+      )}
+    >
+      {/* `left-0.5` must be set explicitly — an absolutely positioned element
+          with only `top` set falls back to its static (in-flow) horizontal
+          position, which is what made this thumb render outside the track
+          and appear to overlap whatever sat next to the switch. */}
+      <span
+        className={clsx(
+          'absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform',
+          checked && 'translate-x-3',
+        )}
+      />
+    </button>
+  )
+}
+
 export function Skeleton({ className }: { className?: string }) {
   return <div className={clsx('skeleton', className)} />
 }
@@ -297,13 +335,12 @@ export function Modal({
   // becomes the containing block for any `position: fixed` descendant — so
   // without the portal, the modal was clipped to that ancestor's box instead
   // of covering the viewport ("not displaying full page").
+  // Clicking the backdrop deliberately does not close this — a stray click
+  // outside the dialog (common when a form has grown taller than the
+  // viewport) should never discard in-progress input. Escape and the close
+  // button are the only ways out.
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/50 p-4 py-10 backdrop-blur-[1px]"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/50 p-4 py-10 backdrop-blur-[1px]">
       <div
         role="dialog"
         aria-modal="true"
@@ -331,6 +368,79 @@ export function Modal({
       </div>
     </div>,
     document.body,
+  )
+}
+
+/**
+ * Small "i" icon that reveals a short explanation on hover or keyboard focus.
+ *
+ * For fields whose meaning is obvious from the label, don't use this — it
+ * exists so the rare genuinely-non-obvious field can carry its explanation
+ * without a permanent paragraph of helper text under every input.
+ */
+export function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="group relative ml-1 inline-flex align-middle">
+      <button
+        type="button"
+        tabIndex={0}
+        aria-label={text}
+        className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-ink-300 text-[9px] font-semibold leading-none text-ink-400 hover:border-ink-400 hover:text-ink-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 dark:border-ink-600 dark:text-ink-500 dark:hover:text-ink-300"
+      >
+        i
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-max max-w-[220px] -translate-x-1/2 rounded-md bg-ink-900 px-2.5 py-1.5 text-xs font-normal normal-case text-ink-50 opacity-0 shadow-lift transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-ink-100 dark:text-ink-900"
+      >
+        {text}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * A small popup confirmation dialog — for a destructive or otherwise
+ * consequential action that deserves more ceremony than an inline
+ * confirm/cancel button pair, but doesn't need a full custom Modal body.
+ */
+export function ConfirmDialog({
+  title,
+  body,
+  confirmLabel,
+  cancelLabel = 'Cancel',
+  tone = 'neutral',
+  busy = false,
+  onConfirm,
+  onCancel,
+}: {
+  title: ReactNode
+  body?: ReactNode
+  confirmLabel: string
+  cancelLabel?: string
+  tone?: 'neutral' | 'critical'
+  busy?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <Modal title={title} onClose={onCancel} className="max-w-sm">
+      {body && <p className="text-sm text-ink-600 dark:text-ink-300">{body}</p>}
+      <div className="mt-5 flex gap-2">
+        <button
+          type="button"
+          className={tone === 'critical' ? 'btn-danger px-3 py-1.5 text-sm' : 'btn-primary px-3 py-1.5 text-sm'}
+          disabled={busy}
+          onClick={onConfirm}
+        >
+          {busy && <Spinner />}
+          {confirmLabel}
+        </button>
+        <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={onCancel}>
+          {cancelLabel}
+        </button>
+      </div>
+    </Modal>
   )
 }
 

@@ -4,11 +4,12 @@ import { FacetMark } from './components/Logo'
 import { Modal } from './components/ui'
 import { AppShell } from './layout/AppShell'
 import { Campaigns } from './pages/Campaigns'
+import { Clients } from './pages/Clients'
+import { CreateFeedback } from './pages/CreateFeedback'
 import { Cycles } from './pages/Cycles'
 import { Dashboard } from './pages/Dashboard'
 import { Insights } from './pages/Insights'
 import { Login } from './pages/Login'
-import { Proposals } from './pages/Proposals'
 import { PublicFeedback } from './pages/PublicFeedback'
 import { MyFeedback } from './pages/MyFeedback'
 import { MyResults } from './pages/MyResults'
@@ -17,8 +18,10 @@ import { People } from './pages/People'
 import { AcceptInvite, Register, ResetPassword } from './pages/Public'
 import { AuditPage } from './pages/ReportView'
 import { Reports } from './pages/Reports'
+import { Results } from './pages/Results'
 import { Security } from './pages/Security'
 import { Settings } from './pages/Settings'
+import { Categories } from './pages/Categories'
 import { Templates } from './pages/Templates'
 import { useAuth } from './store/auth'
 
@@ -139,6 +142,22 @@ export default function App() {
         <Route path="my-feedback" element={<MyFeedback />} />
         <Route path="my-results" element={<MyResults />} />
         <Route
+          path="create-feedback"
+          element={
+            <RequireRole roles={['super_admin', 'client_admin', 'manager']}>
+              <CreateFeedback />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="results"
+          element={
+            <RequireRole roles={['super_admin', 'client_admin', 'manager']}>
+              <Results />
+            </RequireRole>
+          }
+        />
+        <Route
           path="cycles"
           element={
             <RequireRole roles={['super_admin', 'client_admin', 'manager']}>
@@ -151,14 +170,6 @@ export default function App() {
           element={
             <RequireRole roles={['super_admin', 'client_admin', 'manager']}>
               <Campaigns />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="proposals"
-          element={
-            <RequireRole roles={['super_admin', 'client_admin', 'manager']}>
-              <Proposals />
             </RequireRole>
           }
         />
@@ -186,7 +197,16 @@ export default function App() {
             </RequireRole>
           }
         />
+        <Route path="categories" element={<Categories />} />
         <Route path="templates" element={<Templates />} />
+        <Route
+          path="clients"
+          element={
+            <RequireRole roles={['client_admin', 'manager']}>
+              <Clients />
+            </RequireRole>
+          }
+        />
         <Route
           path="reports"
           element={

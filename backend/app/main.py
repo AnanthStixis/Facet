@@ -34,7 +34,6 @@ async def lifespan(app: FastAPI):
         product=settings.product_name,
         environment=settings.environment,
         rate_limiter="redis" if settings.redis_url else "in-process",
-        ai_enabled=settings.ai_enabled,
     )
     yield
     await engine.dispose()
@@ -147,7 +146,6 @@ async def meta() -> dict[str, object]:
         "tagline": settings.product_tagline,
         "vendor": settings.vendor_name,
         "password_min_length": settings.password_min_length,
-        "ai_enabled": settings.ai_enabled,
         "self_registration_enabled": True,
     }
 

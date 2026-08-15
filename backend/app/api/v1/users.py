@@ -17,10 +17,13 @@ from app.api.deps import AdminUser, CurrentUser, DbSession
 from app.core.config import settings
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.security import generate_token, hash_token
+from app.models.catalog import FeedbackTarget, FeedbackTemplate, FeedbackTemplateVersion
+from app.models.cycle import FeedbackResponse, ReviewCycle
 from app.models.enums import AuditAction, UserRole, UserStatus
 from app.models.organization import Organization
 from app.models.user import Invitation, PasswordResetToken, User
 from app.schemas.common import MessageResponse, Page
+from app.schemas.feedback import UserFeedbackItem
 from app.schemas.org import InviteResult, UserCreateRequest, UserDetail, UserUpdateRequest
 from app.schemas.settings import OrgSettings
 from app.services import audit, auth as auth_service, email as email_service
@@ -36,6 +39,7 @@ async def list_users(
     search: str | None = None,
     role: UserRole | None = None,
     status: UserStatus | None = None,
+    org_id: uuid.UUID | None = None,
     page: int = 1,
     page_size: int = 25,
 ) -> Page[UserDetail]:
@@ -51,6 +55,11 @@ async def list_users(
         stmt = stmt.where(User.role == role)
     if status:
         stmt = stmt.where(User.status == status)
+    if org_id:
+        # Only meaningful for a Super Admin browsing across tenants — a
+        # Client Admin's session is already RLS-scoped to their own org, so
+        # this is a no-op filter for them rather than a privilege check.
+        stmt = stmt.where(User.org_id == org_id)
 
     total = int(
         (
@@ -80,13 +89,102 @@ async def list_users(
             )
             org_names = dict(rows.all())
 
+    # One grouped query for every row's feedback count, rather than one query
+    # per row — the People page shows this on every row, so N+1 here would
+    # mean N extra round-trips on every page load.
+    user_ids = [user.id for user in users]
+    feedback_counts: dict[uuid.UUID, int] = {}
+    if user_ids:
+        rows = await session.execute(
+            select(FeedbackTarget.subject_user_id, func.count(FeedbackResponse.id))
+            .join(FeedbackResponse, FeedbackResponse.target_id == FeedbackTarget.id)
+            .where(FeedbackTarget.subject_user_id.in_(user_ids))
+            .group_by(FeedbackTarget.subject_user_id)
+        )
+        feedback_counts = dict(rows.all())
+
     items = []
     for user in users:
         detail = UserDetail.model_validate(user)
         detail.org_name = org_names.get(user.org_id) if user.org_id else None
+        detail.feedback_count = feedback_counts.get(user.id, 0)
         items.append(detail)
 
     return Page[UserDetail](items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/{user_id}/feedback", response_model=list[UserFeedbackItem])
+async def user_feedback(
+    user_id: uuid.UUID, session: DbSession, actor: CurrentUser
+) -> list[UserFeedbackItem]:
+    """Every piece of feedback collected about this person, across every
+    round they've ever been the subject of — the People-page popup and the
+    "About" cross-link on a Client Review both read from here.
+    """
+    if actor.id != user_id:
+        # Same "admin, owning manager, or the person themself" shape as
+        # cycles.target_results — a plain employee cannot browse a
+        # colleague's feedback history through this endpoint.
+        user = (
+            await session.execute(select(User).where(User.id == user_id))
+        ).scalar_one_or_none()
+        if user is None:
+            raise NotFound("That person does not exist.")
+        is_admin = actor.role in {UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN}
+        is_their_manager = actor.role == UserRole.MANAGER and user.manager_id == actor.id
+        if not (is_admin or is_their_manager):
+            raise PermissionDenied("You cannot view this person's feedback.")
+
+    # A person can be the subject of more than one target: their normal
+    # EMPLOYEE/MANAGER target from internal cycles, and separately a
+    # CLIENT-typed target if a Client Review has ever named them via
+    # about_user_id (see feedback_service.create_and_send). Both belong on
+    # "everything about this person", so every target they're the subject of
+    # is unioned here rather than assuming exactly one.
+    target_rows = (
+        (
+            await session.execute(
+                select(FeedbackTarget).where(FeedbackTarget.subject_user_id == user_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not target_rows:
+        return []
+    targets_by_id = {t.id: t for t in target_rows}
+
+    rows = (
+        await session.execute(
+            select(FeedbackResponse, ReviewCycle, FeedbackTemplate)
+            .join(ReviewCycle, ReviewCycle.id == FeedbackResponse.cycle_id)
+            .join(
+                FeedbackTemplateVersion,
+                FeedbackTemplateVersion.id == FeedbackResponse.template_version_id,
+            )
+            .join(FeedbackTemplate, FeedbackTemplate.id == FeedbackTemplateVersion.template_id)
+            .where(FeedbackResponse.target_id.in_(targets_by_id.keys()))
+            .order_by(FeedbackResponse.submitted_at.desc())
+        )
+    ).all()
+
+    from app.api.v1.feedback import _kind_of  # local import avoids a cycle
+
+    return [
+        UserFeedbackItem(
+            cycle_id=cycle.id,
+            cycle_name=cycle.name,
+            kind=_kind_of(cycle.audience, str(targets_by_id[response.target_id].target_type)),
+            template_name=template.name,
+            relationship=str(response.relationship_type),
+            submitted_at=response.submitted_at,
+            overall_score=(
+                float(response.overall_score) if response.overall_score is not None else None
+            ),
+            comment=response.comment,
+        )
+        for response, cycle, template in rows
+    ]
 
 
 @router.post("", response_model=InviteResult, status_code=201)

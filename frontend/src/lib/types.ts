@@ -23,11 +23,11 @@ export interface User {
   org_name?: string | null
   role: Role
   status: string
-  mfa_enabled: boolean
   must_change_password: boolean
   manager_id?: string | null
   last_login_at?: string | null
   created_at?: string
+  feedback_count?: number
 }
 
 export interface SessionResponse {
@@ -35,7 +35,6 @@ export interface SessionResponse {
   token_type: string
   expires_at: string
   csrf_token: string
-  mfa_required: boolean
   user: User | null
   organization: Organization | null
 }
@@ -134,7 +133,6 @@ export interface DashboardData {
     users_total: number
     users_active: number
     users_pending: number
-    mfa_adoption_pct: number
     contacts: number
     templates: number
     my_pending_feedback: number
@@ -179,6 +177,7 @@ export interface OrgDetail {
   seat_limit?: number | null
   approved_at?: string | null
   rejection_reason?: string | null
+  suspension_reason?: string | null
   created_at: string
   user_count: number
   branding?: { accent_color: string; logo_url: string | null } | null

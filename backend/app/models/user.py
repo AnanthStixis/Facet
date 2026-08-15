@@ -64,10 +64,6 @@ class User(UUIDPrimaryKey, Timestamped, Base):
         Boolean, nullable=False, default=False
     )
 
-    mfa_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    mfa_secret_encrypted: Mapped[str | None] = mapped_column(String(255))
-    mfa_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -77,10 +73,6 @@ class User(UUIDPrimaryKey, Timestamped, Base):
     )
     department: Mapped[str | None] = mapped_column(String(150))
     preferences: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-
-    recovery_codes: Mapped[list["MfaRecoveryCode"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
 
     __table_args__ = (
         # Email is unique platform-wide, case-insensitively — one account per
@@ -114,27 +106,6 @@ class User(UUIDPrimaryKey, Timestamped, Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<User {self.email} {self.role}>"
-
-
-class MfaRecoveryCode(UUIDPrimaryKey, Timestamped, Base):
-    """Single-use codes that let a user back in when they lose their phone.
-
-    Stored as argon2 hashes. If the database leaks, the codes in it are not
-    usable, which is the whole point of not storing them in plain text.
-    """
-
-    __tablename__ = "mfa_recovery_codes"
-
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    code_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    user: Mapped[User] = relationship(back_populates="recovery_codes")
 
 
 class Invitation(UUIDPrimaryKey, Timestamped, Base):

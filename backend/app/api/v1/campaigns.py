@@ -43,6 +43,7 @@ from app.schemas.campaign import (
     CampaignDetail,
     ContactCreateRequest,
     ContactDetail,
+    ContactUpdateRequest,
     RecipientAddRequest,
     RecipientDetail,
     SendRequest,
@@ -626,6 +627,82 @@ async def create_contact(
     session.add(contact)
     await session.commit()
     return ContactDetail.model_validate(contact)
+
+
+@contacts_router.patch("/{contact_id}", response_model=ContactDetail)
+async def update_contact(
+    contact_id: uuid.UUID,
+    payload: ContactUpdateRequest,
+    session: DbSession,
+    actor: ManagerUser,
+) -> ContactDetail:
+    contact = (
+        await session.execute(select(Contact).where(Contact.id == contact_id))
+    ).scalar_one_or_none()
+    if contact is None:
+        raise NotFound("That client does not exist.")
+
+    if payload.email is not None:
+        email = payload.email.lower()
+        if email != contact.email and (
+            await session.execute(
+                select(Contact.id).where(
+                    Contact.org_id == contact.org_id,
+                    Contact.email == email,
+                    Contact.id != contact_id,
+                )
+            )
+        ).first() is not None:
+            raise Conflict("Another client already has that email.")
+        contact.email = email
+    if payload.full_name is not None:
+        contact.full_name = payload.full_name.strip()
+    if payload.company is not None:
+        contact.company = payload.company or None
+    if payload.job_title is not None:
+        contact.job_title = payload.job_title or None
+    if payload.tags is not None:
+        contact.tags = payload.tags
+    if payload.unsubscribed is not None:
+        contact.unsubscribed_at = datetime.now(UTC) if payload.unsubscribed else None
+
+    await session.commit()
+    return ContactDetail.model_validate(contact)
+
+
+@contacts_router.delete("/{contact_id}", status_code=204, response_model=None)
+async def delete_contact(
+    contact_id: uuid.UUID, session: DbSession, actor: ManagerUser
+) -> None:
+    """Delete a client who was never actually sent anything.
+
+    Same rule as campaign delete: safe to remove a contact with no delivery
+    history, but a contact who already received an invitation must be kept —
+    deleting them would orphan that recipient's one-time link and any
+    response they already gave. Unsubscribe instead.
+    """
+    contact = (
+        await session.execute(select(Contact).where(Contact.id == contact_id))
+    ).scalar_one_or_none()
+    if contact is None:
+        raise NotFound("That client does not exist.")
+
+    sent = int(
+        (
+            await session.execute(
+                select(func.count())
+                .select_from(CampaignRecipient)
+                .where(CampaignRecipient.contact_id == contact_id)
+            )
+        ).scalar_one()
+    )
+    if sent > 0:
+        raise Conflict(
+            "This client has received feedback invitations — deleting them would "
+            "orphan that history. Unsubscribe them instead."
+        )
+    await session.delete(contact)
+    await session.commit()
 
 
 @contacts_router.get("/bulk/template")

@@ -94,6 +94,15 @@ class ContactCreateRequest(BaseModel):
     tags: list[str] = Field(default_factory=list, max_length=20)
 
 
+class ContactUpdateRequest(BaseModel):
+    email: EmailStr | None = None
+    full_name: str | None = Field(default=None, min_length=2, max_length=150)
+    company: str | None = Field(default=None, max_length=200)
+    job_title: str | None = Field(default=None, max_length=150)
+    tags: list[str] | None = Field(default=None, max_length=20)
+    unsubscribed: bool | None = None
+
+
 class ContactDetail(ORMModel):
     id: uuid.UUID
     email: str

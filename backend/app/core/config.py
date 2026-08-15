@@ -65,7 +65,6 @@ class Settings(BaseSettings):
     invite_token_ttl_hours: int = 72
     feedback_link_ttl_days: int = 30
     password_min_length: int = 6
-    mfa_required_for_super_admin: bool = True
     login_max_attempts: int = 8
     login_lockout_seconds: int = 900
     cookie_secure: bool = False
@@ -97,12 +96,8 @@ class Settings(BaseSettings):
     logo_max_bytes: int = 2 * 1024 * 1024
 
     # --- AI ---------------------------------------------------------------
-    ai_enabled: bool = False
-    openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_model_fast: str = "gpt-4o-mini"
-    openai_model_deep: str = "gpt-4o"
-    openai_model_embedding: str = "text-embedding-3-small"
+    # The deterministic local analyser (app/services/ai/providers.py) is the
+    # only provider — there is no external model call to gate or configure.
     ai_monthly_token_budget_per_org: int = 2_000_000
     ai_min_responses_for_summary: int = 4
 
