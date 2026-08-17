@@ -148,19 +148,44 @@ export function PublicFeedback() {
   const [unsubscribed, setUnsubscribed] = useState(false)
 
   useEffect(() => {
-    fetch(`${BASE}/feedback/${encodeURIComponent(token)}`)
-      .then(async (response) => {
-        if (!response.ok) {
-          const body = await response.json().catch(() => null)
-          setDead(
-            body?.error?.message ??
-              'This feedback link is no longer valid.',
-          )
-          return
-        }
-        setData(await response.json())
-      })
-      .catch(() => setDead('We could not load this feedback form. Please try again later.'))
+    const load = () => {
+      fetch(`${BASE}/feedback/${encodeURIComponent(token)}`, { cache: 'no-store' })
+        .then(async (response) => {
+          if (!response.ok) {
+            const body = await response.json().catch(() => null)
+            setDead(
+              body?.error?.message ??
+                'This feedback link is no longer valid.',
+            )
+            return
+          }
+          setData(await response.json())
+        })
+        .catch(() => setDead('We could not load this feedback form. Please try again later.'))
+    }
+    load()
+
+    // This is the actual fix for "submitted, then re-opening the same link
+    // still works": on a back/forward navigation, the browser can restore
+    // this exact page from its back-forward cache (bfcache) — the DOM the
+    // respondent last saw, including the live form, straight from memory,
+    // with no network request and no JavaScript re-run. `cache: 'no-store'`
+    // above only stops a *new* request from being served a cached response;
+    // it does nothing when no request happens at all. `pageshow` with
+    // `event.persisted === true` is the one event that fires specifically
+    // for a bfcache restore, so it's what forces a real re-check. Resetting
+    // the local state first means the respondent sees the loading spinner
+    // again rather than a stale screen for the instant before the fresh
+    // result comes back.
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return
+      setData(null)
+      setDead(null)
+      setDone(null)
+      load()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
   }, [token])
 
   if (dead) {

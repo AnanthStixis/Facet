@@ -30,6 +30,7 @@ interface FeedbackListItem {
   responded: number
   org_id: string | null
   org_name: string | null
+  recipients: string[]
 }
 
 interface FeedbackResponseAnswer {
@@ -579,6 +580,7 @@ export function Results() {
                   <th>Name</th>
                   <th>Type</th>
                   <th>About</th>
+                  <th>Recipients</th>
                   {isPlatform && <th>Organization</th>}
                   <th>Template</th>
                   <th>Sent</th>
@@ -597,6 +599,16 @@ export function Results() {
                     <td>{KIND_LABEL[row.kind] ?? row.kind}</td>
                     <td className="text-ink-600 dark:text-ink-300">
                       {row.target_label ?? '—'}
+                    </td>
+                    <td
+                      className="max-w-[220px] truncate text-ink-600 dark:text-ink-300"
+                      title={row.recipients.join(', ') || undefined}
+                    >
+                      {row.recipients.length === 0
+                        ? '—'
+                        : row.recipients.length === 1
+                          ? row.recipients[0]
+                          : `${row.recipients[0]} +${row.recipients.length - 1} more`}
                     </td>
                     {isPlatform && (
                       <td className="text-ink-600 dark:text-ink-300">{row.org_name ?? '—'}</td>

@@ -72,6 +72,14 @@ GLOBAL_CATEGORIES = [
         "icon": "file-text",
         "sort_order": 30,
     },
+    {
+        "key": "getting_started",
+        "name": "Getting started",
+        "description": "One simple default template for each feedback type, ready to use immediately.",
+        "applies_to": [],
+        "icon": "spark",
+        "sort_order": 5,
+    },
 ]
 
 LIKERT_5 = {
@@ -238,6 +246,132 @@ GLOBAL_TEMPLATES = [
                     "questions": [
                         {"key": "responsiveness",
                          "text": "We received timely responses to our questions."},
+                    ],
+                },
+            ],
+        ),
+    },
+    # --- One deliberately simple default per feedback type ------------------
+    # Everything above is a realistic, detailed example template. These are
+    # the opposite on purpose: two or three plain questions each, so every
+    # one of the six Create Feedback types has an obvious, no-thought-required
+    # option to start with, especially right after `reset_all_data.py` wipes
+    # the database and there is nothing else to pick from yet.
+    {
+        "category": "getting_started",
+        "name": "Default Employees Feedback",
+        "target_type": TargetType.EMPLOYEE,
+        "is_anonymous": False,
+        "description": "A simple, general-purpose review for one employee.",
+        "definition": _definition(
+            "A quick, general check-in — no special preparation needed.",
+            [
+                {
+                    "key": "general",
+                    "title": "General",
+                    "questions": [
+                        {"key": "does_good_work", "text": "This person does good work."},
+                        {"key": "good_to_work_with", "text": "This person is good to work with."},
+                    ],
+                },
+            ],
+        ),
+    },
+    {
+        "category": "getting_started",
+        "name": "Default Management Feedback",
+        "target_type": TargetType.MANAGER,
+        "is_anonymous": True,
+        "description": "A simple, anonymous check-in on a manager.",
+        "definition": _definition(
+            "Your answers are anonymous.",
+            [
+                {
+                    "key": "general",
+                    "title": "General",
+                    "questions": [
+                        {"key": "supports_me", "text": "My manager supports me."},
+                        {"key": "communicates_clearly", "text": "My manager communicates clearly."},
+                    ],
+                },
+            ],
+        ),
+    },
+    {
+        "category": "getting_started",
+        "name": "Default Client Feedback",
+        "target_type": TargetType.CLIENT,
+        "is_anonymous": False,
+        "description": "A simple relationship check-in for a client.",
+        "definition": _definition(
+            "Thank you for taking a minute to share your feedback.",
+            [
+                {
+                    "key": "general",
+                    "title": "General",
+                    "questions": [
+                        {"key": "happy_with_relationship", "text": "I am happy with this relationship."},
+                        {"key": "would_recommend", "text": "I would recommend us to others."},
+                    ],
+                },
+            ],
+        ),
+    },
+    {
+        "category": "getting_started",
+        "name": "Default Product Feedback",
+        "target_type": TargetType.PRODUCT,
+        "is_anonymous": False,
+        "description": "A simple satisfaction check-in for a product.",
+        "definition": _definition(
+            "Thank you for taking a minute to share your feedback.",
+            [
+                {
+                    "key": "general",
+                    "title": "General",
+                    "questions": [
+                        {"key": "meets_needs", "text": "This product meets my needs."},
+                        {"key": "easy_to_use", "text": "This product is easy to use."},
+                    ],
+                },
+            ],
+        ),
+    },
+    {
+        "category": "getting_started",
+        "name": "Default Service Feedback",
+        "target_type": TargetType.SERVICE,
+        "is_anonymous": False,
+        "description": "A simple satisfaction check-in for a delivered service.",
+        "definition": _definition(
+            "Thank you for taking a minute to share your feedback.",
+            [
+                {
+                    "key": "general",
+                    "title": "General",
+                    "questions": [
+                        {"key": "met_expectations", "text": "This service met my expectations."},
+                        {"key": "would_use_again", "text": "I would use this service again."},
+                    ],
+                },
+            ],
+        ),
+    },
+    {
+        "category": "getting_started",
+        "name": "Default Proposal Review Feedback",
+        "target_type": TargetType.PROPOSAL,
+        "is_anonymous": False,
+        "description": "A simple quality check-in for a submitted proposal.",
+        "definition": _definition(
+            "Thank you for taking a minute to share your feedback.",
+            [
+                {
+                    "key": "general",
+                    "title": "General",
+                    "questions": [
+                        {"key": "was_clear", "text": "The proposal was clear and easy to understand."},
+                        {"key": "met_needs", "text": "The proposal addressed our needs."},
                     ],
                 },
             ],

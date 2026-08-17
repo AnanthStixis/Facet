@@ -70,6 +70,11 @@ class FeedbackListItem(BaseModel):
     responded: int = 0
     org_id: uuid.UUID | None = None
     org_name: str | None = None
+    # Who the request actually went to — the external contacts for a
+    # campaign, or the internal reviewers for a cycle. Distinct from
+    # target_label, which is who/what the feedback is *about*, not who it
+    # was sent to.
+    recipients: list[str] = []
 
 
 class FeedbackResponseAnswer(BaseModel):

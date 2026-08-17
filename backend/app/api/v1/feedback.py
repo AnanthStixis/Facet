@@ -260,6 +260,38 @@ async def list_feedback(
         for cycle_id, target_row in recipient_rows:
             external_targets.setdefault(cycle_id, target_row)
 
+    # Who the request actually went to, for the "Recipients" column — the
+    # external contacts for a campaign, or the internal reviewers for a
+    # cycle. Batched up front, same as targets/versions above, rather than
+    # a per-row query in the loop below.
+    recipient_names: dict[uuid.UUID, list[str]] = {}
+    external_ids = [c.id for c in cycles if c.audience == CycleAudience.EXTERNAL]
+    if external_ids:
+        rows = (
+            await session.execute(
+                select(CampaignRecipient.cycle_id, Contact.full_name, Contact.email)
+                .join(Contact, Contact.id == CampaignRecipient.contact_id)
+                .where(CampaignRecipient.cycle_id.in_(external_ids))
+                .order_by(Contact.full_name)
+            )
+        ).all()
+        for cycle_id, full_name, email in rows:
+            recipient_names.setdefault(cycle_id, []).append(full_name or email)
+
+    internal_ids = [c.id for c in cycles if c.audience != CycleAudience.EXTERNAL]
+    if internal_ids:
+        rows = (
+            await session.execute(
+                select(FeedbackAssignment.cycle_id, User.full_name)
+                .join(User, User.id == FeedbackAssignment.reviewer_user_id)
+                .where(FeedbackAssignment.cycle_id.in_(internal_ids))
+                .distinct()
+                .order_by(User.full_name)
+            )
+        ).all()
+        for cycle_id, full_name in rows:
+            recipient_names.setdefault(cycle_id, []).append(full_name)
+
     items: list[FeedbackListItem] = []
     for cycle in cycles:
         target = (
@@ -307,6 +339,7 @@ async def list_feedback(
                 responded=responded,
                 org_id=cycle.org_id if actor.is_super_admin else None,
                 org_name=org_names.get(cycle.org_id) if actor.is_super_admin else None,
+                recipients=recipient_names.get(cycle.id, []),
             )
         )
 

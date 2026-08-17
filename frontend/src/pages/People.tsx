@@ -435,6 +435,7 @@ function EditUserForm({
     job_title: person.job_title ?? '',
     department: person.department ?? '',
     role: person.role,
+    manager_id: person.manager_id ?? null,
   })
   const [busy, setBusy] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -472,6 +473,7 @@ function EditUserForm({
         job_title: form.job_title || null,
         department: form.department || null,
         role: canChangeRole && form.role !== person.role ? form.role : undefined,
+        manager_id: form.manager_id ?? undefined,
       })
       onDone(updated)
     } catch (caught) {
@@ -542,6 +544,19 @@ function EditUserForm({
                   Role
                 </span>
                 <p className="text-xs text-ink-400">You cannot change your own role.</p>
+              </div>
+            )}
+            {(form.role === 'employee' || form.role === 'manager') && (
+              <div>
+                <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                  Manager
+                </span>
+                <LookupFilter
+                  entity="users"
+                  label="Choose a manager"
+                  selected={form.manager_id ? [form.manager_id] : []}
+                  onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
+                />
               </div>
             )}
           </div>
