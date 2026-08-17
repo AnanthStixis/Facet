@@ -36,6 +36,8 @@ const LISTS: ListConfig[] = [
   { key: 'departments', label: 'Department', plural: 'Departments', path: '/masters/departments' },
   { key: 'job-titles', label: 'Job Title', plural: 'Job Titles', path: '/masters/job-titles' },
   { key: 'cycle-names', label: 'Cycle Name', plural: 'Cycle Names', path: '/masters/cycle-names' },
+  { key: 'products', label: 'Product', plural: 'Products', path: '/masters/products' },
+  { key: 'services', label: 'Service', plural: 'Services', path: '/masters/services' },
 ]
 
 function formatDate(value: string) {

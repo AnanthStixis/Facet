@@ -42,7 +42,7 @@ function ContactModal({
   const [company, setCompany] = useState(contact?.company ?? '')
   const [jobTitle, setJobTitle] = useState(contact?.job_title ?? '')
   const [phone, setPhone] = useState(contact?.phone ?? '')
-  const [tags, setTags] = useState(contact?.tags.join(', ') ?? '')
+  const [tags] = useState(contact?.tags.join(', ') ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})

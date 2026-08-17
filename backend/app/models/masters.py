@@ -1,14 +1,17 @@
-"""Small org-scoped reference lists: Department, Job Title, Cycle Name.
+"""Small org-scoped reference lists: Department, Job Title, Cycle Name,
+Product, Service.
 
 Each is a simple reusable name list a Client Admin/Manager builds up over
 time — picked from a dropdown wherever it's referenced (User.department /
-User.job_title / ReviewCycle.name), with an inline "add new" so the list
-grows from actual usage rather than needing to be pre-populated. None of
-these are foreign keys from the tables that use them: User.department,
-User.job_title and ReviewCycle.name all stay the free-text columns they
-already were — a master row only fills that text field once, at selection
-time. That keeps this additive (no migration touching those existing
-tables) and means a typo fixed on a past record never depends on this list.
+User.job_title / ReviewCycle.name / the Product and Service review forms'
+"what's this about" field), with an inline "add new" so the list grows from
+actual usage rather than needing to be pre-populated. None of these are
+foreign keys from the tables that use them: User.department, User.job_title,
+ReviewCycle.name, and ReviewCycle.target label all stay the free-text
+columns they already were — a master row only fills that text field once,
+at selection time. That keeps this additive (no migration touching those
+existing tables) and means a typo fixed on a past record never depends on
+this list.
 """
 
 from __future__ import annotations
@@ -87,4 +90,48 @@ class CycleName(UUIDPrimaryKey, Timestamped, Base):
 
     __table_args__ = (
         Index("uq_cycle_names_org_name", "org_id", "name", unique=True),
+    )
+
+
+class Product(UUIDPrimaryKey, Timestamped, Base):
+    """Reusable product names, picked when creating a Product review round."""
+
+    __tablename__ = "products"
+    __tenant_scoped__ = True
+
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_by: Mapped[User | None] = relationship(User, foreign_keys=[created_by_id], lazy="noload")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+    __table_args__ = (
+        Index("uq_products_org_name", "org_id", "name", unique=True),
+    )
+
+
+class Service(UUIDPrimaryKey, Timestamped, Base):
+    """Reusable service names, picked when creating a Service review round."""
+
+    __tablename__ = "services"
+    __tenant_scoped__ = True
+
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_by: Mapped[User | None] = relationship(User, foreign_keys=[created_by_id], lazy="noload")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+    __table_args__ = (
+        Index("uq_services_org_name", "org_id", "name", unique=True),
     )

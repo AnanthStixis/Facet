@@ -40,6 +40,7 @@ async def list_users(
     role: UserRole | None = None,
     status: UserStatus | None = None,
     org_id: uuid.UUID | None = None,
+    department: str | None = None,
     page: int = 1,
     page_size: int = 25,
 ) -> Page[UserDetail]:
@@ -55,6 +56,8 @@ async def list_users(
         stmt = stmt.where(User.role == role)
     if status:
         stmt = stmt.where(User.status == status)
+    if department:
+        stmt = stmt.where(User.department == department)
     if org_id:
         # Only meaningful for a Super Admin browsing across tenants — a
         # Client Admin's session is already RLS-scoped to their own org, so

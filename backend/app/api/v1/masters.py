@@ -1,6 +1,6 @@
-"""Department / Job Title / Cycle Name master lists.
+"""Department / Job Title / Cycle Name / Product / Service master lists.
 
-Three near-identical org-scoped name lists, one router each rather than one
+Five near-identical org-scoped name lists, one router each rather than one
 generic parameterised router — the duplication is small (list, create, edit,
 toggle) and keeping them as separate, readable endpoints avoids a layer of
 indirection for what is intentionally simple, low-stakes reference data.
@@ -23,12 +23,14 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import AdminUser, DbSession, ManagerUser
 from app.core.errors import Conflict, NotFound, ValidationFailed
-from app.models.masters import CycleName, Department, JobTitle
+from app.models.masters import CycleName, Department, JobTitle, Product, Service
 from app.models.user import User
 
 departments_router = APIRouter(prefix="/masters/departments", tags=["masters"])
 job_titles_router = APIRouter(prefix="/masters/job-titles", tags=["masters"])
 cycle_names_router = APIRouter(prefix="/masters/cycle-names", tags=["masters"])
+products_router = APIRouter(prefix="/masters/products", tags=["masters"])
+services_router = APIRouter(prefix="/masters/services", tags=["masters"])
 
 DEFAULT_PAGE_SIZE = 15
 
@@ -156,3 +158,5 @@ def _build(model: type, router: APIRouter, singular: str) -> None:
 _build(Department, departments_router, "department")
 _build(JobTitle, job_titles_router, "job title")
 _build(CycleName, cycle_names_router, "cycle name")
+_build(Product, products_router, "product")
+_build(Service, services_router, "service")

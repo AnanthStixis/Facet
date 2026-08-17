@@ -18,7 +18,7 @@ from app.models.catalog import (
     FeedbackTemplate,
     FeedbackTemplateVersion,
 )
-from app.models.masters import CycleName, Department, JobTitle
+from app.models.masters import CycleName, Department, JobTitle, Product, Service
 from app.models.organization import OrgBranding, Organization
 from app.models.proposal import Proposal
 from app.models.user import Invitation, User
@@ -44,8 +44,10 @@ __all__ = [
     "LoginAttempt",
     "OrgBranding",
     "Organization",
+    "Product",
     "Proposal",
     "RefreshToken",
+    "Service",
     "SessionFamily",
     "User",
 ]

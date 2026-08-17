@@ -475,9 +475,18 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
             value={form.phone}
             onChange={(event) => setForm({ ...form, phone: event.target.value })}
           />
-        </div>
-
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <MasterSelect
+            path="/masters/departments"
+            label="Department"
+            value={form.department}
+            onChange={(name) => setForm({ ...form, department: name })}
+          />
+          <MasterSelect
+            path="/masters/job-titles"
+            label="Job title"
+            value={form.job_title}
+            onChange={(name) => setForm({ ...form, job_title: name })}
+          />
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
               Role
@@ -512,21 +521,6 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
               />
             </div>
           )}
-        </div>
-
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <MasterSelect
-            path="/masters/job-titles"
-            label="Job title"
-            value={form.job_title}
-            onChange={(name) => setForm({ ...form, job_title: name })}
-          />
-          <MasterSelect
-            path="/masters/departments"
-            label="Department"
-            value={form.department}
-            onChange={(name) => setForm({ ...form, department: name })}
-          />
         </div>
 
         <div className="mt-4 flex gap-2">
