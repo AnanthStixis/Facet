@@ -66,17 +66,17 @@ function ApprovalForm({
     >
       <p className="mb-3 text-sm text-ink-600 dark:text-ink-300">
         Approving provisions the workspace and emails a single-use invitation to the
-        first Client Admin. No password is ever sent by email.
+        first Admin. No password is ever sent by email.
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
         <Field
-          label="Client admin name"
+          label="Admin name"
           value={fullName}
           onChange={(event) => setFullName(event.target.value)}
           required
         />
         <Field
-          label="Client admin email"
+          label="Admin email"
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -339,14 +339,14 @@ function OrgFormModal({
           {!isEdit && (
             <>
               <Field
-                label="Client admin name"
+                label="Admin name"
                 value={form.admin_full_name}
                 onChange={(event) => setForm({ ...form, admin_full_name: event.target.value })}
                 error={fieldErrors.admin_full_name}
                 required
               />
               <Field
-                label="Client admin email"
+                label="Admin email"
                 type="email"
                 value={form.admin_email}
                 onChange={(event) => {
@@ -455,15 +455,15 @@ function InviteAdminSection({ org }: { org: OrgDetail }) {
     setFieldErrors({})
     try {
       await api.post(`/orgs/${org.id}/invite-admin`, { full_name: fullName, email })
-      toast.show('success', 'Client Admin invited', `An invitation was emailed to ${email}.`)
+      toast.show('success', 'Admin invited', `An invitation was emailed to ${email}.`)
       setFullName('')
       setEmail('')
     } catch (caught) {
       if (caught instanceof ApiError) {
-        toast.show('critical', 'Could not create Client Admin', caught.message)
+        toast.show('critical', 'Could not create Admin', caught.message)
         setFieldErrors(caught.fieldErrors())
       } else {
-        toast.show('critical', 'Could not create Client Admin', 'That did not work.')
+        toast.show('critical', 'Could not create Admin', 'That did not work.')
       }
     } finally {
       setBusy(false)
@@ -473,7 +473,7 @@ function InviteAdminSection({ org }: { org: OrgDetail }) {
   return (
     <div className="mt-4 border-t border-ink-200 pt-4 dark:border-ink-700">
       <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-        Add another Client Admin
+        Add another Admin
       </span>
       <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
         <Field
@@ -498,7 +498,7 @@ function InviteAdminSection({ org }: { org: OrgDetail }) {
           onClick={() => void submit()}
         >
           {busy && <Spinner />}
-          Create Client Admin
+          Create Admin
         </button>
       </div>
     </div>

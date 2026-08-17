@@ -91,6 +91,7 @@ class ContactCreateRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=150)
     company: str | None = Field(default=None, max_length=200)
     job_title: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=30)
     tags: list[str] = Field(default_factory=list, max_length=20)
 
 
@@ -99,6 +100,7 @@ class ContactUpdateRequest(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=150)
     company: str | None = Field(default=None, max_length=200)
     job_title: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=30)
     tags: list[str] | None = Field(default=None, max_length=20)
     unsubscribed: bool | None = None
 
@@ -109,6 +111,7 @@ class ContactDetail(ORMModel):
     full_name: str
     company: str | None
     job_title: str | None
+    phone: str | None
     tags: list[str]
     unsubscribed_at: datetime | None
     created_at: datetime

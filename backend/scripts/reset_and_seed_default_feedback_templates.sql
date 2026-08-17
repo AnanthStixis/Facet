@@ -2,8 +2,8 @@
 -- Default Feedback Template Reset & Seed
 -- ================================================================
 -- Purpose:
---   1. Remove all existing GLOBAL/default feedback templates.
---   2. Remove their template versions.
+--   1. Safely remove unused GLOBAL/default feedback templates.
+--   2. Preserve template versions referenced by review_cycles.
 --   3. Keep organization-specific templates untouched.
 --   4. Create one simple, ready-to-use template for each current
 --      feedback type:
@@ -32,20 +32,61 @@
 
 BEGIN;
 
+-- ================================================================
+-- 1. Safely remove existing GLOBAL/default templates
+-- ================================================================
+--
+-- Existing review_cycles can reference feedback_template_versions.
+-- PostgreSQL will not allow those versions to be deleted.
+--
+-- Therefore:
+--   1. Delete only global template versions that are NOT referenced
+--      by review_cycles.
+--   2. Delete global templates only when they have no remaining
+--      versions.
+--
+-- Existing review cycles and their historical template versions
+-- remain untouched.
+-- ================================================================
+
 -- ------------------------------------------------
--- 1. Remove existing global/default templates
+-- 1A. Delete unused global/default template versions
 -- ------------------------------------------------
 
-DELETE FROM feedback_template_versions
-WHERE template_id IN (
-    SELECT id
-    FROM feedback_templates
-    WHERE org_id IS NULL
+DELETE FROM feedback_template_versions ftv
+WHERE ftv.template_id IN (
+    SELECT ft.id
+    FROM feedback_templates ft
+    WHERE ft.org_id IS NULL
+)
+AND NOT EXISTS (
+    SELECT 1
+    FROM review_cycles rc
+    WHERE rc.template_version_id = ftv.id
 );
 
-DELETE FROM feedback_templates
-WHERE org_id IS NULL;
 
+-- ------------------------------------------------
+-- 1B. Delete global/default templates only when
+--     they have no remaining versions
+-- ------------------------------------------------
+
+DELETE FROM feedback_templates ft
+WHERE ft.org_id IS NULL
+AND NOT EXISTS (
+    SELECT 1
+    FROM feedback_template_versions ftv
+    WHERE ftv.template_id = ft.id
+);
+
+
+-- ------------------------------------------------
+-- 1C. Existing templates still referenced by
+--     review_cycles are intentionally retained.
+-- ------------------------------------------------
+
+-- The new templates below are inserted as separate
+-- global/default templates.
 
 -- ------------------------------------------------
 -- 2. Ensure the default category exists
@@ -854,6 +895,11 @@ ORDER BY ft.target_type, ft.name;
 COMMIT;
 
 -- Expected result:
---   6 templates
---   8 questions per template
+--   6 NEW global/default templates
+--   8 questions per NEW template
 --   1 category: Getting Started
+--
+-- NOTE:
+--   Older global templates that are still referenced by existing
+--   review_cycles may remain. This is intentional and preserves
+--   historical review-cycle integrity.

@@ -129,7 +129,7 @@ export function Dashboard() {
               state={{ from: 'dashboard' }}
             />
             <StatTile
-              label="Client admins"
+              label="Admins"
               value={data.platform.client_admins}
               sub="Across all tenants"
               icon={<IconUsers width={17} height={17} />}
@@ -162,7 +162,7 @@ export function Dashboard() {
               value={data.metrics.contacts}
               sub="Clients and prospects"
               icon={<IconSend width={17} height={17} />}
-              to="/campaigns"
+              to="/results"
               state={{ from: 'dashboard' }}
             />
           </>

@@ -1,13 +1,18 @@
 import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FloatingPanel, LookupFilter, SearchBox, useDismiss } from '../components/filters'
+import { FloatingPanel, SearchBox, useDismiss } from '../components/filters'
 import { IconChevronDown } from '../components/icons'
 import { useToast } from '../components/Toast'
 import { Banner, Card, Field, Skeleton, Spinner } from '../components/ui'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
 import type { Paged } from '../lib/types'
+
+// A chip list truncates once it grows past this many entries — picking 50
+// recipients (the case the client called out) should not turn the form into
+// a scroll of cards; the rest collapse behind one "N more" toggle.
+const CHIP_TRUNCATE_AT = 8
 
 export type FeedbackKind = 'client' | 'employee' | 'management' | 'product' | 'service' | 'proposal'
 
@@ -28,7 +33,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#B4633A',
     targetType: 'client',
     audience: 'external',
-    blurb: 'How a client rates the relationship as a whole.',
+    blurb: 'How a client rates the relationship as a whole — one round, sent straight to their inbox.',
     revieweeLabel: 'Recipients',
   },
   {
@@ -37,7 +42,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#3B82F6',
     targetType: 'employee',
     audience: 'internal',
-    blurb: 'A 360 round about one employee: self, manager and peers.',
+    blurb: 'A 360 round about one employee — self, manager, and peers all weigh in.',
     revieweeLabel: 'Who is this about',
   },
   {
@@ -46,7 +51,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#8B5CF6',
     targetType: 'manager',
     audience: 'internal',
-    blurb: 'Upward feedback on a manager, from their direct reports.',
+    blurb: 'Upward feedback on a manager, gathered from their direct reports.',
     revieweeLabel: 'Which manager',
   },
   {
@@ -55,7 +60,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#10B981',
     targetType: 'product',
     audience: 'external',
-    blurb: 'How clients or users rate a product or feature.',
+    blurb: 'How clients or users rate a product or feature they have actually used.',
     revieweeLabel: 'Recipients',
   },
   {
@@ -64,7 +69,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#F59E0B',
     targetType: 'service',
     audience: 'external',
-    blurb: 'How clients rate a delivered service or engagement.',
+    blurb: 'How clients rate a service or engagement once it has been delivered.',
     revieweeLabel: 'Recipients',
   },
   {
@@ -73,7 +78,9 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#EC4899',
     targetType: 'proposal',
     audience: 'external',
-    blurb: 'Prospect feedback on a submitted proposal or SOW.',
+    blurb:
+      'Prospect feedback on a submitted proposal or SOW — covering technical soundness, ' +
+      'how clearly it was communicated, and how realistic the delivery timeline is.',
     revieweeLabel: 'Recipients',
   },
 ]
@@ -221,6 +228,285 @@ function TemplateDetailPanel({ templateId }: { templateId: string | null }) {
   )
 }
 
+/** Selected-item chips, truncated past CHIP_TRUNCATE_AT with a "N more"
+ * toggle — picking 50+ people otherwise turns the form into a wall of
+ * cards. */
+function ChipList({
+  items,
+  onRemove,
+}: {
+  items: { id: string; label: string }[]
+  onRemove: (id: string) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const visible = expanded ? items : items.slice(0, CHIP_TRUNCATE_AT)
+  const hidden = items.length - visible.length
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {visible.map((item) => (
+        <span key={item.id} className="chip accent-soft-bg accent-text">
+          {item.label}
+          <button
+            type="button"
+            className="ml-1 opacity-70 hover:opacity-100"
+            aria-label={`Remove ${item.label}`}
+            onClick={() => onRemove(item.id)}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      {hidden > 0 && (
+        <button
+          type="button"
+          className="chip bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-ink-800 dark:text-ink-300"
+          onClick={() => setExpanded(true)}
+        >
+          +{hidden} more
+        </button>
+      )}
+      {expanded && items.length > CHIP_TRUNCATE_AT && (
+        <button
+          type="button"
+          className="chip bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-ink-800 dark:text-ink-300"
+          onClick={() => setExpanded(false)}
+        >
+          Show less
+        </button>
+      )}
+    </div>
+  )
+}
+
+interface PickableUser {
+  id: string
+  full_name: string
+  email: string
+  phone: string | null
+}
+
+/** "About" people picker: multi-select over the org's users, showing each
+ * person's email and mobile number both in the results list and on their
+ * selected chip — the client asked to see how to reach whoever a client
+ * round is actually about. */
+function UserPicker({
+  selected,
+  onChange,
+}: {
+  selected: PickableUser[]
+  onChange: (users: PickableUser[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [users, setUsers] = useState<PickableUser[]>([])
+  const [search, setSearch] = useState('')
+  const { triggerRef, panelRef } = useDismiss(open, () => setOpen(false))
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const query = new URLSearchParams({ page_size: '50' })
+    if (search) query.set('search', search)
+    let cancelled = false
+    api
+      .get<Paged<PickableUser>>(`/users?${query}`)
+      .then((page) => !cancelled && setUsers(page.items))
+      .catch(() => !cancelled && setUsers([]))
+    return () => {
+      cancelled = true
+    }
+  }, [search, open])
+
+  const toggle = (user: PickableUser) => {
+    onChange(
+      selected.some((existing) => existing.id === user.id)
+        ? selected.filter((existing) => existing.id !== user.id)
+        : [...selected, user],
+    )
+  }
+
+  return (
+    <div className="relative" ref={triggerRef}>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((state) => !state)}
+        className={clsx(
+          'field flex w-full items-center justify-between text-left',
+          selected.length > 0 && 'accent-border accent-text',
+        )}
+      >
+        <span className="truncate">
+          {selected.length === 0
+            ? 'Choose a person'
+            : `${selected.length} selected`}
+        </span>
+        <IconChevronDown className="shrink-0 opacity-60" />
+      </button>
+
+      {selected.length > 0 && (
+        <ChipList
+          items={selected.map((user) => ({
+            id: user.id,
+            label: `${user.full_name} · ${user.email}${user.phone ? ` · ${user.phone}` : ''}`,
+          }))}
+          onRemove={(id) => onChange(selected.filter((existing) => existing.id !== id))}
+        />
+      )}
+
+      <FloatingPanel anchorRef={buttonRef} panelRef={panelRef} open={open} className="w-96 p-2">
+        <div className="mb-2 px-1 pt-1">
+          <SearchBox value={search} onChange={setSearch} placeholder="Search people" />
+        </div>
+        <div className="max-h-64 overflow-y-auto">
+          {users.length === 0 ? (
+            <p className="px-3 py-5 text-center text-sm text-ink-500">No matches.</p>
+          ) : (
+            <ul>
+              {users.map((user) => {
+                const checked = selected.some((existing) => existing.id === user.id)
+                return (
+                  <li key={user.id}>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-ink-50 dark:hover:bg-ink-800/60">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[color:var(--accent)]"
+                        checked={checked}
+                        onChange={() => toggle(user)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-ink-800 dark:text-ink-100">
+                          {user.full_name}
+                        </span>
+                        <span className="block truncate text-2xs text-ink-400">
+                          {user.email}
+                          {user.phone ? ` · ${user.phone}` : ''}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </FloatingPanel>
+    </div>
+  )
+}
+
+interface CycleNameOption {
+  id: string
+  name: string
+}
+
+/** Feedback Cycle Name field: a text input with a "+" trigger next to it
+ * that opens a popup listing names from the Cycle Name master, searchable,
+ * with an inline "add new" — picking one fills the field, adding one both
+ * fills the field and adds it to the master for next time. */
+function CycleNamePicker({ value, onChange }: { value: string; onChange: (name: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [options, setOptions] = useState<CycleNameOption[]>([])
+  const [search, setSearch] = useState('')
+  const [busy, setBusy] = useState(false)
+  const { triggerRef, panelRef } = useDismiss(open, () => setOpen(false))
+  const anchorRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const query = new URLSearchParams({ page_size: '200' })
+    if (search) query.set('q', search)
+    api
+      .get<{ items: CycleNameOption[] }>(`/masters/cycle-names?${query}`)
+      .then((page) => setOptions(page.items))
+      .catch(() => setOptions([]))
+  }, [search, open])
+
+  const pick = (option: CycleNameOption) => {
+    onChange(option.name)
+    setOpen(false)
+  }
+
+  const addNew = async () => {
+    const name = search.trim()
+    if (!name) return
+    setBusy(true)
+    try {
+      const created = await api.post<CycleNameOption>('/masters/cycle-names', { name })
+      onChange(created.name)
+      setOpen(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const exactMatch = options.some((o) => o.name.toLowerCase() === search.trim().toLowerCase())
+
+  return (
+    <div className="relative" ref={triggerRef}>
+      <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+        Feedback Cycle Name
+      </span>
+      <div className="flex items-center gap-2">
+        <input
+          className="field flex-1"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          required
+        />
+        <button
+          ref={anchorRef}
+          type="button"
+          className="btn-secondary shrink-0 px-2.5 py-1.5 text-base leading-none"
+          aria-label="Choose from cycle names"
+          onClick={() => {
+            setSearch('')
+            setOpen((state) => !state)
+          }}
+        >
+          +
+        </button>
+      </div>
+
+      <FloatingPanel anchorRef={anchorRef} panelRef={panelRef} open={open} className="w-72 p-2">
+        <div className="mb-2 px-1 pt-1">
+          <SearchBox value={search} onChange={setSearch} placeholder="Search cycle names" />
+        </div>
+        <div className="max-h-56 overflow-y-auto">
+          {options.length === 0 ? (
+            <p className="px-3 py-3 text-center text-sm text-ink-500">No matches yet.</p>
+          ) : (
+            <ul>
+              {options.map((option) => (
+                <li key={option.id}>
+                  <button
+                    type="button"
+                    className="w-full rounded-md px-2.5 py-1.5 text-left text-sm text-ink-800 hover:bg-ink-100 dark:text-ink-100 dark:hover:bg-ink-800"
+                    onClick={() => pick(option)}
+                  >
+                    {option.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {search.trim() && !exactMatch && (
+          <button
+            type="button"
+            className="btn-secondary mt-2 w-full px-3 py-1.5 text-sm"
+            disabled={busy}
+            onClick={addNew}
+          >
+            {busy && <Spinner />}
+            Add "{search.trim()}"
+          </button>
+        )}
+      </FloatingPanel>
+    </div>
+  )
+}
+
 /** Recipients as a dropdown: a trigger button showing how many are selected,
  * opening a floating panel with search, inline "new contact", and a
  * checkbox per contact for multi-select — the same collapsed/expanded
@@ -297,24 +583,10 @@ function ContactPicker({
       </button>
 
       {selected.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {selected.map((id) => {
-            const contact = chosen[id]
-            return (
-              <span key={id} className="chip accent-soft-bg accent-text">
-                {contact?.full_name ?? '…'}
-                <button
-                  type="button"
-                  className="ml-1 opacity-70 hover:opacity-100"
-                  aria-label={`Remove ${contact?.full_name ?? 'recipient'}`}
-                  onClick={() => onChange(selected.filter((existing) => existing !== id))}
-                >
-                  ×
-                </button>
-              </span>
-            )
-          })}
-        </div>
+        <ChipList
+          items={selected.map((id) => ({ id, label: chosen[id]?.full_name ?? '…' }))}
+          onRemove={(id) => onChange(selected.filter((existing) => existing !== id))}
+        />
       )}
 
       <FloatingPanel anchorRef={buttonRef} panelRef={panelRef} open={open} className="w-80 p-2">
@@ -444,13 +716,26 @@ export function CreateFeedback() {
   const [templateId, setTemplateId] = useState('')
   const [name, setName] = useState('')
   const [closesAt, setClosesAt] = useState('')
-  const [revieweeId, setRevieweeId] = useState<string | null>(null)
-  const [aboutUserId, setAboutUserId] = useState<string | null>(null)
+  const [revieweeUser, setRevieweeUser] = useState<PickableUser | null>(null)
+  const revieweeId = revieweeUser?.id ?? null
+  const [aboutUsers, setAboutUsers] = useState<PickableUser[]>([])
   const [targetLabel, setTargetLabel] = useState('')
   const [contactIds, setContactIds] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nameTouched, setNameTouched] = useState(false)
+
+  // Clicking a type in the nav (or the in-page tab strip) only changes the
+  // `kind` query param on this same route — React Router does not remount
+  // the page for that, so the kind shown here has to track the URL rather
+  // than only being read once at mount.
+  useEffect(() => {
+    const fromUrl = params.get('kind') as FeedbackKind | null
+    if (fromUrl && FEEDBACK_TYPES.some((t) => t.kind === fromUrl) && fromUrl !== kind) {
+      setKind(fromUrl)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params])
 
   useEffect(() => {
     setParams((current) => {
@@ -459,8 +744,8 @@ export function CreateFeedback() {
       return next
     })
     setTemplateId('')
-    setRevieweeId(null)
-    setAboutUserId(null)
+    setRevieweeUser(null)
+    setAboutUsers([])
     setTargetLabel('')
     setContactIds([])
     setNameTouched(false)
@@ -496,33 +781,42 @@ export function CreateFeedback() {
   const canSubmit = (() => {
     if (!templateId || !name.trim()) return false
     if (kind === 'employee' || kind === 'management') return Boolean(revieweeId)
-    if (kind === 'client') return Boolean(aboutUserId || targetLabel.trim()) && contactIds.length > 0
+    if (kind === 'client') return (aboutUsers.length > 0 || targetLabel.trim()) && contactIds.length > 0
     return Boolean(targetLabel.trim()) && contactIds.length > 0
   })()
 
   const submit = async () => {
     setBusy(true)
     setError(null)
+    const basePayload = {
+      kind,
+      template_id: templateId,
+      closes_at: closesAt ? new Date(closesAt).toISOString() : null,
+      reviewee_user_id: kind === 'employee' || kind === 'management' ? revieweeId : null,
+      target_label:
+        kind === 'client' || kind === 'product' || kind === 'service' || kind === 'proposal'
+          ? targetLabel || null
+          : null,
+      contact_ids: config.audience === 'external' ? contactIds : [],
+    }
+    // Client feedback "about" multiple people creates one cycle per person
+    // (each gets their own results), otherwise it's a single create call.
+    const aboutTargets = kind === 'client' && aboutUsers.length > 0 ? aboutUsers : [null]
     try {
-      const result = await api.post<CreateResult>('/feedback', {
-        kind,
-        template_id: templateId,
-        name: name.trim(),
-        closes_at: closesAt ? new Date(closesAt).toISOString() : null,
-        reviewee_user_id: kind === 'employee' || kind === 'management' ? revieweeId : null,
-        about_user_id: kind === 'client' ? aboutUserId : null,
-        target_label:
-          kind === 'client' || kind === 'product' || kind === 'service' || kind === 'proposal'
-            ? targetLabel || null
-            : null,
-        contact_ids: config.audience === 'external' ? contactIds : [],
-      })
+      const results = await Promise.all(
+        aboutTargets.map((user) =>
+          api.post<CreateResult>('/feedback', {
+            ...basePayload,
+            name: aboutTargets.length > 1 ? `${name.trim()} — ${user!.full_name}` : name.trim(),
+            about_user_id: user?.id ?? null,
+          }),
+        ),
+      )
+      const warnings = results.flatMap((r) => r.warnings)
       toast.show(
         'success',
         'Feedback sent',
-        result.warnings.length
-          ? `'${name}' is on its way. ${result.warnings.join(' ')}`
-          : `'${name}' is on its way.`,
+        warnings.length ? `'${name}' is on its way. ${warnings.join(' ')}` : `'${name}' is on its way.`,
       )
       navigate('/results')
     } catch (caught) {
@@ -570,49 +864,64 @@ export function CreateFeedback() {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
         <div className="space-y-5">
-          <Card title="Template" hint="The questionnaire this round is built from.">
-            <label className="block">
-              <select
-                className="field"
-                value={templateId}
-                onChange={(event) => setTemplateId(event.target.value)}
-              >
-                <option value="">Choose a template</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-              {templates.length === 0 && (
-                <span className="mt-1.5 block text-xs text-caution">
-                  No published template for this feedback type yet — ask an admin to publish one
-                  under Templates.
+          <Card title="Template Details">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                  Template
                 </span>
-              )}
-              {selectedTemplate && (
-                <span className="mt-1.5 block text-xs text-ink-400">
-                  {selectedTemplate.is_anonymous
-                    ? 'This template collects anonymous responses.'
-                    : 'Responses are not anonymous.'}
-                </span>
-              )}
-            </label>
+                <select
+                  className="field"
+                  value={templateId}
+                  onChange={(event) => setTemplateId(event.target.value)}
+                >
+                  <option value="">Choose a template</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                {templates.length === 0 && (
+                  <span className="mt-1.5 block text-xs text-caution">
+                    No published template for this feedback type yet — ask an admin to publish one
+                    under Templates.
+                  </span>
+                )}
+                {selectedTemplate && (
+                  <span className="mt-1.5 block text-xs text-ink-400">
+                    {selectedTemplate.is_anonymous
+                      ? 'This template collects anonymous responses.'
+                      : 'Responses are not anonymous.'}
+                  </span>
+                )}
+              </label>
+
+              <CycleNamePicker
+                value={name}
+                onChange={(value) => {
+                  setNameTouched(true)
+                  setName(value)
+                }}
+              />
+
+              <Field
+                label="Closes on (optional)"
+                type="date"
+                value={closesAt}
+                onChange={(event) => setClosesAt(event.target.value)}
+              />
+            </div>
           </Card>
 
-          <Card title="Who's involved" hint="Who this round is about, and who it goes to.">
+          <Card title="Who's involved">
             <div className="space-y-5">
               {kind === 'client' && (
                 <div>
                   <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
                     About (optional)
                   </span>
-                  <LookupFilter
-                    entity="users"
-                    label="Choose a person"
-                    selected={aboutUserId ? [aboutUserId] : []}
-                    onChange={(ids) => setAboutUserId(ids[ids.length - 1] ?? null)}
-                  />
+                  <UserPicker selected={aboutUsers} onChange={setAboutUsers} />
                 </div>
               )}
 
@@ -621,23 +930,21 @@ export function CreateFeedback() {
                   <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
                     {config.revieweeLabel}
                   </span>
-                  <LookupFilter
-                    entity="users"
-                    label={kind === 'management' ? 'Choose a manager' : 'Choose a person'}
-                    selected={revieweeId ? [revieweeId] : []}
-                    onChange={(ids) => setRevieweeId(ids[ids.length - 1] ?? null)}
+                  <UserPicker
+                    selected={revieweeUser ? [revieweeUser] : []}
+                    onChange={(picked) => setRevieweeUser(picked[picked.length - 1] ?? null)}
                   />
-                  <span className="mt-1.5 block text-xs text-ink-400">
-                    {kind === 'employee'
-                      ? 'Reviewers are generated from the org chart: self, manager and peers.'
-                      : 'Their direct reports will be asked to review them.'}
-                  </span>
+                  {kind === 'management' && (
+                    <span className="mt-1.5 block text-xs text-ink-400">
+                      Their direct reports will be asked to review them.
+                    </span>
+                  )}
                 </div>
               )}
 
               {(kind === 'client' || kind === 'product' || kind === 'service' || kind === 'proposal') && (
                 <Field
-                  label={kind === 'client' ? "What's this about (if not a specific person)" : "What's this about"}
+                  label={kind === 'client' ? 'Description' : "What's this about"}
                   value={targetLabel}
                   onChange={(event) => setTargetLabel(event.target.value)}
                   placeholder={
@@ -660,27 +967,6 @@ export function CreateFeedback() {
                   <ContactPicker selected={contactIds} onChange={setContactIds} />
                 </div>
               )}
-            </div>
-          </Card>
-
-          <Card title="Schedule" hint="Name this round and, optionally, give it a deadline.">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Campaign name"
-                value={name}
-                onChange={(event) => {
-                  setNameTouched(true)
-                  setName(event.target.value)
-                }}
-                required
-              />
-
-              <Field
-                label="Closes on (optional)"
-                type="date"
-                value={closesAt}
-                onChange={(event) => setClosesAt(event.target.value)}
-              />
             </div>
           </Card>
 

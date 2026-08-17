@@ -235,7 +235,7 @@ async def create_campaign(
     await audit.record(
         session,
         action=AuditAction.CAMPAIGN_CREATED,
-        summary=f"{actor.user.full_name} created the campaign '{cycle.name}'",
+        summary=f"{actor.user.full_name} created the feedback cycle '{cycle.name}'",
         org_id=actor.org_id,
         actor=actor.user,
         target_type="review_cycle",
@@ -322,7 +322,7 @@ async def open_campaign(
     await audit.record(
         session,
         action=AuditAction.CAMPAIGN_LAUNCHED,
-        summary=f"{actor.user.full_name} opened the campaign '{cycle.name}'",
+        summary=f"{actor.user.full_name} opened the feedback cycle '{cycle.name}'",
         org_id=actor.org_id,
         actor=actor.user,
         target_type="review_cycle",
@@ -464,7 +464,7 @@ async def delete_campaign(
     await audit.record(
         session,
         action=AuditAction.CAMPAIGN_DELETED,
-        summary=f"{actor.user.full_name} deleted the draft campaign '{name}'",
+        summary=f"{actor.user.full_name} deleted the draft feedback cycle '{name}'",
         org_id=actor.org_id,
         actor=actor.user,
         target_type="review_cycle",
@@ -541,6 +541,8 @@ async def revoke_link(
 
     recipient.status = RecipientStatus.REVOKED
     recipient.revoked_at = datetime.now(UTC)
+    await session.flush()
+    await campaign_service.maybe_auto_close(session, cycle)
 
     await audit.record(
         session,
@@ -622,6 +624,7 @@ async def create_contact(
         full_name=payload.full_name.strip(),
         company=payload.company,
         job_title=payload.job_title,
+        phone=payload.phone,
         tags=payload.tags,
     )
     session.add(contact)
@@ -661,6 +664,8 @@ async def update_contact(
         contact.company = payload.company or None
     if payload.job_title is not None:
         contact.job_title = payload.job_title or None
+    if payload.phone is not None:
+        contact.phone = payload.phone or None
     if payload.tags is not None:
         contact.tags = payload.tags
     if payload.unsubscribed is not None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -240,6 +240,27 @@ async def cycle_progress(
         "declined": counts.get(str(AssignmentStatus.DECLINED), 0),
         "completion_pct": round(100 * submitted / total) if total else 0,
     }
+
+
+async def maybe_auto_close(session: AsyncSession, cycle: ReviewCycle) -> bool:
+    """Close an open internal cycle once every reviewer has either submitted
+    or declined — no one left who could still respond. Returns True if it
+    closed the cycle.
+
+    Deadline-based closing already happens in the `expire` scheduled task;
+    this is the "everyone's done, don't make them wait for the deadline"
+    counterpart, run inline right after a submission is recorded.
+    """
+    if cycle.status != CycleStatus.OPEN:
+        return False
+    progress = await cycle_progress(session, cycle.id)
+    if progress["total"] == 0:
+        return False
+    if progress["pending"] or progress["in_progress"]:
+        return False
+    cycle.status = CycleStatus.CLOSED
+    cycle.closed_at = datetime.now(UTC)
+    return True
 
 
 async def response_counts_by_target(

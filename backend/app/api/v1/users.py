@@ -231,6 +231,7 @@ async def invite_user(
         role=payload.role,
         job_title=payload.job_title,
         department=payload.department,
+        phone=payload.phone,
         manager_id=payload.manager_id,
         status=UserStatus.INVITED,
     )
@@ -495,6 +496,8 @@ async def update_user(
         user.job_title = payload.job_title
     if payload.department is not None:
         user.department = payload.department
+    if payload.phone is not None:
+        user.phone = payload.phone
     if payload.manager_id is not None:
         if payload.manager_id == user.id:
             raise ValidationFailed("A person cannot be their own manager.")

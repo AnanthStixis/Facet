@@ -9,6 +9,7 @@ import { IconEdit, IconUsers } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, downloadFile, uploadFile } from '../lib/api'
+import { ROLE_LABEL } from '../lib/types'
 import type { Paged, Role, User } from '../lib/types'
 import { useAuth } from '../store/auth'
 
@@ -264,8 +265,125 @@ function BulkSendPanel({
   )
 }
 
+interface MasterOption {
+  id: string
+  name: string
+}
+
+/** Dropdown backed by a master list (Department / Job Title), with an inline
+ * "Add new" that creates the master row and selects it — same idempotent
+ * find-or-select flow as the cycle-name picker on Create Feedback, just as a
+ * plain select instead of a search popup since these lists are usually
+ * short. */
+function MasterSelect({
+  path,
+  label,
+  value,
+  onChange,
+}: {
+  path: string
+  label: string
+  value: string
+  onChange: (name: string) => void
+}) {
+  const [options, setOptions] = useState<MasterOption[]>([])
+  const [adding, setAdding] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const load = () => {
+    api
+      .get<{ items: MasterOption[] }>(`${path}?page_size=200`)
+      .then((page) => setOptions(page.items))
+      .catch(() => setOptions([]))
+  }
+
+  useEffect(load, [path])
+
+  const addNew = async () => {
+    const name = newName.trim()
+    if (!name) return
+    setBusy(true)
+    try {
+      const created = await api.post<MasterOption>(path, { name })
+      setOptions((state) =>
+        state.some((o) => o.id === created.id)
+          ? state
+          : [...state, created].sort((a, b) => a.name.localeCompare(b.name)),
+      )
+      onChange(created.name)
+      setNewName('')
+      setAdding(false)
+    } catch {
+      // Duplicate name racing another tab — just pick it up from a reload.
+      load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">{label}</span>
+      {adding ? (
+        <div className="flex items-center gap-2">
+          <input
+            className="field flex-1"
+            autoFocus
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            placeholder={`New ${label.toLowerCase()}`}
+          />
+          <button
+            type="button"
+            className="btn-primary shrink-0 px-2.5 py-1.5 text-sm"
+            disabled={busy || !newName.trim()}
+            onClick={addNew}
+          >
+            {busy && <Spinner />}
+            Add
+          </button>
+          <button
+            type="button"
+            className="btn-secondary shrink-0 px-2.5 py-1.5 text-sm"
+            onClick={() => {
+              setAdding(false)
+              setNewName('')
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <select
+            className="field flex-1"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+          >
+            <option value="">Not set</option>
+            {options.map((option) => (
+              <option key={option.id} value={option.name}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn-secondary shrink-0 px-2.5 py-1.5 text-base leading-none"
+            aria-label={`Add a new ${label.toLowerCase()}`}
+            onClick={() => setAdding(true)}
+          >
+            +
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const ROLES: { value: Role; label: string; hint: string }[] = [
-  { value: 'client_admin', label: 'Client admin', hint: 'Full control of this workspace' },
+  { value: 'client_admin', label: 'Admin', hint: 'Full control of this workspace' },
   { value: 'manager', label: 'Manager', hint: 'Runs campaigns, reviews their team' },
   { value: 'employee', label: 'Employee', hint: 'Gives and receives feedback' },
 ]
@@ -283,6 +401,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
     manager_id: null as string | null,
     job_title: '',
     department: '',
+    phone: '',
   })
   const [busy, setBusy] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -306,6 +425,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
         manager_id: isOrgChartRole ? form.manager_id : null,
         job_title: form.job_title || null,
         department: form.department || null,
+        phone: form.phone || null,
       })
       onInvited(result)
       setOpen(false)
@@ -316,6 +436,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
         manager_id: null,
         job_title: '',
         department: '',
+        phone: '',
       })
     } catch (caught) {
       if (caught instanceof ApiError) {
@@ -330,7 +451,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
   }
 
   return (
-    <Card className="mb-5" title="Create" hint="They set their own password from a single-use link that expires in 72 hours.">
+    <Card className="mb-5" title="Create">
       <form onSubmit={submit}>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
@@ -347,6 +468,12 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
             onChange={(event) => setForm({ ...form, email: event.target.value })}
             error={fieldErrors.email}
             required
+          />
+          <Field
+            label="Phone (optional)"
+            type="tel"
+            value={form.phone}
+            onChange={(event) => setForm({ ...form, phone: event.target.value })}
           />
         </div>
 
@@ -388,15 +515,17 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
         </div>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Field
+          <MasterSelect
+            path="/masters/job-titles"
             label="Job title"
             value={form.job_title}
-            onChange={(event) => setForm({ ...form, job_title: event.target.value })}
+            onChange={(name) => setForm({ ...form, job_title: name })}
           />
-          <Field
+          <MasterSelect
+            path="/masters/departments"
             label="Department"
             value={form.department}
-            onChange={(event) => setForm({ ...form, department: event.target.value })}
+            onChange={(name) => setForm({ ...form, department: name })}
           />
         </div>
 
@@ -434,6 +563,7 @@ function EditUserForm({
     full_name: person.full_name,
     job_title: person.job_title ?? '',
     department: person.department ?? '',
+    phone: person.phone ?? '',
     role: person.role,
     manager_id: person.manager_id ?? null,
   })
@@ -472,6 +602,7 @@ function EditUserForm({
         full_name: form.full_name,
         job_title: form.job_title || null,
         department: form.department || null,
+        phone: form.phone || null,
         role: canChangeRole && form.role !== person.role ? form.role : undefined,
         manager_id: form.manager_id ?? undefined,
       })
@@ -489,7 +620,7 @@ function EditUserForm({
   }
 
   return (
-    <Modal title={person.full_name} hint="Everything about this person, in one place." onClose={onCancel}>
+    <Modal title={person.full_name} onClose={onCancel}>
       <form onSubmit={submit}>
           <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-500 dark:text-ink-400">
             <span>{person.email}</span>
@@ -511,15 +642,23 @@ function EditUserForm({
               error={fieldErrors.full_name}
               required
             />
-            <Field
+            <MasterSelect
+              path="/masters/job-titles"
               label="Job title"
               value={form.job_title}
-              onChange={(event) => setForm({ ...form, job_title: event.target.value })}
+              onChange={(name) => setForm({ ...form, job_title: name })}
             />
-            <Field
+            <MasterSelect
+              path="/masters/departments"
               label="Department"
               value={form.department}
-              onChange={(event) => setForm({ ...form, department: event.target.value })}
+              onChange={(name) => setForm({ ...form, department: name })}
+            />
+            <Field
+              label="Phone"
+              type="tel"
+              value={form.phone}
+              onChange={(event) => setForm({ ...form, phone: event.target.value })}
             />
             {canChangeRole ? (
               <label className="block">
@@ -810,15 +949,12 @@ export function People() {
             <span className="flex flex-wrap items-start gap-2">
               <InvitePanel
                 onInvited={(result) => {
-                  // Development convenience only; the API withholds this in production,
-                  // where the link is a bearer credential.
-                  const linkSuffix = result.invite_url ? ` ${result.invite_url}` : ''
                   toast.show(
                     'success',
                     'Invitation sent',
                     result.email_sent
-                      ? `Invitation sent to ${result.user.email}.${linkSuffix}`
-                      : `${result.user.email} was created, but the invitation email could not be sent.${linkSuffix}`,
+                      ? `Invitation sent to ${result.user.email}.`
+                      : `${result.user.email} was created, but the invitation email could not be sent.`,
                   )
                   load()
                 }}
@@ -989,7 +1125,7 @@ export function People() {
                                   : selectedIds.filter((id) => !selectableIds.includes(id)),
                               )
                             }
-                            aria-label="Select all Client Admins on this page"
+                            aria-label="Select all Admins on this page"
                           />
                         ) : null
                       })()}
@@ -1031,10 +1167,13 @@ export function People() {
                       <span className="block font-medium text-ink-900 dark:text-ink-50">
                         {person.full_name}
                       </span>
-                      <span className="block text-2xs text-ink-400">{person.email}</span>
+                      <span className="block text-2xs text-ink-400">
+                        {person.email}
+                        {person.phone ? ` · ${person.phone}` : ''}
+                      </span>
                     </td>
                     <td>
-                      <Chip value={person.role} />
+                      <Chip value={person.role}>{ROLE_LABEL[person.role]}</Chip>
                     </td>
                     {isPlatform && (
                       <td className="text-ink-600 dark:text-ink-300">

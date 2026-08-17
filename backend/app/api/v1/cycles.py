@@ -537,6 +537,8 @@ async def submit_response(
 
     assignment.status = AssignmentStatus.SUBMITTED
     assignment.submitted_at = datetime.now(UTC)
+    await session.flush()
+    await cycle_service.maybe_auto_close(session, cycle)
 
     # The audit entry deliberately records *that* feedback was submitted and
     # never what it said or about whom, so the audit trail cannot be used to
@@ -585,6 +587,11 @@ async def decline_assignment(
 
     assignment.status = AssignmentStatus.DECLINED
     assignment.declined_reason = payload.reason
+    await session.flush()
+    cycle = (
+        await session.execute(select(ReviewCycle).where(ReviewCycle.id == assignment.cycle_id))
+    ).scalar_one()
+    await cycle_service.maybe_auto_close(session, cycle)
     await session.commit()
     return MessageResponse(message="Noted. You will not be reminded about this again.")
 

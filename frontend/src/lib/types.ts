@@ -1,5 +1,15 @@
 export type Role = 'super_admin' | 'client_admin' | 'manager' | 'employee'
 
+// Display-only rename: the stored role value stays `client_admin` (renaming
+// it would mean a migration touching every user row for no real benefit) —
+// only what's shown in the UI changes, from "Client Admin" to "Admin".
+export const ROLE_LABEL: Record<Role, string> = {
+  super_admin: 'Super Admin',
+  client_admin: 'Admin',
+  manager: 'Manager',
+  employee: 'Employee',
+}
+
 export interface Branding {
   accent_color: string
   logo_url: string | null
@@ -20,6 +30,7 @@ export interface User {
   full_name: string
   job_title?: string | null
   department?: string | null
+  phone?: string | null
   org_name?: string | null
   role: Role
   status: string

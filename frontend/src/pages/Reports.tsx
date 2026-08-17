@@ -53,7 +53,6 @@ export function Reports() {
         title="Reports"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Every report can be viewed on screen and downloaded as CSV, Excel, or a branded PDF — all three produced from the same query, so a file can never disagree with the screen."
       />
 
       {error && (

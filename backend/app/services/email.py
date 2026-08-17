@@ -185,7 +185,7 @@ def render_preview(
                 pass
         heading = "Jordan, how did we do?"
         body_html = (
-            f"{escape(branding.org_name)} would value your view on "
+            f"{escape(branding.org_name)} would value your review on "
             f"<b>{escape(subject_label)}</b>. It takes about two minutes, and "
             f"there is no account to create — the link below signs you straight "
             f"in.<br><br>This link is personal to you, works once, and expires "
@@ -227,7 +227,7 @@ async def send_feedback_request(
         subject=subject,
         heading=f"{first_name}, how did we do?",
         body_html=(
-            f"{escape(org_name)} would value your view on "
+            f"{escape(org_name)} would value your review on "
             f"<b>{escape(subject_label)}</b>. It takes about two minutes, and "
             f"there is no account to create — the link below signs you straight "
             f"in.<br><br>"
@@ -235,7 +235,7 @@ async def send_feedback_request(
             f"{escape(deadline)}."
         ),
         body_text=(
-            f"{org_name} would value your view on {subject_label}. It takes about "
+            f"{org_name} would value your review on {subject_label}. It takes about "
             f"two minutes and there is no account to create. This link is personal "
             f"to you, works once, and expires on {deadline}."
         ),
@@ -346,7 +346,7 @@ async def send_proposal_feedback_request(
     first_name = full_name.split()[0] if full_name.strip() else "there"
     return await send(
         to=to,
-        subject=f"Your view on our proposal: {proposal_title}",
+        subject=f"Your review on our proposal: {proposal_title}",
         heading=f"{first_name}, how was our proposal?",
         body_html=(
             f"We recently sent you <b>{escape(proposal_title)}</b> "
@@ -441,4 +441,98 @@ async def send_password_reset(
         ),
         branding=branding,
         cta=("Reset your password", reset_url),
+    )
+
+
+async def send_thank_you(
+    *,
+    to: str,
+    full_name: str,
+    org_name: str,
+    subject_label: str,
+    branding: Branding,
+) -> bool:
+    """Sent to an external respondent right after they submit.
+
+    No link, no call to action — just a close of the loop. Someone who just
+    gave two minutes of honest feedback and hears nothing again reasonably
+    assumes it went nowhere; this is the one message that tells them
+    otherwise.
+    """
+    first_name = full_name.split()[0] if full_name.strip() else "there"
+    return await send(
+        to=to,
+        subject=f"Thank you for your feedback on {subject_label}",
+        heading=f"Thank you, {first_name}",
+        body_html=(
+            f"Your feedback on <b>{escape(subject_label)}</b> has been received. "
+            f"We appreciate you taking the time to share it with "
+            f"{escape(org_name)}."
+        ),
+        body_text=(
+            f"Your feedback on {subject_label} has been received. We appreciate "
+            f"you taking the time to share it with {org_name}."
+        ),
+        branding=branding,
+    )
+
+
+async def send_response_notification(
+    *,
+    to: str,
+    org_name: str,
+    subject_label: str,
+    respondent_name: str | None,
+    cycle_name: str,
+    answers: list[tuple[str, str]],
+    overall_score: float | None,
+    comment: str | None,
+    branding: Branding,
+) -> bool:
+    """BCC copy sent to a configured internal address when an external
+    response comes in, carrying the full answer content itself — this is
+    read by someone who explicitly does not want to open the app for every
+    response, so a link to "sign in and look" defeats the point.
+    `respondent_name` is omitted entirely for an anonymous round — this
+    notification must not become a side channel that de-anonymises a
+    response the product otherwise protects. The answers themselves are not
+    identity-revealing and are always included.
+    """
+    who = escape(respondent_name) if respondent_name else "Someone"
+    who_text = respondent_name if respondent_name else "Someone"
+
+    rows_html = "".join(
+        f"<tr><td style='padding:4px 12px 4px 0;color:#555;'>{escape(question)}</td>"
+        f"<td style='padding:4px 0;font-weight:600;'>{escape(answer)}</td></tr>"
+        for question, answer in answers
+    )
+    rows_text = "\n".join(f"- {question}: {answer}" for question, answer in answers)
+
+    overall_html = (
+        f"<p style='margin:12px 0 4px;'><b>Overall rating:</b> {overall_score:g} / 5</p>"
+        if overall_score is not None
+        else ""
+    )
+    overall_text = f"\nOverall rating: {overall_score:g} / 5" if overall_score is not None else ""
+
+    comment_html = (
+        f"<p style='margin:12px 0 4px;'><b>Comment:</b><br>{escape(comment)}</p>" if comment else ""
+    )
+    comment_text = f"\nComment: {comment}" if comment else ""
+
+    return await send(
+        to=to,
+        subject=f"New response: {subject_label} ({cycle_name})",
+        heading="A new response has come in",
+        body_html=(
+            f"{who} responded to <b>{escape(cycle_name)}</b>, about "
+            f"<b>{escape(subject_label)}</b>.<br><br>"
+            f"<table style='border-collapse:collapse;width:100%;'>{rows_html}</table>"
+            f"{overall_html}{comment_html}"
+        ),
+        body_text=(
+            f"{who_text} responded to {cycle_name}, about {subject_label}.\n\n"
+            f"{rows_text}{overall_text}{comment_text}"
+        ),
+        branding=branding,
     )

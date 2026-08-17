@@ -47,6 +47,8 @@ from app.models.organization import Organization
 from app.schemas.common import MessageResponse
 from app.schemas.cycle import SubmitResponseRequest
 from app.services import audit
+from app.services import email as email_service
+from app.services.campaigns import maybe_auto_close
 from app.services.forms import form_payload, validate_answers, validate_definition
 
 log = get_logger("facet.public")
@@ -296,6 +298,8 @@ async def submit_link(
     recipient.status = RecipientStatus.SUBMITTED
     recipient.submitted_at = now
     recipient.token_hash = hash_token(uuid.uuid4().hex + uuid.uuid4().hex)
+    await session.flush()
+    await maybe_auto_close(session, cycle)
 
     await audit.record(
         session,
@@ -308,7 +312,76 @@ async def submit_link(
         context={"anonymous": cycle.is_anonymous, "batch": recipient.batch},
         request=request,
     )
+    # These reads must happen before commit: `bind_tenant` sets the tenant
+    # GUC with `SET LOCAL`, which only lives for the current transaction.
+    # Reading Contact/FeedbackTarget/Organization (all RLS-protected) after
+    # `commit()` would run in a new, unbound transaction and silently return
+    # nothing — exactly the bug that made this block never actually send.
+    contact = (
+        await session.execute(select(Contact).where(Contact.id == link.contact_id))
+    ).scalar_one()
+    target = (
+        await session.execute(
+            select(FeedbackTarget).where(FeedbackTarget.id == link.target_id)
+        )
+    ).scalar_one()
+    org = (
+        await session.execute(select(Organization).where(Organization.id == link.org_id))
+    ).scalar_one()
+
+    # The BCC recipient reads this instead of opening the app, so it carries
+    # the actual answers, not a link to go look.
+    answer_rows: list[tuple[str, str]] = []
+    for question in form.questions:
+        value = scored.answers.get(question.key)
+        if value is None:
+            continue
+        if question.type == "scale":
+            display = f"{value} / {form.scale_max}"
+        elif question.type == "boolean":
+            display = "Yes" if value else "No"
+        else:
+            display = str(value)
+        answer_rows.append((question.text, display))
+
+    branding = email_service.Branding(
+        org_name=org.name,
+        accent_color=org.branding.accent_color if org.branding else "#B4633A",
+        logo_url=(
+            f"{settings.public_api_url}/api/v1/orgs/{org.id}/logo"
+            if org.branding and org.branding.logo_path
+            else None
+        ),
+        footer_note=org.branding.email_footer_note if org.branding else None,
+    )
+
     await session.commit()
+
+    # Best-effort from here: the response is already committed, so a mail
+    # failure here must never surface as an error to the respondent — they
+    # already got the "thank you" screen and that's the real contract.
+    try:
+        await email_service.send_thank_you(
+            to=contact.email,
+            full_name=contact.full_name,
+            org_name=org.name,
+            subject_label=target.label,
+            branding=branding,
+        )
+        if settings.diagnostics_bcc_email:
+            await email_service.send_response_notification(
+                to=settings.diagnostics_bcc_email,
+                org_name=org.name,
+                subject_label=target.label,
+                respondent_name=None if cycle.is_anonymous else contact.full_name,
+                cycle_name=cycle.name,
+                answers=answer_rows,
+                overall_score=scored.overall_score,
+                comment=scored.comment,
+                branding=branding,
+            )
+    except Exception:  # noqa: BLE001 — never let a mail failure look like a broken submission
+        log.warning("post_submit_email_failed", cycle_id=str(cycle.id))
 
     return MessageResponse(
         message="Thank you. Your feedback has been received."

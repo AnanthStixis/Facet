@@ -131,9 +131,14 @@ async def lookup(
 async def static_options(entity: str, actor: CurrentUser) -> list[dict]:
     """Enumerations for filter dropdowns, kept server-side as one source of truth."""
     if entity == "audit_actions":
+        # Display-only rename: the stored action codes (audit_logs.action,
+        # e.g. "campaign.created") are unchanged — renaming those would mean
+        # a migration rewriting history for no real benefit. Only the label
+        # shown in the Audit trail's group filter changes.
+        group_labels = {"campaign": "Feedback Cycle"}
         return [
             {"value": action.value, "label": action.value.split(".")[-1].replace("_", " ").title(),
-             "group": action.value.split(".")[0].title()}
+             "group": group_labels.get(action.value.split(".")[0], action.value.split(".")[0].title())}
             for action in AuditAction
         ]
     if entity == "severities":

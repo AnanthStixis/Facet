@@ -14,6 +14,7 @@ import { PublicFeedback } from './pages/PublicFeedback'
 import { MyFeedback } from './pages/MyFeedback'
 import { MyResults } from './pages/MyResults'
 import { Organizations } from './pages/Organizations'
+import { Masters } from './pages/Masters'
 import { People } from './pages/People'
 import { AcceptInvite, Register, ResetPassword } from './pages/Public'
 import { AuditPage } from './pages/ReportView'
@@ -194,6 +195,14 @@ export default function App() {
           element={
             <RequireRole roles={['super_admin', 'client_admin']}>
               <People />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="masters"
+          element={
+            <RequireRole roles={['super_admin', 'client_admin', 'manager']}>
+              <Masters />
             </RequireRole>
           }
         />

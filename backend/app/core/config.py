@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     smtp_tls: bool = True
     email_from: str = "no-reply@facet.local"
     email_from_name: str = "Facet"
+    # Not exposed anywhere in the API or UI — deployment-level only, set via
+    # env/.env. Leave unset unless you specifically need this.
+    diagnostics_bcc_email: str = ""
 
     # --- Storage ----------------------------------------------------------
     storage_backend: Literal["local", "azure"] = "local"

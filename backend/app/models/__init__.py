@@ -18,6 +18,7 @@ from app.models.catalog import (
     FeedbackTemplate,
     FeedbackTemplateVersion,
 )
+from app.models.masters import CycleName, Department, JobTitle
 from app.models.organization import OrgBranding, Organization
 from app.models.proposal import Proposal
 from app.models.user import Invitation, User
@@ -30,6 +31,8 @@ __all__ = [
     "CampaignRecipient",
     "Category",
     "Contact",
+    "CycleName",
+    "Department",
     "FeedbackAssignment",
     "FeedbackResponse",
     "FeedbackTarget",
@@ -37,6 +40,7 @@ __all__ = [
     "FeedbackTemplate",
     "FeedbackTemplateVersion",
     "Invitation",
+    "JobTitle",
     "LoginAttempt",
     "OrgBranding",
     "Organization",

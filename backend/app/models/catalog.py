@@ -272,6 +272,7 @@ class Contact(UUIDPrimaryKey, Timestamped, Base):
     full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     company: Mapped[str | None] = mapped_column(String(200))
     job_title: Mapped[str | None] = mapped_column(String(150))
+    phone: Mapped[str | None] = mapped_column(String(30))
     tags: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     unsubscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

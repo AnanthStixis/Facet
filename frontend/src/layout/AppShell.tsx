@@ -25,6 +25,7 @@ import {
   IconX,
 } from '../components/icons'
 import { triggerManualRefresh } from '../hooks/useRefetchOnFocus'
+import { ROLE_LABEL } from '../lib/types'
 import { useAuth } from '../store/auth'
 
 const PRODUCT = 'Facet'
@@ -105,7 +106,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     })),
   },
   {
-    section: 'Manage',
+    section: 'Manage Masters',
     items: [
       {
         to: '/results',
@@ -130,6 +131,12 @@ const NAV: { section: string; items: NavItem[] }[] = [
         to: '/clients',
         label: 'Clients',
         icon: IconBriefcase,
+        roles: ['client_admin', 'manager'],
+      },
+      {
+        to: '/masters',
+        label: 'Master Data',
+        icon: IconTag,
         roles: ['client_admin', 'manager'],
       },
     ],
@@ -317,7 +324,7 @@ export function AppShell() {
           </p>
           <p className="truncate text-2xs text-ink-400 dark:text-ink-500">{user.email}</p>
           <div className="mt-1.5">
-            <Chip value={user.role} />
+            <Chip value={user.role}>{ROLE_LABEL[user.role]}</Chip>
           </div>
         </div>
       </aside>
@@ -393,7 +400,7 @@ export function AppShell() {
                         </p>
                         <p className="truncate text-2xs text-ink-400">{user.email}</p>
                         <div className="mt-1.5">
-                          <Chip value={user.role} />
+                          <Chip value={user.role}>{ROLE_LABEL[user.role]}</Chip>
                         </div>
                       </div>
                       <NavLink

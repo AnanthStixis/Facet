@@ -565,7 +565,7 @@ SCORECARD_REPORT = register(
 
 
 DELIVERY_COLUMNS = [
-    Column("campaign", "Campaign", width=24),
+    Column("campaign", "Feedback Cycle", width=24),
     Column("contact_name", "Recipient", width=22),
     Column("contact_email", "Email", width=28, detail_only=True),
     Column("company", "Company", width=20),
@@ -630,7 +630,7 @@ async def _query_delivery(
 DELIVERY_REPORT = register(
     ReportDefinition(
         key="campaign_delivery",
-        title="Campaign delivery",
+        title="Feedback Cycle delivery",
         description=(
             "Every external invitation: sent, opened, and submitted. Contains "
             "no answers, so it is safe to share with whoever is chasing "

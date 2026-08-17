@@ -146,6 +146,7 @@ async def list_feedback(
     kind: str | None = None,
     status: str | None = None,
     org_id: uuid.UUID | None = None,
+    cycle_name: str | None = None,
     date_preset: DateFilterPreset = "all",
     date_start: date | None = None,
     date_end: date | None = None,
@@ -173,6 +174,8 @@ async def list_feedback(
         stmt = stmt.where(ReviewCycle.org_id == org_id)
     if status:
         stmt = stmt.where(ReviewCycle.status == status)
+    if cycle_name:
+        stmt = stmt.where(ReviewCycle.name.ilike(f"%{cycle_name}%"))
     cycles = (
         (await session.execute(stmt.order_by(ReviewCycle.created_at.desc())))
         .scalars()

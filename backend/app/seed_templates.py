@@ -11,12 +11,12 @@ duplicated.
 
     python -m app.seed_templates
 
-The question sets below are modelled on the dimensions real 360/engagement
-platforms converge on — Culture Amp and Lattice for manager effectiveness
-and peer review, Officevibe/Gallup-style items (paraphrased, not verbatim)
-for engagement pulses, and standard SaaS onboarding/exit-interview practice
-— adapted to this schema (Likert-5 by default, `choice`/`text`/`boolean`
-where a scale question does not fit).
+The question sets below are transcribed directly from the client's own
+reference forms (one per feedback type — Employee/Management/Client/
+Product/Service/Proposal), each structured the same way: Technical /
+Communication / Delivery & Discipline as scored sections (the form's
+"Category" column becomes the section), a comments prompt, and an Overall
+Rating — all on the same plain 1-5 scale the reference forms use.
 
 As of the templates-redesign session, this seeds exactly one template per
 target type actually reachable from Create Feedback's six kinds: employee,
@@ -42,28 +42,48 @@ from app.models.enums import TargetType, TemplateScope, TemplateStatus
 from app.models.user import User
 from datetime import UTC, datetime
 
-LIKERT_5 = {
-    "type": "likert",
+RATING_1_5 = {
     "min": 1,
     "max": 5,
-    "labels": {
-        "1": "Strongly disagree",
-        "2": "Disagree",
-        "3": "Neutral",
-        "4": "Agree",
-        "5": "Strongly agree",
-    },
+    "labels": {"1": "Poor", "5": "Excellent"},
 }
 
 
-def _definition(intro: str, sections: list[dict], comment_prompt: str | None = None) -> dict:
+def _section(key: str, title: str, questions: list[str]) -> dict:
+    return {
+        "key": key,
+        "title": title,
+        "questions": [
+            {"key": f"{key}_{index}", "text": text, "type": "scale"}
+            for index, text in enumerate(questions, start=1)
+        ],
+    }
+
+
+def _reference_definition(
+    *,
+    technical: list[str],
+    communication: list[str],
+    delivery: list[str],
+    comment_prompt: str,
+) -> dict:
+    """One shared shape for the reference-form-derived templates: three
+    scored sections (Technical / Communication / Delivery & Discipline) plus
+    a single Overall Rating, mirroring the printed reference forms these
+    were transcribed from — the category becomes the section, each row
+    becomes a scale question on the same 1-5 range."""
     return {
         "schema_version": 1,
-        "intro": intro,
-        "scale": LIKERT_5,
-        "sections": sections,
+        "intro": "Rate each item on a scale of 1 to 5.",
+        "scale": RATING_1_5,
+        "sections": [
+            _section("technical", "Technical", technical),
+            _section("communication", "Communication", communication),
+            _section("delivery", "Delivery & Discipline", delivery),
+            _section("overall", "Overall Rating", ["Overall Rating"]),
+        ],
         "closing": {
-            "comment_prompt": comment_prompt or "Anything else you would like to add?",
+            "comment_prompt": comment_prompt,
             "comment_required": False,
         },
     }
@@ -129,229 +149,130 @@ CATEGORIES = [
 ]
 
 TEMPLATES = [
-    # --- Employee: peer/self 360, works whether it's a peer or the person
-    # themself answering ---------------------------------------------------
     {
         "category": "internal_360",
-        "name": "360 review — collaboration and growth",
+        "name": "Employee review",
         "target_type": TargetType.EMPLOYEE,
         "is_anonymous": False,
-        "description": "A peer or self 360 covering how this person works with others, delivers, and grows — the default questionnaire for an employee review.",
-        "definition": _definition(
-            "Answer based on how this person has actually worked over the last review "
-            "period. Be specific — vague praise or criticism is not useful to them.",
-            [
-                {
-                    "key": "working_together",
-                    "title": "Working together",
-                    "questions": [
-                        {"key": "responsiveness", "text": "This person responds to requests and messages in good time."},
-                        {"key": "follow_through", "text": "When they commit to something, it gets done without needing to be chased."},
-                        {"key": "communication_clarity", "text": "Their updates and explanations are clear enough to act on without follow-up questions."},
-                    ],
-                },
-                {
-                    "key": "growth",
-                    "title": "Growth and impact",
-                    "questions": [
-                        {"key": "skill_growth", "text": "I have noticed a specific skill or capability of theirs improve this period.", "type": "boolean"},
-                        {"key": "biggest_strength", "text": "What is the single biggest strength this person brought to the team this period?", "type": "text"},
-                        {"key": "growth_area", "text": "What is one specific thing they could do differently to have more impact?", "type": "text"},
-                    ],
-                },
+        "description": "Technical, communication, and delivery ratings for one employee, plus an overall score.",
+        "definition": _reference_definition(
+            technical=[
+                "How would you rate the employee's technical / job-related skills?",
+                "How effectively does the employee apply their knowledge to solve problems?",
             ],
-            comment_prompt="Anything else about how they worked this period that would be useful for them to hear?",
+            communication=[
+                "How effectively does the employee communicate with team members and stakeholders?",
+                "How well does the employee collaborate within the team?",
+            ],
+            delivery=[
+                "How consistently does the employee meet deadlines and follow processes?",
+            ],
+            comment_prompt="Please provide additional feedback on the employee's overall performance.",
         ),
     },
-    # --- Manager: upward review from direct reports ------------------------
     {
         "category": "internal_360",
-        "name": "Upward review — manager effectiveness",
+        "name": "Management review",
         "target_type": TargetType.MANAGER,
         "is_anonymous": True,
-        "description": "Direct reports rate how well their manager sets direction, clears blockers, and coaches — anonymised and only shown once enough responses are in.",
-        "definition": _definition(
-            "Your answers are anonymous and are only revealed once enough people on "
-            "the team have responded. Answer about your direct manager specifically.",
-            [
-                {
-                    "key": "direction",
-                    "title": "Direction and blockers",
-                    "questions": [
-                        {"key": "clear_priorities", "text": "My manager makes it clear what I should be prioritizing right now."},
-                        {"key": "removes_blockers", "text": "When I raise a blocker, my manager helps get it resolved rather than leaving it to me."},
-                        {"key": "decisions_explained", "text": "Decisions that affect my work are explained, not just announced."},
-                    ],
-                },
-                {
-                    "key": "coaching",
-                    "title": "Coaching and safety",
-                    "questions": [
-                        {"key": "useful_feedback", "text": "I get specific, useful feedback often enough to actually improve."},
-                        {"key": "psychological_safety", "text": "I feel safe telling my manager about a mistake or a problem before it becomes bigger."},
-                        {"key": "advocates_for_me", "text": "My manager advocates for me and my work to others."},
-                    ],
-                },
+        "description": "Technical, communication, and delivery ratings for a manager from their direct reports, plus an overall score.",
+        "definition": _reference_definition(
+            technical=[
+                "How would you rate the manager's domain / technical knowledge?",
+                "How effectively does the manager provide technical guidance and support decision-making?",
             ],
-            comment_prompt="What is the one change that would make this person a more effective manager?",
+            communication=[
+                "How clearly does the manager communicate goals, expectations, and feedback?",
+                "How approachable and open is the manager to team input?",
+            ],
+            delivery=[
+                "How well does the manager ensure timely delivery and maintain team discipline?",
+            ],
+            comment_prompt="Please share additional comments on the manager's leadership.",
         ),
     },
-    # --- Client: relationship health -------------------------------------
     {
         "category": "client_experience",
-        "name": "Client relationship health check",
+        "name": "Client review",
         "target_type": TargetType.CLIENT,
         "is_anonymous": False,
-        "description": "How a client rates the overall working relationship — trust, responsiveness, and value delivered — independent of any single delivery.",
-        "definition": _definition(
-            "A few minutes on how the relationship is working for you overall, not "
-            "any single project or delivery.",
-            [
-                {
-                    "key": "relationship",
-                    "title": "The relationship",
-                    "questions": [
-                        {"key": "trust", "text": "We trust this team to flag problems to us before we have to ask."},
-                        {"key": "responsiveness", "text": "Our requests and concerns get a timely response."},
-                        {"key": "value_delivered", "text": "What we're getting is worth what we're paying for it."},
-                    ],
-                },
-                {
-                    "key": "outlook",
-                    "title": "Outlook",
-                    "questions": [
-                        {"key": "most_valuable", "text": "What has this team done recently that mattered most to you?", "type": "text"},
-                    ],
-                    "extra": [
-                        {
-                            "key": "renew_likelihood",
-                            "type": "choice",
-                            "text": "How likely are you to continue or expand this relationship?",
-                            "options": ["Not likely", "Slightly likely", "Neutral", "Likely", "Very likely"],
-                        },
-                        {
-                            "key": "recommend",
-                            "type": "choice",
-                            "text": "How likely are you to recommend us to a peer facing a similar problem?",
-                            "options": ["Not likely", "Slightly likely", "Neutral", "Likely", "Very likely"],
-                        },
-                    ],
-                },
+        "description": "A client's technical, communication, and delivery ratings for the team member they work with, plus an overall score.",
+        "definition": _reference_definition(
+            technical=[
+                "How would you rate the technical expertise demonstrated by the team member?",
+                "How well did the team member understand and address your project requirements?",
             ],
-            comment_prompt="What is the one thing that would most improve this relationship?",
+            communication=[
+                "How clear and timely was the team member's communication with you?",
+                "How responsive was the team member to your queries and concerns?",
+            ],
+            delivery=[
+                "How would you rate the team member's adherence to deadlines and commitments?",
+            ],
+            comment_prompt="Please share any additional comments or suggestions for the team member.",
         ),
     },
-    # --- Product: usability and problem-solved ------------------------------
     {
         "category": "client_experience",
-        "name": "Product feedback — usability and fit",
+        "name": "Product review",
         "target_type": TargetType.PRODUCT,
         "is_anonymous": False,
-        "description": "Sent to a user or client stakeholder after real usage — did the product solve their actual problem, and what's missing.",
-        "definition": _definition(
-            "A few minutes on how the product is actually working for you day to day.",
-            [
-                {
-                    "key": "usability",
-                    "title": "Using it day to day",
-                    "questions": [
-                        {"key": "ease_of_use", "text": "The product is easy to use without needing help."},
-                        {"key": "reliability", "text": "The product behaves reliably — no surprises or unexpected breakage."},
-                        {"key": "solved_problem", "text": "The product solved the actual problem I needed solved."},
-                    ],
-                },
-                {
-                    "key": "gaps",
-                    "title": "Gaps",
-                    "questions": [
-                        {"key": "missing", "text": "What is the one thing missing that would make this product noticeably better for you?", "type": "text"},
-                    ],
-                    "extra": [
-                        {
-                            "key": "nps",
-                            "type": "choice",
-                            "text": "How likely are you to recommend this product to a colleague facing a similar need?",
-                            "options": ["Not likely", "Slightly likely", "Neutral", "Likely", "Very likely"],
-                        }
-                    ],
-                },
+        "description": "Technical quality, documentation, and delivery ratings for a product, plus an overall score.",
+        "definition": _reference_definition(
+            technical=[
+                "How would you rate the technical quality and functionality of the product?",
+                "How reliable and bug-free is the product in daily use?",
             ],
+            communication=[
+                "How clear and helpful is the product documentation / user guidance?",
+                "How effective is the communication of updates and changes to users?",
+            ],
+            delivery=[
+                "How would you rate the product's release / update timeliness and quality control?",
+            ],
+            comment_prompt="Please share suggestions for improving the product.",
         ),
     },
-    # --- Service: satisfaction with a specific interaction ------------------
     {
         "category": "client_experience",
-        "name": "Service delivery satisfaction",
+        "name": "Service review",
         "target_type": TargetType.SERVICE,
         "is_anonymous": False,
-        "description": "Sent right after a specific service interaction or delivery milestone — timeliness, quality, and whether they'd use the service again.",
-        "definition": _definition(
-            "Thinking specifically about the service you just received — not the "
-            "relationship overall — a couple of minutes on how it went.",
-            [
-                {
-                    "key": "this_interaction",
-                    "title": "This interaction",
-                    "questions": [
-                        {"key": "timeliness", "text": "This was delivered within the timeframe we agreed on."},
-                        {"key": "quality", "text": "The quality of the work met what was scoped."},
-                        {"key": "kept_informed", "text": "We were kept informed of progress without having to ask."},
-                    ],
-                },
-                {
-                    "key": "would_return",
-                    "title": "Would you use this again",
-                    "questions": [
-                        {"key": "use_again", "text": "I would request this specific service again.", "type": "boolean"},
-                        {"key": "what_stood_out", "text": "What, if anything, stood out — good or bad — about this delivery?", "type": "text"},
-                    ],
-                },
+        "description": "Technical competency, communication, and delivery ratings for a service engagement, plus an overall score.",
+        "definition": _reference_definition(
+            technical=[
+                "How would you rate the technical competency of the service provided?",
+                "How effectively were your issues / requests resolved?",
             ],
+            communication=[
+                "How clear and courteous was the communication during service delivery?",
+                "How responsive was the service team to your inquiries?",
+            ],
+            delivery=[
+                "How would you rate the timeliness and consistency of the service delivery?",
+            ],
+            comment_prompt="Please share any additional comments about the service experience.",
         ),
     },
-    # --- Proposal: fit, clarity, and what decided it -----------------------
     {
         "category": "proposal_quality",
-        "name": "Proposal feedback — fit and clarity",
+        "name": "Proposal review",
         "target_type": TargetType.PROPOSAL,
         "is_anonymous": False,
-        "description": "Sent to a prospect after they've reviewed a proposal — whether it fit their stated needs, how clear the pitch and pricing were, and what tipped their decision.",
-        "definition": _definition(
-            "Your feedback helps us scope and price proposals better, whether or not "
-            "you decide to proceed with us.",
-            [
-                {
-                    "key": "fit",
-                    "title": "Fit to what we asked for",
-                    "questions": [
-                        {"key": "understood_need", "text": "The proposal showed a clear understanding of what we actually needed."},
-                        {"key": "approach_appropriate", "text": "The proposed approach felt appropriately scoped — not over- or under-built."},
-                    ],
-                },
-                {
-                    "key": "clarity",
-                    "title": "Clarity of the pitch",
-                    "questions": [
-                        {"key": "pricing_clarity", "text": "The pricing was clear and easy to compare against alternatives."},
-                        {"key": "timeline_clarity", "text": "The proposed timeline was clear and believable."},
-                    ],
-                    "extra": [
-                        {
-                            "key": "estimate_vs_expectation",
-                            "type": "choice",
-                            "text": "Compared with what you expected going in, the price was:",
-                            "options": ["Well under expectation", "Slightly under", "About right", "Slightly over", "Well over expectation"],
-                        }
-                    ],
-                },
-                {
-                    "key": "decision",
-                    "title": "What tipped it",
-                    "questions": [
-                        {"key": "deciding_factor", "text": "What was the single biggest factor in your decision, either way?", "type": "text"},
-                    ],
-                },
+        "description": "Technical soundness, clarity, and delivery-plan ratings for a submitted proposal or SOW, plus an overall score.",
+        "definition": _reference_definition(
+            technical=[
+                "How would you rate the technical feasibility and soundness of the proposal?",
+                "How well does the proposal address the stated requirements / objectives?",
             ],
+            communication=[
+                "How clearly is the proposal written and presented?",
+                "How effectively were questions / clarifications addressed during discussions?",
+            ],
+            delivery=[
+                "How realistic and well-structured is the proposed timeline and delivery plan?",
+            ],
+            comment_prompt="Please share additional comments or recommendations regarding the proposal.",
         ),
     },
 ]

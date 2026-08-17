@@ -12,6 +12,7 @@ from app.api.v1 import (
     feedback,
     insights,
     lookup,
+    masters,
     orgs,
     proposals,
     public,
@@ -40,5 +41,8 @@ api_router.include_router(ai.router)
 api_router.include_router(insights.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(lookup.router)
+api_router.include_router(masters.departments_router)
+api_router.include_router(masters.job_titles_router)
+api_router.include_router(masters.cycle_names_router)
 api_router.include_router(reports.router)
 api_router.include_router(settings_api.router)

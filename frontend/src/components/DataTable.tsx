@@ -40,7 +40,11 @@ function Cell({
     // Audit actions arrive as "auth.login_failed"; the namespace is useful
     // context but the verb is what the reader is scanning for.
     const raw = String(value)
-    const [namespace, verb] = raw.includes('.') ? raw.split('.') : [null, raw]
+    const [rawNamespace, verb] = raw.includes('.') ? raw.split('.') : [null, raw]
+    // "campaign" is the stored action namespace (unchanged, so old audit
+    // rows keep their original code) — only the displayed tag says "Cycle",
+    // matching the Feedback Cycle terminology used everywhere else.
+    const namespace = rawNamespace === 'campaign' ? 'cycle' : rawNamespace
     return (
       <span className="flex items-center gap-1.5 whitespace-nowrap">
         {namespace && <span className="text-2xs uppercase text-ink-400">{namespace}</span>}

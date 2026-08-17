@@ -171,8 +171,15 @@ export function TemplateActions({
   const clone = async () => {
     setBusy('clone')
     try {
-      const result = await api.post<{ name: string }>(`/catalog/templates/${template.id}/clone`, {})
-      onCloned(`'${result.name}' created as a draft in your organization.`)
+      const result = await api.post<{ id: string; name: string }>(`/catalog/templates/${template.id}/clone`, {})
+      // A clone starts as a draft (it's the vendor's content, copied for
+      // editing before it becomes "yours") — but with no edits requested
+      // here, there's nothing to review, so publish it immediately. Without
+      // this, the clone was invisible in Create Feedback until someone
+      // separately opened Edit and hit Submit, which is what actually
+      // publishes a draft.
+      await api.post(`/catalog/templates/${result.id}/publish`, {})
+      onCloned(`'${result.name}' created in your organization and published.`)
     } catch (caught) {
       onError(caught instanceof ApiError ? caught.message : 'That did not work.')
     } finally {
@@ -694,7 +701,11 @@ function ViewCloneModal({ template, onClose, onCloned }: { template: TemplateMet
         description: description || null,
         is_anonymous: isAnonymous,
       })
-      onCloned(`'${name}' created as a draft in your organization.`)
+      // Same as the no-edits clone path: publish immediately rather than
+      // leaving it as a draft invisible to Create Feedback until someone
+      // separately opens Edit and hits Submit.
+      await api.post(`/catalog/templates/${cloned.id}/publish`, {})
+      onCloned(`'${name}' created in your organization and published.`)
     } catch (caught) {
       toast.show('critical', 'Could not clone this template', caught instanceof ApiError ? caught.message : undefined)
     } finally {

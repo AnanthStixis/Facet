@@ -280,3 +280,21 @@ async def campaign_progress(
         "response_rate_pct": round(100 * submitted / sent) if sent else 0,
         "open_rate_pct": round(100 * opened / sent) if sent else 0,
     }
+
+
+async def maybe_auto_close(session: AsyncSession, cycle: ReviewCycle) -> bool:
+    """Close an open external campaign once no recipient could still respond
+    — everyone has either submitted, unsubscribed, or had their link revoked.
+    Returns True if it closed the cycle. Counterpart to cycles.py's version
+    of the same idea for internal rounds."""
+    if cycle.status != CycleStatus.OPEN:
+        return False
+    progress = await campaign_progress(session, cycle.id)
+    if progress["total"] == 0:
+        return False
+    still_pending = progress["total"] - progress["submitted"] - progress["unsubscribed"] - progress["revoked"]
+    if still_pending > 0:
+        return False
+    cycle.status = CycleStatus.CLOSED
+    cycle.closed_at = datetime.now(UTC)
+    return True

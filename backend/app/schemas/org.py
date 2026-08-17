@@ -146,6 +146,7 @@ class UserCreateRequest(BaseModel):
     role: UserRole = UserRole.EMPLOYEE
     job_title: str | None = Field(default=None, max_length=150)
     department: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=30)
     manager_id: uuid.UUID | None = None
 
     @field_validator("role")
@@ -163,6 +164,7 @@ class UserUpdateRequest(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=150)
     job_title: str | None = Field(default=None, max_length=150)
     department: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=30)
     role: UserRole | None = None
     manager_id: uuid.UUID | None = None
 
@@ -182,6 +184,7 @@ class UserDetail(ORMModel):
     full_name: str
     job_title: str | None
     department: str | None
+    phone: str | None = None
     role: str
     status: str
     manager_id: uuid.UUID | None

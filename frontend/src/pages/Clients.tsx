@@ -15,6 +15,7 @@ interface ContactMeta {
   full_name: string
   company: string | null
   job_title: string | null
+  phone: string | null
   tags: string[]
   unsubscribed_at: string | null
   created_at: string
@@ -40,6 +41,7 @@ function ContactModal({
   const [email, setEmail] = useState(contact?.email ?? '')
   const [company, setCompany] = useState(contact?.company ?? '')
   const [jobTitle, setJobTitle] = useState(contact?.job_title ?? '')
+  const [phone, setPhone] = useState(contact?.phone ?? '')
   const [tags, setTags] = useState(contact?.tags.join(', ') ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,6 +57,7 @@ function ContactModal({
       email,
       company: company || null,
       job_title: jobTitle || null,
+      phone: phone || null,
       tags: tags
         .split(',')
         .map((t) => t.trim())
@@ -113,10 +116,10 @@ function ContactModal({
             onChange={(event) => setJobTitle(event.target.value)}
           />
           <Field
-            label="Tags (optional, comma-separated)"
-            value={tags}
-            onChange={(event) => setTags(event.target.value)}
-            className="sm:col-span-2"
+            label="Phone (optional)"
+            type="tel"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
           />
         </div>
         <div className="mt-5 flex gap-2 border-t border-ink-200 pt-4 dark:border-ink-700">
@@ -406,7 +409,7 @@ export function Clients() {
 
   return (
     <>
-      <PageHeader title="Clients" description="Everyone you collect client feedback from." />
+      <PageHeader title="Clients" />
 
       <Card padded={false}>
         <div className="flex flex-wrap items-center gap-3 border-b border-ink-200 px-5 py-3 dark:border-ink-800">

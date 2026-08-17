@@ -40,6 +40,32 @@ interface FeedbackResponseAnswer {
   value: unknown
 }
 
+/** Five stars scaled to whatever the template's max actually is (not every
+ * scale is 1-5), with a partial-fill star for a non-integer average. */
+function StarRating({ value, max }: { value: number | null | undefined; max: number }) {
+  if (value == null) return <span>—</span>
+  const fraction = Math.max(0, Math.min(1, value / max)) * 5
+  return (
+    <span className="inline-flex items-center gap-0.5" aria-label={`${value.toFixed(2)} out of ${max}`}>
+      {Array.from({ length: 5 }, (_, index) => {
+        const fill = Math.max(0, Math.min(1, fraction - index))
+        return (
+          <span key={index} className="relative inline-block h-6 w-6">
+            <svg viewBox="0 0 20 20" className="absolute inset-0 h-full w-full text-ink-200 dark:text-ink-700" fill="currentColor">
+              <path d="M10 1.5l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.6z" />
+            </svg>
+            <span className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
+              <svg viewBox="0 0 20 20" className="h-6 w-6 accent-text" fill="currentColor">
+                <path d="M10 1.5l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.6z" />
+              </svg>
+            </span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
 interface Delivery {
   audience: 'external' | 'internal'
   total: number
@@ -67,7 +93,11 @@ interface FeedbackResponseItem {
   answers: FeedbackResponseAnswer[]
 }
 
-const STATUS_OPTIONS = ['open', 'closed', 'draft', 'cancelled']
+// Draft and Cancelled are internal states from the Cycles/Campaigns
+// management pages — a round created through Create Feedback goes straight
+// to Open, and closes automatically once everyone's responded, so results
+// only ever need to be filtered by Open or Closed.
+const STATUS_OPTIONS = ['open', 'closed']
 
 const DATE_PRESETS: { value: string; label: string }[] = [
   { value: 'all', label: 'All time' },
@@ -197,12 +227,6 @@ function DeliveryFunnel({
             </div>
           </div>
         ))}
-        <div className="ml-auto text-right">
-          <p className="tabular text-2xl font-semibold accent-text">
-            {delivery.response_rate_pct ?? 0}%
-          </p>
-          <p className="label-caps">Response rate</p>
-        </div>
       </div>
       {(delivery.pending > 0 || (delivery.unsubscribed ?? 0) > 0 || (delivery.revoked ?? 0) > 0) && (
         <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-2xs text-ink-400">
@@ -268,10 +292,14 @@ function ResultsDetailModal({ row, onClose }: { row: FeedbackListItem; onClose: 
               a self response, so these tiles would always read "—"). */}
           <div className={row.kind === 'employee' ? 'grid gap-3 sm:grid-cols-2 xl:grid-cols-4' : 'grid gap-3 sm:grid-cols-2'}>
             <StatTile
-              label="Overall average"
-              value={data.overall_average?.toFixed(2) ?? '—'}
+              label="Overall rating"
+              value={<StarRating value={data.overall_average} max={data.scale?.max ?? 5} />}
               tone="accent"
-              sub={`Out of ${data.scale?.max ?? 5}`}
+              sub={
+                data.overall_average != null
+                  ? `${data.overall_average.toFixed(2)} out of ${data.scale?.max ?? 5}`
+                  : `Out of ${data.scale?.max ?? 5}`
+              }
             />
             {row.kind === 'employee' && (
               <>
@@ -373,6 +401,7 @@ export function Results() {
   const [loading, setLoading] = useState(true)
 
   const [kindFilter, setKindFilter] = useState('')
+  const [cycleNameFilter, setCycleNameFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [orgFilter, setOrgFilter] = useState('')
   const [datePreset, setDatePreset] = useState('all')
@@ -393,6 +422,7 @@ export function Results() {
     setLoading(true)
     const query = new URLSearchParams({ page_size: String(PAGE_SIZE), page: String(page) })
     if (kindFilter) query.set('kind', kindFilter)
+    if (cycleNameFilter) query.set('cycle_name', cycleNameFilter)
     if (statusFilter) query.set('status', statusFilter)
     if (orgFilter) query.set('org_id', orgFilter)
     if (datePreset !== 'all') query.set('date_preset', datePreset)
@@ -410,15 +440,20 @@ export function Results() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [kindFilter, statusFilter, orgFilter, datePreset, dateStart, dateEnd, page])
+  useEffect(() => {
+    const timer = setTimeout(load, cycleNameFilter ? 250 : 0)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset, dateStart, dateEnd, page])
 
   const filtersActive = useMemo(
-    () => Boolean(kindFilter || statusFilter || orgFilter || datePreset !== 'all'),
-    [kindFilter, statusFilter, orgFilter, datePreset],
+    () => Boolean(kindFilter || cycleNameFilter || statusFilter || orgFilter || datePreset !== 'all'),
+    [kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset],
   )
 
   const resetFilters = () => {
     setKindFilter('')
+    setCycleNameFilter('')
     setStatusFilter('')
     setOrgFilter('')
     setDatePreset('all')
@@ -461,6 +496,16 @@ export function Results() {
               ))}
             </select>
           </label>
+
+          <Field
+            label="Cycle name"
+            value={cycleNameFilter}
+            onChange={(event) => {
+              setCycleNameFilter(event.target.value)
+              setPage(1)
+            }}
+            placeholder="Search by cycle name"
+          />
 
           {isPlatform && (
             <label className="block">
