@@ -6,7 +6,9 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.schemas.common import validate_closes_at_in_future
 
 FeedbackKind = Literal["client", "employee", "management", "product", "service", "proposal"]
 
@@ -16,6 +18,13 @@ class FeedbackCreateRequest(BaseModel):
     template_id: uuid.UUID
     name: str = Field(min_length=3, max_length=200)
     closes_at: datetime | None = None
+
+    _check_closes_at = field_validator("closes_at")(validate_closes_at_in_future)
+
+    # employee only, optional — the checked managers on the Employee Review
+    # form. Left unset, every manager on record for the reviewee is included,
+    # the same as before an employee could have more than one.
+    manager_ids: list[uuid.UUID] | None = None
 
     # employee / management
     reviewee_user_id: uuid.UUID | None = None

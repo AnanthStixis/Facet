@@ -398,7 +398,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
     full_name: '',
     email: '',
     role: 'employee' as Role,
-    manager_id: null as string | null,
+    manager_ids: [] as string[],
     job_title: '',
     department: '',
     phone: '',
@@ -422,7 +422,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
       const isOrgChartRole = form.role === 'employee' || form.role === 'manager'
       const result = await api.post<InviteResult>('/users', {
         ...form,
-        manager_id: isOrgChartRole ? form.manager_id : null,
+        manager_ids: isOrgChartRole ? form.manager_ids : [],
         job_title: form.job_title || null,
         department: form.department || null,
         phone: form.phone || null,
@@ -433,7 +433,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
         full_name: '',
         email: '',
         role: 'employee',
-        manager_id: null,
+        manager_ids: [],
         job_title: '',
         department: '',
         phone: '',
@@ -495,7 +495,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
               className="field"
               value={form.role}
               onChange={(event) =>
-                setForm({ ...form, role: event.target.value as Role, manager_id: null })
+                setForm({ ...form, role: event.target.value as Role, manager_ids: [] })
               }
             >
               {ROLES.map((role) => (
@@ -511,14 +511,17 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
           {(form.role === 'employee' || form.role === 'manager') && (
             <div>
               <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                Manager
+                Manager(s)
               </span>
               <LookupFilter
                 entity="users"
-                label="Choose a manager"
-                selected={form.manager_id ? [form.manager_id] : []}
-                onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
+                label="Choose manager(s)"
+                selected={form.manager_ids}
+                onChange={(ids) => setForm({ ...form, manager_ids: ids })}
               />
+              <span className="mt-1.5 block text-xs text-ink-400">
+                Someone can report to more than one manager — check every manager that applies.
+              </span>
             </div>
           )}
         </div>
@@ -559,7 +562,7 @@ function EditUserForm({
     department: person.department ?? '',
     phone: person.phone ?? '',
     role: person.role,
-    manager_id: person.manager_id ?? null,
+    manager_ids: person.manager_ids ?? [],
   })
   const [busy, setBusy] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -598,7 +601,7 @@ function EditUserForm({
         department: form.department || null,
         phone: form.phone || null,
         role: canChangeRole && form.role !== person.role ? form.role : undefined,
-        manager_id: form.manager_id ?? undefined,
+        manager_ids: form.manager_ids,
       })
       onDone(updated)
     } catch (caught) {
@@ -682,14 +685,17 @@ function EditUserForm({
             {(form.role === 'employee' || form.role === 'manager') && (
               <div>
                 <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                  Manager
+                  Manager(s)
                 </span>
                 <LookupFilter
                   entity="users"
-                  label="Choose a manager"
-                  selected={form.manager_id ? [form.manager_id] : []}
-                  onChange={(ids) => setForm({ ...form, manager_id: ids[ids.length - 1] ?? null })}
+                  label="Choose manager(s)"
+                  selected={form.manager_ids}
+                  onChange={(ids) => setForm({ ...form, manager_ids: ids })}
                 />
+                <span className="mt-1.5 block text-xs text-ink-400">
+                  Someone can report to more than one manager — check every manager that applies.
+                </span>
               </div>
             )}
           </div>

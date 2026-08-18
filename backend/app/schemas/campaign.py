@@ -5,10 +5,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.models.enums import TargetType
-from app.schemas.common import ORMModel
+from app.schemas.common import ORMModel, validate_closes_at_in_future
 
 
 class CampaignCreateRequest(BaseModel):
@@ -21,6 +21,8 @@ class CampaignCreateRequest(BaseModel):
     target_id: uuid.UUID | None = None
     target_label: str | None = Field(default=None, min_length=1, max_length=200)
     closes_at: datetime | None = None
+
+    _check_closes_at = field_validator("closes_at")(validate_closes_at_in_future)
 
 
 class RecipientAddRequest(BaseModel):

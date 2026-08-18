@@ -9,6 +9,7 @@ import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, downloadFile, uploadFile } from '../lib/api'
+import { minClosingDate } from '../lib/date'
 import type { Paged } from '../lib/types'
 import type { Cycle } from '../lib/cycleTypes'
 import { CycleResults } from './CycleResults'
@@ -180,6 +181,11 @@ function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void
     setContactSearch('')
   }
 
+  // `min` on the date input only stops the calendar UI — a date typed
+  // straight into the text portion still fires onChange, `min` and all.
+  // This is what actually catches that before submit fires.
+  const closesAtInvalid = Boolean(form.closes_at) && form.closes_at < minClosingDate()
+
   if (!open) {
     return (
       <button type="button" className="btn-primary px-3 py-1.5" onClick={() => setOpen(true)}>
@@ -277,6 +283,8 @@ function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void
             label="Closes on (optional)"
             type="date"
             value={form.closes_at}
+            min={minClosingDate()}
+            error={closesAtInvalid ? 'Closing date must be after today.' : undefined}
             onChange={(event) => setForm({ ...form, closes_at: event.target.value })}
             hint="Leave blank to collect feedback with no deadline."
           />
@@ -429,7 +437,7 @@ function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void
         </label>
 
         <div className="mt-4 flex gap-2">
-          <button type="submit" className="btn-primary px-3 py-1.5" disabled={busy}>
+          <button type="submit" className="btn-primary px-3 py-1.5" disabled={busy || closesAtInvalid}>
             {busy && <Spinner />}
             {form.open_immediately && selected.length > 0 ? 'Create and open' : 'Create as draft'}
           </button>

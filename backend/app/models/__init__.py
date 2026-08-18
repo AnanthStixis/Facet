@@ -21,7 +21,7 @@ from app.models.catalog import (
 from app.models.masters import CycleName, Department, JobTitle, Product, Service
 from app.models.organization import OrgBranding, Organization
 from app.models.proposal import Proposal
-from app.models.user import Invitation, User
+from app.models.user import Invitation, User, UserManager
 
 __all__ = [
     "Base",
@@ -50,6 +50,7 @@ __all__ = [
     "Service",
     "SessionFamily",
     "User",
+    "UserManager",
 ]
 
 

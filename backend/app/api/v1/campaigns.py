@@ -565,6 +565,7 @@ async def list_contacts(
     session: DbSession,
     actor: ManagerUser,
     search: str | None = None,
+    company: str | None = None,
     page: int = 1,
     page_size: int = 50,
 ) -> Page[ContactDetail]:
@@ -576,6 +577,11 @@ async def list_contacts(
             | Contact.email.ilike(term)
             | Contact.company.ilike(term)
         )
+    # Exact match, not ilike — `company` is fed by picking a name off the
+    # Client Organisation dropdown, not typed freehand, so it should narrow
+    # to that organisation only, the same way `/users?department=` does.
+    if company:
+        stmt = stmt.where(Contact.company == company)
     total = int(
         (
             await session.execute(
@@ -600,6 +606,27 @@ async def list_contacts(
         page=page,
         page_size=page_size,
     )
+
+
+@contacts_router.get("/companies", response_model=list[str])
+async def list_contact_companies(session: DbSession, actor: ManagerUser) -> list[str]:
+    """Distinct `Contact.company` values, for the Client Organisation dropdown.
+
+    Deliberately not a master list like Department/Product/Service — there is
+    no separate organisation entity anywhere in this schema, and adding one
+    just to back a dropdown would be a migration and a new table for
+    something the data already answers. This reads the company names that
+    already exist on contacts, so the dropdown always matches what's
+    actually filterable — nothing to keep in sync, nothing to migrate.
+    RLS on `contacts` already scopes this to the caller's org.
+    """
+    stmt = (
+        select(Contact.company)
+        .where(Contact.company.isnot(None), Contact.company != "")
+        .distinct()
+        .order_by(Contact.company)
+    )
+    return list((await session.execute(stmt)).scalars().all())
 
 
 @contacts_router.post("", response_model=ContactDetail, status_code=201)

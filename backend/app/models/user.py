@@ -109,6 +109,44 @@ class User(UUIDPrimaryKey, Timestamped, Base):
         return f"<User {self.email} {self.role}>"
 
 
+class UserManager(UUIDPrimaryKey, Timestamped, Base):
+    """One employee-manager pairing. An employee can have several of these.
+
+    Replaces `User.manager_id` — a single FK — as the actual source of truth
+    for "who manages whom", because a single column cannot represent someone
+    who reports to 2-3 managers at once. `User.manager_id` is left in place
+    on the column, unused going forward, rather than dropped: a dormant
+    column is a far safer migration than a destructive one, and the
+    migration that introduces this table backfills every existing single
+    manager_id relationship into it, so nothing about an org's existing data
+    changes on upgrade.
+    """
+
+    __tablename__ = "user_managers"
+    __tenant_scoped__ = True
+
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    manager_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "employee_id", "manager_id", name="uq_user_managers_employee_manager"
+        ),
+    )
+
+
 class Invitation(UUIDPrimaryKey, Timestamped, Base):
     """A single-use invitation to join an organization."""
 

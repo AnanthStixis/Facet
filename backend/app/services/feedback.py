@@ -134,6 +134,7 @@ async def create_and_send(
     about_user_id: uuid.UUID | None = None,
     contact_ids: list[uuid.UUID] | None = None,
     target_label: str | None = None,
+    manager_ids: list[uuid.UUID] | None = None,
 ) -> CreateAndSendResult:
     """Create a cycle for one of the 6 kinds and send it in one call.
 
@@ -207,6 +208,7 @@ async def create_and_send(
             reviewee_ids=[reviewee_user_id],
             plan=plan,
             due_at=closes_at,
+            manager_ids=manager_ids if kind == "employee" else None,
         )
         warnings.extend(result.warnings)
 

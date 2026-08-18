@@ -22,11 +22,12 @@ from app.models.cycle import FeedbackResponse, ReviewCycle
 from app.models.enums import AuditAction, UserRole, UserStatus
 from app.models.organization import Organization
 from app.models.user import Invitation, PasswordResetToken, User
-from app.schemas.common import MessageResponse, Page
+from app.schemas.common import LookupItem, MessageResponse, Page
 from app.schemas.feedback import UserFeedbackItem
 from app.schemas.org import InviteResult, UserCreateRequest, UserDetail, UserUpdateRequest
 from app.schemas.settings import OrgSettings
 from app.services import audit, auth as auth_service, email as email_service
+from app.services import managers as managers_service
 from app.services.bulk_import import BulkRowError, parse_csv
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -106,11 +107,16 @@ async def list_users(
         )
         feedback_counts = dict(rows.all())
 
+    # Same batching reasoning as feedback_counts — one grouped query for
+    # every row's managers instead of one query per row.
+    manager_ids_by_user = await managers_service.get_manager_ids_map(session, user_ids)
+
     items = []
     for user in users:
         detail = UserDetail.model_validate(user)
         detail.org_name = org_names.get(user.org_id) if user.org_id else None
         detail.feedback_count = feedback_counts.get(user.id, 0)
+        detail.manager_ids = manager_ids_by_user.get(user.id, [])
         items.append(detail)
 
     return Page[UserDetail](items=items, total=total, page=page, page_size=page_size)
@@ -134,7 +140,9 @@ async def user_feedback(
         if user is None:
             raise NotFound("That person does not exist.")
         is_admin = actor.role in {UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN}
-        is_their_manager = actor.role == UserRole.MANAGER and user.manager_id == actor.id
+        is_their_manager = actor.role == UserRole.MANAGER and actor.id in (
+            await managers_service.get_manager_ids(session, user_id)
+        )
         if not (is_admin or is_their_manager):
             raise PermissionDenied("You cannot view this person's feedback.")
 
@@ -190,6 +198,30 @@ async def user_feedback(
     ]
 
 
+@router.get("/{user_id}/managers", response_model=list[LookupItem])
+async def user_managers(
+    user_id: uuid.UUID, session: DbSession, actor: CurrentUser
+) -> list[LookupItem]:
+    """This person's current managers — what the Employee Review form's
+    manager checkbox list is built from once a reviewee is chosen.
+
+    RLS already scopes `users` to the caller's org, so a manager_id pointing
+    outside it can't happen; no extra org check needed here beyond that.
+    """
+    manager_ids = await managers_service.get_manager_ids(session, user_id)
+    if not manager_ids:
+        return []
+    rows = (
+        await session.execute(
+            select(User.id, User.full_name, User.job_title).where(User.id.in_(manager_ids))
+        )
+    ).all()
+    return [
+        LookupItem(id=row.id, label=row.full_name, sublabel=row.job_title)
+        for row in rows
+    ]
+
+
 @router.post("", response_model=InviteResult, status_code=201)
 async def invite_user(
     payload: UserCreateRequest,
@@ -235,7 +267,6 @@ async def invite_user(
         job_title=payload.job_title,
         department=payload.department,
         phone=payload.phone,
-        manager_id=payload.manager_id,
         status=UserStatus.INVITED,
     )
     session.add(user)
@@ -261,6 +292,15 @@ async def invite_user(
                 "Someone with that email already has an account on the platform."
             ) from exc
         raise
+
+    # Only meaningful once the user has a real id, which the DB assigns on
+    # insert — this is why it happens after the flush above, not inside the
+    # User(...) construction alongside the other fields.
+    if payload.manager_ids:
+        await managers_service.set_managers(
+            session, org_id=org_id, employee_id=user.id, manager_ids=payload.manager_ids
+        )
+        await session.flush()
 
     await audit.record(
         session,
@@ -501,10 +541,10 @@ async def update_user(
         user.department = payload.department
     if payload.phone is not None:
         user.phone = payload.phone
-    if payload.manager_id is not None:
-        if payload.manager_id == user.id:
-            raise ValidationFailed("A person cannot be their own manager.")
-        user.manager_id = payload.manager_id
+    if payload.manager_ids is not None:
+        await managers_service.set_managers(
+            session, org_id=user.org_id, employee_id=user.id, manager_ids=payload.manager_ids
+        )
 
     role_changed = payload.role is not None and payload.role != user.role
     if role_changed:
@@ -534,7 +574,9 @@ async def update_user(
         request=request,
     )
     await session.commit()
-    return UserDetail.model_validate(user)
+    detail = UserDetail.model_validate(user)
+    detail.manager_ids = await managers_service.get_manager_ids(session, user.id)
+    return detail
 
 
 @router.post("/{user_id}/disable", response_model=MessageResponse)

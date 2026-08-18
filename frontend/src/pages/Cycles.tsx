@@ -9,6 +9,7 @@ import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
+import { minClosingDate } from '../lib/date'
 import type { Cycle } from '../lib/cycleTypes'
 import { RELATIONSHIP_SHORT } from '../lib/cycleTypes'
 import type { Relationship } from '../lib/cycleTypes'
@@ -83,6 +84,11 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
     setForm({ name: '', template_id: '', closes_at: '' })
     setReviewees([])
   }
+
+  // `min` on the date input only stops the calendar UI — a date typed
+  // straight into the text portion still fires onChange, `min` and all.
+  // This is what actually catches that before either submit path fires.
+  const closesAtInvalid = Boolean(form.closes_at) && form.closes_at < minClosingDate()
 
   // One click: create the cycle, generate its assignments from the org chart,
   // and open it — the three-step draft workflow underneath still exists (a
@@ -183,6 +189,8 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
             label="Closes on (optional)"
             type="date"
             value={form.closes_at}
+            min={minClosingDate()}
+            error={closesAtInvalid ? 'Closing date must be after today.' : undefined}
             onChange={(event) => setForm({ ...form, closes_at: event.target.value })}
             hint="Leave blank to collect feedback with no deadline."
           />
@@ -221,14 +229,14 @@ function CreateCycle({ onCreated }: { onCreated: (cycle: Cycle) => void }) {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="submit" className="btn-primary px-3 py-1.5" disabled={busy}>
+          <button type="submit" className="btn-primary px-3 py-1.5" disabled={busy || closesAtInvalid}>
             {busy && <Spinner />}
             Create and open
           </button>
           <button
             type="button"
             className="btn-secondary px-3 py-1.5"
-            disabled={busy}
+            disabled={busy || closesAtInvalid}
             onClick={() => void createAsDraft()}
           >
             Create as draft instead

@@ -29,6 +29,7 @@ from app.models.enums import (
 )
 from app.models.organization import Organization
 from app.models.user import User
+from app.services import managers as managers_service
 from app.services.cycles import GenerationPlan, generate_assignments
 from app.services.forms import validate_definition
 
@@ -74,18 +75,31 @@ async def seed_cycle() -> None:
         # Assignment generation reads manager relationships, so the chart has to
         # exist before a 360 can mean anything.
         chart = {
-            "arun.k@northwind.example": "priya.raman@northwind.example",
-            "sneha.d@northwind.example": "priya.raman@northwind.example",
-            "vikram.s@northwind.example": "sneha.d@northwind.example",
-            "rahul.n@northwind.example": "sneha.d@northwind.example",
-            "meera.j@northwind.example": "arun.k@northwind.example",
+            "arun.k@northwind.example": ["priya.raman@northwind.example"],
+            "sneha.d@northwind.example": ["priya.raman@northwind.example"],
+            # Two managers on purpose — this is the one person in the seed
+            # data the Employee Review manager checkbox list actually has
+            # more than a single row to show.
+            "vikram.s@northwind.example": [
+                "sneha.d@northwind.example",
+                "arun.k@northwind.example",
+            ],
+            "rahul.n@northwind.example": ["sneha.d@northwind.example"],
+            "meera.j@northwind.example": ["arun.k@northwind.example"],
         }
         changed = 0
-        for email, manager_email in chart.items():
+        for email, manager_emails in chart.items():
             person = people.get(email)
-            manager = people.get(manager_email)
-            if person and manager and person.manager_id != manager.id:
-                person.manager_id = manager.id
+            if person is None:
+                continue
+            manager_ids = [people[m].id for m in manager_emails if m in people]
+            if not manager_ids:
+                continue
+            current = await managers_service.get_manager_ids(session, person.id)
+            if set(current) != set(manager_ids):
+                await managers_service.set_managers(
+                    session, org_id=org.id, employee_id=person.id, manager_ids=manager_ids
+                )
                 changed += 1
         await session.flush()
 

@@ -35,7 +35,7 @@ export interface User {
   role: Role
   status: string
   must_change_password: boolean
-  manager_id?: string | null
+  manager_ids?: string[]
   last_login_at?: string | null
   created_at?: string
   feedback_count?: number

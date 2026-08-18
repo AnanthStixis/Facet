@@ -3,12 +3,27 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
+
+
+def validate_closes_at_in_future(cls, value: datetime | None) -> datetime | None:
+    """Shared `closes_at` validator for every create request that has one.
+
+    The frontend's date picker refuses to offer today or earlier, but that
+    only governs clicks inside the calendar widget — a date typed directly
+    into the field's text portion still reaches `onChange` untouched, and
+    any other caller of the API (a script, a future client) bypasses the
+    picker entirely. This is the one place that actually enforces the rule,
+    regardless of how the request was made.
+    """
+    if value is not None and value.date() <= datetime.now(UTC).date():
+        raise ValueError("Closing date must be after today.")
+    return value
 
 
 class ORMModel(BaseModel):

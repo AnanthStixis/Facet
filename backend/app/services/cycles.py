@@ -21,6 +21,7 @@ from app.models.enums import (
     UserStatus,
 )
 from app.models.user import User
+from app.services import managers as managers_service
 
 # A 360 with thirty reviewers per person is a survey nobody finishes. Capping
 # peers keeps the ask proportionate and the results comparable between people.
@@ -95,12 +96,21 @@ async def generate_assignments(
     reviewee_ids: list[uuid.UUID],
     plan: GenerationPlan,
     due_at: datetime | None = None,
+    manager_ids: list[uuid.UUID] | None = None,
 ) -> GenerationResult:
     """Build the reviewer set for each reviewee from the org chart.
 
     Idempotent: re-running adds only what is missing. The unique constraint on
     (cycle, target, reviewer) is the backstop, but skipping in code keeps the
     result readable rather than surfacing as a constraint violation.
+
+    `manager_ids`, when given, narrows a downward review (`plan.include_manager`)
+    to just that subset of the reviewee's managers — the checked boxes on the
+    Employee Review form. Left as None, every manager on record for the
+    reviewee gets included, same as before an employee could have more than
+    one. Only meaningful with a single reviewee; the bulk multi-reviewee path
+    (the old Cycles.tsx flow) never passes this, so it keeps including every
+    manager on record for each person, unchanged.
     """
     if cycle.status not in {CycleStatus.DRAFT, CycleStatus.OPEN}:
         raise Conflict("Assignments can only be generated for a draft or open cycle.")
@@ -119,11 +129,15 @@ async def generate_assignments(
         .all()
     )
     by_id = {person.id: person for person in people}
+    person_ids = list(by_id.keys())
 
-    reports: dict[uuid.UUID, list[User]] = {}
-    for person in people:
-        if person.manager_id:
-            reports.setdefault(person.manager_id, []).append(person)
+    # manager_id -> employee_ids who report to them, and the reverse
+    # employee_id -> manager_ids — both directions of the same many-to-many,
+    # since a person with 2-3 managers has to show up under each of them for
+    # "their direct reports"/"their peers" to be correct, and has to yield
+    # all of their own managers for "their manager review" to be correct.
+    reports_by_manager = await managers_service.get_reports_map(session, person_ids)
+    managers_by_employee = await managers_service.get_manager_ids_map(session, person_ids)
 
     existing_pairs = {
         (row.target_id, row.reviewer_user_id)
@@ -157,16 +171,28 @@ async def generate_assignments(
             pairs.append((reviewee, Relationship.SELF))
 
         if plan.include_manager:
-            manager = by_id.get(reviewee.manager_id) if reviewee.manager_id else None
-            if manager is not None:
-                pairs.append((manager, Relationship.MANAGER))
+            reviewee_manager_ids = managers_by_employee.get(reviewee.id, [])
+            chosen_ids = (
+                [m for m in manager_ids if m in reviewee_manager_ids]
+                if manager_ids is not None
+                else reviewee_manager_ids
+            )
+            if chosen_ids:
+                for manager_id in chosen_ids:
+                    manager = by_id.get(manager_id)
+                    if manager is not None:
+                        pairs.append((manager, Relationship.MANAGER))
             else:
                 warnings.append(
                     f"{reviewee.full_name} has no manager on record, so no downward review was created."
                 )
 
         if plan.include_upward:
-            direct_reports = reports.get(reviewee.id, [])
+            direct_reports = [
+                by_id[employee_id]
+                for employee_id in reports_by_manager.get(reviewee.id, [])
+                if employee_id in by_id
+            ]
             for report in direct_reports:
                 pairs.append((report, Relationship.UPWARD))
             if not direct_reports and reviewee.role == UserRole.MANAGER:
@@ -174,15 +200,15 @@ async def generate_assignments(
                     f"{reviewee.full_name} is a manager with no direct reports recorded."
                 )
 
-        if plan.include_peers and reviewee.manager_id:
-            siblings = [
-                person
-                for person in reports.get(reviewee.manager_id, [])
-                if person.id != reviewee.id
-            ]
+        if plan.include_peers:
+            sibling_ids: dict[uuid.UUID, User] = {}
+            for manager_id in managers_by_employee.get(reviewee.id, []):
+                for employee_id in reports_by_manager.get(manager_id, []):
+                    if employee_id != reviewee.id and employee_id in by_id:
+                        sibling_ids[employee_id] = by_id[employee_id]
             # Deterministic ordering, so re-running the generator does not pick
             # a different sample of peers and skew a comparison between cycles.
-            siblings.sort(key=lambda person: str(person.id))
+            siblings = sorted(sibling_ids.values(), key=lambda person: str(person.id))
             for sibling in siblings[: plan.max_peers]:
                 pairs.append((sibling, Relationship.PEER))
 

@@ -113,6 +113,7 @@ async def create_feedback(
         about_user_id=payload.about_user_id,
         contact_ids=payload.contact_ids or None,
         target_label=payload.target_label,
+        manager_ids=payload.manager_ids,
     )
 
     await audit.record(

@@ -7,7 +7,8 @@ import { useToast } from '../components/Toast'
 import { Banner, Card, Field, Modal, Skeleton, Spinner } from '../components/ui'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
-import type { Paged } from '../lib/types'
+import type { LookupItem, Paged } from '../lib/types'
+import { minClosingDate } from '../lib/date'
 
 // A chip list truncates once it grows past this many entries — picking 50
 // recipients (the case the client called out) should not turn the form into
@@ -466,6 +467,47 @@ function DepartmentSelect({ value, onChange }: { value: string; onChange: (name:
   )
 }
 
+/** Same shape as DepartmentSelect, but there's no master list behind this
+ * one — Contact.company is a plain string with no dedicated entity, so this
+ * lists whatever company values already exist on contacts instead of
+ * needing its own table. Picking one narrows Recipients below; leaving it
+ * on "All organisations" shows every contact, same as an unset department. */
+function ClientOrganizationSelect({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (name: string) => void
+}) {
+  const [options, setOptions] = useState<string[]>([])
+
+  useEffect(() => {
+    api
+      .get<string[]>('/contacts/companies')
+      .then(setOptions)
+      .catch(() => setOptions([]))
+  }, [])
+
+  return (
+    <div>
+      <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+        Client Organisation
+      </span>
+      <select className="field" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">All organisations</option>
+        {options.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+      <span className="mt-1.5 block text-xs text-ink-400">
+        Narrows Recipients below to this organisation's contacts.
+      </span>
+    </div>
+  )
+}
+
 interface MasterTextOption {
   id: string
   name: string
@@ -615,9 +657,11 @@ function MasterSelectPicker({
 function ContactPicker({
   selected,
   onChange,
+  company,
 }: {
   selected: string[]
   onChange: (ids: string[]) => void
+  company?: string
 }) {
   const toast = useToast()
   const [open, setOpen] = useState(false)
@@ -637,6 +681,7 @@ function ContactPicker({
   const load = () => {
     const query = new URLSearchParams({ page_size: '200' })
     if (search) query.set('search', search)
+    if (company) query.set('company', company)
     api
       .get<Paged<Contact>>(`/contacts?${query}`)
       .then((page) => {
@@ -653,7 +698,7 @@ function ContactPicker({
   useEffect(() => {
     if (open) load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, open])
+  }, [search, open, company])
 
   const toggle = (contact: Contact) => {
     setChosen((state) => ({ ...state, [contact.id]: contact }))
@@ -725,7 +770,18 @@ function ContactPicker({
             <button
               type="button"
               className="btn-secondary shrink-0 px-2.5 py-1.5 text-sm"
-              onClick={() => setAdding((state) => !state)}
+              onClick={() => {
+                // If a Client Organisation is selected, a recipient added
+                // from here almost certainly belongs to it — default the
+                // Company field to match instead of leaving it blank for no
+                // reason. Only overwrite the field when it's still empty:
+                // the person may have already opened "New" and typed
+                // something before the org filter changed.
+                if (!adding && company && !newContact.company) {
+                  setNewContact((state) => ({ ...state, company }))
+                }
+                setAdding((state) => !state)
+              }}
             >
               {adding ? 'Cancel' : 'New'}
             </button>
@@ -848,9 +904,26 @@ export function CreateFeedback() {
   const [revieweeUser, setRevieweeUser] = useState<PickableUser | null>(null)
   const revieweeId = revieweeUser?.id ?? null
   const [revieweeUsers, setRevieweeUsers] = useState<PickableUser[]>([])
+  // Only meaningful with exactly one reviewee — with several picked at once
+  // each could have a different set of managers, so the checkbox list below
+  // only appears for a single person and the batch case keeps the old
+  // "every manager on record" default.
+  // Keyed by employee id, so the checklist can show each selected person's
+  // own managers on their own line instead of one merged, unattributed list
+  // — see the state comment further down for why a merged list stopped
+  // being clear once people from different departments got mixed together.
+  const [managersByEmployee, setManagersByEmployee] = useState<Record<string, LookupItem[]>>({})
+  // Keyed by employee id — each row's checkboxes must stay independent, or
+  // unchecking a manager for one person silently unchecks the same manager
+  // for every other selected person who also has them.
+  const [selectedManagerIdsByEmployee, setSelectedManagerIdsByEmployee] = useState<
+    Record<string, string[]>
+  >({})
+  const [managersLoading, setManagersLoading] = useState(false)
   const [aboutUsers, setAboutUsers] = useState<PickableUser[]>([])
   const [department, setDepartment] = useState('')
   const [targetLabel, setTargetLabel] = useState('')
+  const [clientOrg, setClientOrg] = useState('')
   const [contactIds, setContactIds] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -880,6 +953,7 @@ export function CreateFeedback() {
     setAboutUsers([])
     setDepartment('')
     setTargetLabel('')
+    setClientOrg('')
     setContactIds([])
     setNameTouched(false)
     setName('')
@@ -903,6 +977,13 @@ export function CreateFeedback() {
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null
 
+  // The `min` on the date input below only stops the calendar UI from
+  // offering today or earlier — it does nothing to a date typed straight
+  // into the text portion of a native date input, which fires onChange
+  // with whatever was typed regardless of `min`. This is what actually
+  // catches that.
+  const closesAtInvalid = Boolean(closesAt) && closesAt < minClosingDate()
+
   // Auto-suggested name, editable — mirrors the plan's
   // "${reviewee.name} — ${template.name}" pattern where a name is known.
   useEffect(() => {
@@ -911,8 +992,65 @@ export function CreateFeedback() {
     setName(`${selectedTemplate.name} — ${new Date().toLocaleDateString()}`)
   }, [selectedTemplate, nameTouched])
 
+  // Every reviewee gets their own separate create-and-send call under the
+  // hood (see `targets.map` in submit below) — so even with several people
+  // picked at once, the backend only ever resolves one reviewee's managers
+  // per call. A manager checked here only ends up on the people who
+  // actually have them — checking someone who doesn't manage every
+  // selected person simply has no effect on the ones who don't. This
+  // fetches each selected person's own managers separately (not merged),
+  // so the checklist can show whose manager is whose.
+  const employeeRevieweeIds = kind === 'employee' ? revieweeUsers.map((u) => u.id) : []
+  // Stable string key so this only refetches when the actual set of
+  // selected people changes, not on every render's new array reference.
+  const revieweeIdsKey = [...employeeRevieweeIds].sort().join(',')
+
+  useEffect(() => {
+    if (employeeRevieweeIds.length === 0) {
+      setManagersByEmployee({})
+      setSelectedManagerIdsByEmployee({})
+      return
+    }
+    let cancelled = false
+    setManagersLoading(true)
+    Promise.all(
+      employeeRevieweeIds.map((id) => api.get<LookupItem[]>(`/users/${id}/managers`)),
+    )
+      .then((results) => {
+        if (cancelled) return
+        const byEmployee: Record<string, LookupItem[]> = {}
+        const selectedByEmployee: Record<string, string[]> = {}
+        employeeRevieweeIds.forEach((id, i) => {
+          byEmployee[id] = results[i]
+          // Checked by default — matches what already happened before a
+          // person could have more than one manager (the review went to
+          // every manager on record); unchecking narrows it from here.
+          // Each employee gets their own independent array, not a shared
+          // one — otherwise unchecking a manager for one person unchecks
+          // that same manager id for every other person who also has them.
+          selectedByEmployee[id] = results[i].map((m) => m.id)
+        })
+        setManagersByEmployee(byEmployee)
+        setSelectedManagerIdsByEmployee(selectedByEmployee)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setManagersByEmployee({})
+          setSelectedManagerIdsByEmployee({})
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setManagersLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revieweeIdsKey])
+
   const canSubmit = (() => {
     if (!templateId || !name.trim()) return false
+    if (closesAtInvalid) return false
     if (kind === 'employee') return revieweeUsers.length > 0
     if (kind === 'management') return Boolean(revieweeId)
     if (kind === 'client') return (aboutUsers.length > 0 || targetLabel.trim()) && contactIds.length > 0
@@ -947,6 +1085,8 @@ export function CreateFeedback() {
             about_user_id: kind === 'client' ? (user?.id ?? null) : null,
             reviewee_user_id:
               kind === 'employee' ? (user?.id ?? null) : kind === 'management' ? revieweeId : null,
+            manager_ids:
+              kind === 'employee' && user ? (selectedManagerIdsByEmployee[user.id] ?? []) : undefined,
           }),
         ),
       )
@@ -1051,6 +1191,8 @@ export function CreateFeedback() {
                 label="Closes on (optional)"
                 type="date"
                 value={closesAt}
+                min={minClosingDate()}
+                error={closesAtInvalid ? 'Closing date must be after today.' : undefined}
                 onChange={(event) => setClosesAt(event.target.value)}
               />
             </div>
@@ -1077,6 +1219,77 @@ export function CreateFeedback() {
                     {config.revieweeLabel}
                   </span>
                   <UserPicker selected={revieweeUsers} onChange={setRevieweeUsers} department={department} />
+                </div>
+              )}
+
+              {kind === 'employee' && employeeRevieweeIds.length > 0 && (
+                <div>
+                  <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                    Manager
+                  </span>
+                  {managersLoading ? (
+                    <p className="flex items-center gap-1.5 text-xs text-ink-400">
+                      <Spinner /> Loading managers…
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {revieweeUsers.map((user) => {
+                        const managers = managersByEmployee[user.id] ?? []
+                        return (
+                          <li
+                            key={user.id}
+                            className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm"
+                          >
+                            <span className="whitespace-nowrap font-medium text-ink-800 dark:text-ink-100">
+                              {user.full_name}
+                            </span>
+                            <span className="text-ink-400">—</span>
+                            {managers.length === 0 ? (
+                              <span className="text-xs text-ink-400">no manager on record</span>
+                            ) : (
+                              managers.map((manager, i) => {
+                                const checked = (selectedManagerIdsByEmployee[user.id] ?? []).includes(
+                                  manager.id,
+                                )
+                                return (
+                                  <label
+                                    key={manager.id}
+                                    className="inline-flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-ink-50 dark:hover:bg-ink-800/60"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="h-3.5 w-3.5 accent-[color:var(--accent)]"
+                                      checked={checked}
+                                      onChange={(event) =>
+                                        setSelectedManagerIdsByEmployee((current) => {
+                                          const forThisEmployee = current[user.id] ?? []
+                                          return {
+                                            ...current,
+                                            [user.id]: event.target.checked
+                                              ? [...forThisEmployee, manager.id]
+                                              : forThisEmployee.filter((id) => id !== manager.id),
+                                          }
+                                        })
+                                      }
+                                    />
+                                    <span className="text-ink-700 dark:text-ink-200">
+                                      {manager.label}
+                                      {i < managers.length - 1 ? ',' : ''}
+                                    </span>
+                                  </label>
+                                )
+                              })
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                  <span className="mt-1.5 block text-xs text-ink-400">
+                    {revieweeUsers.length > 1
+                      ? 'Only checked managers receive a review, and only for the people they actually manage.'
+                      : 'Only the managers checked here will receive this review.'}
+                  </span>
                 </div>
               )}
 
@@ -1128,12 +1341,20 @@ export function CreateFeedback() {
                 />
               )}
 
+              {(kind === 'client' || kind === 'proposal') && (
+                <ClientOrganizationSelect value={clientOrg} onChange={setClientOrg} />
+              )}
+
               {config.audience === 'external' && (
                 <div>
                   <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
                     Recipients
                   </span>
-                  <ContactPicker selected={contactIds} onChange={setContactIds} />
+                  <ContactPicker
+                    selected={contactIds}
+                    onChange={setContactIds}
+                    company={kind === 'client' || kind === 'proposal' ? clientOrg : undefined}
+                  />
                 </div>
               )}
             </div>

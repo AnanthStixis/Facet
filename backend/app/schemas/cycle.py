@@ -6,10 +6,10 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import TargetType
-from app.schemas.common import ORMModel
+from app.schemas.common import ORMModel, validate_closes_at_in_future
 
 
 class CycleCreateRequest(BaseModel):
@@ -18,6 +18,8 @@ class CycleCreateRequest(BaseModel):
     template_id: uuid.UUID
     opens_at: datetime | None = None
     closes_at: datetime | None = None
+
+    _check_closes_at = field_validator("closes_at")(validate_closes_at_in_future)
 
 
 class AssignmentPlanRequest(BaseModel):
