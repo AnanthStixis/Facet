@@ -530,7 +530,7 @@ export function Results() {
               setSearchTerm(event.target.value)
               setPage(1)
             }}
-            placeholder="Cycle name, client, type, reviewed by/to, status…"
+            placeholder="search…"
           />
 
           <label className="block">
