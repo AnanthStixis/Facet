@@ -35,19 +35,21 @@ class FeedbackCreateRequest(BaseModel):
     # client (no about_user_id) / product / service / proposal
     target_label: str | None = Field(default=None, max_length=200)
 
-        # client / product / service / proposal
+    # client / product / service / proposal
     contact_ids: list[uuid.UUID] = Field(default_factory=list, max_length=1000)
 
-    # Only meaningful for kind="product" today: lets a Product review be
-    # sent to a chosen set of internal staff instead of external client
-    # contacts, reusing the same delivery mechanism as an Employee/
-    # Management round (each recipient gets a direct assignment in their
-    # "My feedback" queue) rather than emailed one-time links. The other
-    # external-typed kinds (client/service/proposal) keep the
-    # external-only behaviour they already had — the frontend does not
-    # offer this toggle for them yet, and the validator below rejects it
-    # rather than silently accepting a shape nothing acts on.
+    # product / service only — 'external' (client contacts, via contact_ids)
+    # or 'internal' (org staff, via recipient_user_ids). Every other kind is
+    # always 'external', and the frontend sends 'external' for those too, so
+    # this can just default to it rather than needing kind-conditional logic
+    # here.
     audience: Literal["external", "internal"] = "external"
+
+    # product / service, only meaningful when audience == "internal" — the
+    # internal staff this review goes to, instead of contact_ids. Same
+    # shape and same lack of a non-empty requirement as contact_ids: the
+    # frontend's own submit button is what actually enforces "pick at least
+    # one," not this schema.
     recipient_user_ids: list[uuid.UUID] = Field(default_factory=list, max_length=1000)
 
     @model_validator(mode="after")
@@ -64,14 +66,6 @@ class FeedbackCreateRequest(BaseModel):
             raise ValueError(
                 "Say what this Client Review is about, or choose who it's about."
             )
-        if self.audience == "internal":
-            if self.kind not in {"product", "service"}:
-                raise ValueError(
-                    "Internal delivery is only available for Product and "
-                    "Service reviews right now."
-                )
-            if not self.recipient_user_ids:
-                raise ValueError("Choose at least one internal recipient.")
         return self
 
 
@@ -99,6 +93,10 @@ class FeedbackListItem(BaseModel):
     responded: int = 0
     org_id: uuid.UUID | None = None
     org_name: str | None = None
+    # The reviewing contact's own company — distinct from org_name, which is
+    # the tenant and identical on every row. Only external rounds have a
+    # contact behind them at all; internal ones leave this unset.
+    client_name: str | None = None
     # Who the request actually went to — the external contacts for a
     # campaign, or the internal reviewers for a cycle. Distinct from
     # target_label, which is who/what the feedback is *about*, not who it

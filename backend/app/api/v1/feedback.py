@@ -149,6 +149,7 @@ async def list_feedback(
     kind: str | None = None,
     status: str | None = None,
     org_id: uuid.UUID | None = None,
+    client_name: str | None = None,
     cycle_name: str | None = None,
     q: str | None = None,
     date_preset: DateFilterPreset = "all",
@@ -169,7 +170,10 @@ async def list_feedback(
     `q` is the free-text "Search" box on the Results page — it matches
     against exactly what's visible in the table (Cycle Name, Client, Type,
     Reviewed by, Reviewed to, Status), not just the cycle's own name the
-    way `cycle_name` does.
+    way `cycle_name` does. `client_name` is a separate, exact-match filter
+    from the "Organisation Name" dropdown — when set, `q` only searches
+    within that organisation's rows, since both filters apply together in
+    the same pass below rather than one replacing the other.
     """
     date_floor, date_ceiling = _resolve_date_floor(date_preset, date_start, date_end)
     q_term = q.strip().lower() if q and q.strip() else None
@@ -294,6 +298,27 @@ async def list_feedback(
         for cycle_id, full_name, email in rows:
             recipient_names.setdefault(cycle_id, []).append(full_name or email)
 
+    # The reviewing contact's own company — genuinely different per cycle,
+    # unlike org_name (the tenant, identical on every row). Only external
+    # cycles have a contact behind them at all; internal ones simply have
+    # nothing here, and the Results table shows "—" for those.
+    client_names: dict[uuid.UUID, str] = {}
+    if external_ids:
+        company_rows = (
+            await session.execute(
+                select(CampaignRecipient.cycle_id, Contact.company)
+                .join(Contact, Contact.id == CampaignRecipient.contact_id)
+                .where(CampaignRecipient.cycle_id.in_(external_ids))
+                .where(Contact.company.isnot(None))
+                .distinct()
+            )
+        ).all()
+        companies_by_cycle: dict[uuid.UUID, set[str]] = {}
+        for cycle_id, company in company_rows:
+            companies_by_cycle.setdefault(cycle_id, set()).add(company)
+        for cycle_id, companies in companies_by_cycle.items():
+            client_names[cycle_id] = ", ".join(sorted(companies))
+
     internal_ids = [c.id for c in cycles if c.audience != CycleAudience.EXTERNAL]
     if internal_ids:
         rows = (
@@ -320,11 +345,22 @@ async def list_feedback(
         if kind and cycle_kind != kind:
             continue
 
+        # Exact match, not a search — this comes from picking a name off the
+        # "Organisation Name" dropdown (itself sourced from the same
+        # distinct-companies list as the Client Organisation picker on the
+        # create-feedback form), not typed freehand. A cycle with no client
+        # at all (client_names has no entry for it) never matches a real
+        # selected name, so narrowing to one organisation correctly drops
+        # every internal round too.
+        if client_name and client_names.get(cycle.id) != client_name:
+            continue
+
         if q_term:
             haystack_parts = [
                 cycle.name,
                 target.label if target else None,
                 org_names.get(cycle.org_id),
+                client_names.get(cycle.id),
                 cycle_kind,
                 str(cycle.status),
                 *recipient_names.get(cycle.id, []),
@@ -368,6 +404,7 @@ async def list_feedback(
                 responded=responded,
                 org_id=cycle.org_id,
                 org_name=org_names.get(cycle.org_id),
+                client_name=client_names.get(cycle.id),
                 recipients=recipient_names.get(cycle.id, []),
             )
         )

@@ -1,7 +1,8 @@
 import clsx from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FEEDBACK_TYPES } from './CreateFeedback'
 import { Pagination } from '../components/DataTable'
+import { FloatingPanel, useDismiss } from '../components/filters'
 import { IconSearch } from '../components/icons'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, StatTile } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -30,6 +31,7 @@ interface FeedbackListItem {
   responded: number
   org_id: string | null
   org_name: string | null
+  client_name: string | null
   recipients: string[]
 }
 
@@ -410,6 +412,100 @@ function ResultsDetailModal({ row, onClose }: { row: FeedbackListItem; onClose: 
   )
 }
 
+/** Single-select over the Organisation Name list, as an actual combobox —
+ * the search input IS the control, always visible, not a button that has
+ * to be clicked open first to reveal a search box inside it. Filters the
+ * already-loaded local list client-side as you type, since every option
+ * here was fetched once on mount rather than needing a per-keystroke API
+ * call. "All organisations" always sits at the top of the dropdown,
+ * unaffected by the search text — it's the "clear this filter" choice, not
+ * a name to search for — and picking it clears the input back to empty
+ * rather than filling it with that label. */
+function OrganisationNameFilter({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[]
+  value: string
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const { triggerRef, panelRef } = useDismiss(open, () => {
+    setOpen(false)
+    setDraft(value)
+  })
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const filtered = draft
+    ? options.filter((name) => name.toLowerCase().includes(draft.toLowerCase()))
+    : options
+
+  const pick = (next: string) => {
+    onChange(next)
+    setDraft(next)
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative" ref={triggerRef}>
+      <div className="relative">
+        <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
+        <input
+          ref={inputRef}
+          type="text"
+          autoComplete="off"
+          className="field w-full pl-8"
+          placeholder="Search organisations"
+          value={draft}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            setOpen(true)
+          }}
+        />
+      </div>
+
+      <FloatingPanel anchorRef={inputRef} panelRef={panelRef} open={open} className="w-72 p-2">
+        <div className="max-h-56 overflow-y-auto">
+          <ul>
+            <li>
+              <button
+                type="button"
+                className={clsx(
+                  'w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-ink-100 dark:hover:bg-ink-800',
+                  value === '' ? 'accent-text font-medium' : 'text-ink-800 dark:text-ink-100',
+                )}
+                onClick={() => pick('')}
+              >
+                All organisations
+              </button>
+            </li>
+            {filtered.map((name) => (
+              <li key={name}>
+                <button
+                  type="button"
+                  className={clsx(
+                    'w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-ink-100 dark:hover:bg-ink-800',
+                    name === value ? 'accent-text font-medium' : 'text-ink-800 dark:text-ink-100',
+                  )}
+                  onClick={() => pick(name)}
+                >
+                  {name}
+                </button>
+              </li>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-3 text-center text-sm text-ink-500">No matches.</p>
+            )}
+          </ul>
+        </div>
+      </FloatingPanel>
+    </div>
+  )
+}
+
 const KIND_LABEL: Record<string, string> = Object.fromEntries(
   FEEDBACK_TYPES.map((t) => [t.kind, t.label]),
 )
@@ -427,6 +523,7 @@ export function Results() {
   // Dropdowns and dates re-run the query immediately on change; the
   // free-text box debounces briefly so it doesn't fire on every keystroke.
   const [searchTerm, setSearchTerm] = useState('')
+  const [clientNameFilter, setClientNameFilter] = useState('')
   const [kindFilter, setKindFilter] = useState('')
   const [cycleNameFilter, setCycleNameFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -445,6 +542,18 @@ export function Results() {
       .catch(() => {})
   }, [isPlatform])
 
+  // Options for the "Organisation Name" filter — the same distinct
+  // Contact.company list the Client Organisation picker on the
+  // create-feedback form already uses, not a Results-specific list. Visible
+  // to everyone, unlike the Super-Admin-only "Client" (tenant) filter above.
+  const [clientNameOptions, setClientNameOptions] = useState<string[]>([])
+  useEffect(() => {
+    api
+      .get<string[]>('/contacts/companies')
+      .then(setClientNameOptions)
+      .catch(() => setClientNameOptions([]))
+  }, [])
+
   // Every distinct cycle name the person can filter to, for the "Cycle
   // name" dropdown. Re-fetched when a Super Admin narrows to a client, so
   // the list never offers a name that client has none of.
@@ -461,6 +570,7 @@ export function Results() {
     setLoading(true)
     const query = new URLSearchParams({ page_size: String(PAGE_SIZE), page: String(page) })
     if (searchTerm) query.set('q', searchTerm)
+    if (clientNameFilter) query.set('client_name', clientNameFilter)
     if (kindFilter) query.set('kind', kindFilter)
     if (cycleNameFilter) query.set('cycle_name', cycleNameFilter)
     if (statusFilter) query.set('status', statusFilter)
@@ -487,18 +597,19 @@ export function Results() {
     const timer = setTimeout(load, searchTerm ? 300 : 0)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset, dateStart, dateEnd, page])
+  }, [searchTerm, clientNameFilter, kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset, dateStart, dateEnd, page])
 
   const filtersActive = useMemo(
     () =>
       Boolean(
-        searchTerm || kindFilter || cycleNameFilter || statusFilter || orgFilter || datePreset !== 'all',
+        searchTerm || clientNameFilter || kindFilter || cycleNameFilter || statusFilter || orgFilter || datePreset !== 'all',
       ),
-    [searchTerm, kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset],
+    [searchTerm, clientNameFilter, kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset],
   )
 
   const resetFilters = () => {
     setSearchTerm('')
+    setClientNameFilter('')
     setKindFilter('')
     setCycleNameFilter('')
     setStatusFilter('')
@@ -523,15 +634,19 @@ export function Results() {
 
       <Card className="mb-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Field
-            label="Search"
-            value={searchTerm}
-            onChange={(event) => {
-              setSearchTerm(event.target.value)
-              setPage(1)
-            }}
-            placeholder="search…"
-          />
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+              Organisation Name
+            </span>
+            <OrganisationNameFilter
+              options={clientNameOptions}
+              value={clientNameFilter}
+              onChange={(next) => {
+                setClientNameFilter(next)
+                setPage(1)
+              }}
+            />
+          </label>
 
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
@@ -663,6 +778,23 @@ export function Results() {
           )}
         </div>
 
+        {/* Its own row, explicitly, rather than just being the next grid
+            item — the item count above changes (the Super-Admin-only
+            "Client" filter, the custom-date-range fields), and this always
+            needs to land in the same spot regardless of how many of those
+            are showing. */}
+        <div className="mt-3 max-w-sm">
+          <Field
+            label="Search"
+            value={searchTerm}
+            onChange={(event) => {
+              setSearchTerm(event.target.value)
+              setPage(1)
+            }}
+            placeholder="search…"
+          />
+        </div>
+
         {filtersActive && (
           <button
             type="button"
@@ -715,7 +847,7 @@ export function Results() {
                       onClick={() => setSelected(row)}
                     >
                       <td className="font-medium text-ink-900 dark:text-ink-50">{row.name}</td>
-                      <td className="text-ink-600 dark:text-ink-300">{row.org_name ?? '—'}</td>
+                      <td className="text-ink-600 dark:text-ink-300">{row.client_name ?? '—'}</td>
                       <td>{KIND_LABEL[row.kind] ?? row.kind}</td>
                       <td
                         className="max-w-[220px] truncate text-ink-600 dark:text-ink-300"
