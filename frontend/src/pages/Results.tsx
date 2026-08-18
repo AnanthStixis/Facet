@@ -42,7 +42,15 @@ interface FeedbackResponseAnswer {
 
 /** Five stars scaled to whatever the template's max actually is (not every
  * scale is 1-5), with a partial-fill star for a non-integer average. */
-function StarRating({ value, max }: { value: number | null | undefined; max: number }) {
+function StarRating({
+  value,
+  max,
+  size = 24,
+}: {
+  value: number | null | undefined
+  max: number
+  size?: number
+}) {
   if (value == null) return <span>—</span>
   const fraction = Math.max(0, Math.min(1, value / max)) * 5
   return (
@@ -50,12 +58,12 @@ function StarRating({ value, max }: { value: number | null | undefined; max: num
       {Array.from({ length: 5 }, (_, index) => {
         const fill = Math.max(0, Math.min(1, fraction - index))
         return (
-          <span key={index} className="relative inline-block h-6 w-6">
+          <span key={index} className="relative inline-block" style={{ height: size, width: size }}>
             <svg viewBox="0 0 20 20" className="absolute inset-0 h-full w-full text-ink-200 dark:text-ink-700" fill="currentColor">
               <path d="M10 1.5l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.6z" />
             </svg>
             <span className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
-              <svg viewBox="0 0 20 20" className="h-6 w-6 accent-text" fill="currentColor">
+              <svg viewBox="0 0 20 20" className="h-full w-full accent-text" fill="currentColor">
                 <path d="M10 1.5l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.6z" />
               </svg>
             </span>
@@ -190,7 +198,7 @@ function DeliveryFunnel({
   }
 
   return (
-    <div className="mb-5 rounded-lg border border-ink-200 p-4 dark:border-ink-700">
+    <div className="h-full rounded-lg border border-ink-200 p-4 dark:border-ink-700">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="label-caps">Delivery</p>
         {status === 'open' && (hasPending || notYetResponded > 0) && (
@@ -208,7 +216,7 @@ function DeliveryFunnel({
             {sending && <Spinner />}
             {hasPending
               ? `Send ${delivery.pending} invitation${delivery.pending === 1 ? '' : 's'}`
-              : 'Chase non-responders'}
+              : 'Resend'}
           </button>
         )}
       </div>
@@ -239,7 +247,7 @@ function DeliveryFunnel({
   )
 }
 
-function AnswerValue({ answer }: { answer: FeedbackResponseAnswer }) {
+function AnswerValue({ answer, max }: { answer: FeedbackResponseAnswer; max: number }) {
   if (answer.value === null || answer.value === undefined || answer.value === '') {
     return <span className="text-ink-400">Not answered</span>
   }
@@ -247,7 +255,7 @@ function AnswerValue({ answer }: { answer: FeedbackResponseAnswer }) {
     return <span>{answer.value ? 'Yes' : 'No'}</span>
   }
   if (answer.type === 'scale' && typeof answer.value === 'number') {
-    return <span className="tabular font-semibold">{answer.value}</span>
+    return <StarRating value={answer.value} max={max} size={16} />
   }
   return <span>{String(answer.value)}</span>
 }
@@ -278,19 +286,23 @@ function ResultsDetailModal({ row, onClose }: { row: FeedbackListItem; onClose: 
 
   return (
     <Modal title={row.name} hint={row.target_label ?? undefined} onClose={onClose} className="max-w-3xl">
-      {delivery && (
-        <DeliveryFunnel cycleId={row.id} status={row.status} delivery={delivery} onSent={setDelivery} />
-      )}
-      {error && <Banner tone="error">{error}</Banner>}
-      {!error && !data && <Skeleton className="h-64 w-full rounded-lg" />}
-      {data && data.found && (
-        <>
-          {/* Self assessment / self-awareness gap only mean anything where a
-              self-review actually exists — that's the "Employees Review"
-              kind alone (create_and_send() only sets include_self=True
-              there; Management Review and every external kind never collect
-              a self response, so these tiles would always read "—"). */}
-          <div className={row.kind === 'employee' ? 'grid gap-3 sm:grid-cols-2 xl:grid-cols-4' : 'grid gap-3 sm:grid-cols-2'}>
+      {/* Delivery loads independently of the target results below, so it's
+          allowed to render on its own (full width) while data is still
+          loading or failed — it only pairs up side-by-side with Overall
+          rating once both are actually ready. An internal cycle has no
+          delivery funnel at all (DeliveryFunnel returns null for it), so
+          Overall rating takes the full row in that case too. */}
+      {(delivery || (data && data.found)) && (
+        <div
+          className={clsx(
+            'mb-3 grid gap-3',
+            delivery?.audience === 'external' && data?.found && 'sm:grid-cols-[2fr_1fr]',
+          )}
+        >
+          {delivery && (
+            <DeliveryFunnel cycleId={row.id} status={row.status} delivery={delivery} onSent={setDelivery} />
+          )}
+          {data && data.found && (
             <StatTile
               label="Overall rating"
               value={<StarRating value={data.overall_average} max={data.scale?.max ?? 5} />}
@@ -301,26 +313,37 @@ function ResultsDetailModal({ row, onClose }: { row: FeedbackListItem; onClose: 
                   : `Out of ${data.scale?.max ?? 5}`
               }
             />
-            {row.kind === 'employee' && (
-              <>
-                <StatTile
-                  label="Self assessment"
-                  value={data.self_average?.toFixed(2) ?? '—'}
-                  sub={data.self_response_count ? 'Their own rating' : 'Not completed'}
-                />
-                <StatTile
-                  label="Self-awareness gap"
-                  value={
-                    data.self_awareness_gap === null || data.self_awareness_gap === undefined
-                      ? '—'
-                      : `${data.self_awareness_gap > 0 ? '+' : ''}${data.self_awareness_gap.toFixed(2)}`
-                  }
-                  sub="Self minus others"
-                />
-              </>
-            )}
-            <StatTile label="Responses" value={data.response_count} />
-          </div>
+          )}
+        </div>
+      )}
+
+      {error && <Banner tone="error">{error}</Banner>}
+      {!error && !data && <Skeleton className="h-64 w-full rounded-lg" />}
+      {data && data.found && (
+        <>
+          {/* Self assessment / self-awareness gap only mean anything where a
+              self-review actually exists — that's the "Employees Review"
+              kind alone (create_and_send() only sets include_self=True
+              there; Management Review and every external kind never collect
+              a self response, so these tiles would always read "—"). */}
+          {row.kind === 'employee' && (
+            <div className="mb-3 grid gap-3 sm:grid-cols-2">
+              <StatTile
+                label="Self assessment"
+                value={data.self_average?.toFixed(2) ?? '—'}
+                sub={data.self_response_count ? 'Their own rating' : 'Not completed'}
+              />
+              <StatTile
+                label="Self-awareness gap"
+                value={
+                  data.self_awareness_gap === null || data.self_awareness_gap === undefined
+                    ? '—'
+                    : `${data.self_awareness_gap > 0 ? '+' : ''}${data.self_awareness_gap.toFixed(2)}`
+                }
+                sub="Self minus others"
+              />
+            </div>
+          )}
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
             <p className="label-caps">Responses</p>
@@ -365,7 +388,7 @@ function ResultsDetailModal({ row, onClose }: { row: FeedbackListItem; onClose: 
                           className="flex flex-wrap items-center justify-between gap-2 text-sm"
                         >
                           <span className="text-ink-600 dark:text-ink-300">{answer.text}</span>
-                          <AnswerValue answer={answer} />
+                          <AnswerValue answer={answer} max={data.scale?.max ?? 5} />
                         </li>
                       ))}
                     </ul>
@@ -400,6 +423,10 @@ export function Results() {
   const [selected, setSelected] = useState<FeedbackListItem | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Every filter below applies live — there is no separate "Search" button.
+  // Dropdowns and dates re-run the query immediately on change; the
+  // free-text box debounces briefly so it doesn't fire on every keystroke.
+  const [searchTerm, setSearchTerm] = useState('')
   const [kindFilter, setKindFilter] = useState('')
   const [cycleNameFilter, setCycleNameFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -418,9 +445,22 @@ export function Results() {
       .catch(() => {})
   }, [isPlatform])
 
+  // Every distinct cycle name the person can filter to, for the "Cycle
+  // name" dropdown. Re-fetched when a Super Admin narrows to a client, so
+  // the list never offers a name that client has none of.
+  const [cycleNames, setCycleNames] = useState<string[]>([])
+  useEffect(() => {
+    const query = orgFilter ? `?org_id=${orgFilter}` : ''
+    api
+      .get<string[]>(`/feedback/cycle-names${query}`)
+      .then(setCycleNames)
+      .catch(() => setCycleNames([]))
+  }, [orgFilter])
+
   const load = () => {
     setLoading(true)
     const query = new URLSearchParams({ page_size: String(PAGE_SIZE), page: String(page) })
+    if (searchTerm) query.set('q', searchTerm)
     if (kindFilter) query.set('kind', kindFilter)
     if (cycleNameFilter) query.set('cycle_name', cycleNameFilter)
     if (statusFilter) query.set('status', statusFilter)
@@ -441,17 +481,24 @@ export function Results() {
   }
 
   useEffect(() => {
-    const timer = setTimeout(load, cycleNameFilter ? 250 : 0)
+    // Only the free-text box gets a debounce — everything else (dropdowns,
+    // dates) is a single discrete action, so it should apply the instant
+    // it changes rather than waiting.
+    const timer = setTimeout(load, searchTerm ? 300 : 0)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset, dateStart, dateEnd, page])
+  }, [searchTerm, kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset, dateStart, dateEnd, page])
 
   const filtersActive = useMemo(
-    () => Boolean(kindFilter || cycleNameFilter || statusFilter || orgFilter || datePreset !== 'all'),
-    [kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset],
+    () =>
+      Boolean(
+        searchTerm || kindFilter || cycleNameFilter || statusFilter || orgFilter || datePreset !== 'all',
+      ),
+    [searchTerm, kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset],
   )
 
   const resetFilters = () => {
+    setSearchTerm('')
     setKindFilter('')
     setCycleNameFilter('')
     setStatusFilter('')
@@ -476,6 +523,37 @@ export function Results() {
 
       <Card className="mb-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Field
+            label="Search"
+            value={searchTerm}
+            onChange={(event) => {
+              setSearchTerm(event.target.value)
+              setPage(1)
+            }}
+            placeholder="Cycle name, client, type, reviewed by/to, status…"
+          />
+
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+              Cycle name
+            </span>
+            <select
+              className="field"
+              value={cycleNameFilter}
+              onChange={(event) => {
+                setCycleNameFilter(event.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All cycles</option>
+              {cycleNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
               Feedback type
@@ -497,20 +575,10 @@ export function Results() {
             </select>
           </label>
 
-          <Field
-            label="Cycle name"
-            value={cycleNameFilter}
-            onChange={(event) => {
-              setCycleNameFilter(event.target.value)
-              setPage(1)
-            }}
-            placeholder="Search by cycle name"
-          />
-
           {isPlatform && (
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                Organization
+                Client
               </span>
               <select
                 className="field"
@@ -520,7 +588,7 @@ export function Results() {
                   setPage(1)
                 }}
               >
-                <option value="">All organizations</option>
+                <option value="">All clients</option>
                 {orgs.map((org) => (
                   <option key={org.id} value={org.id}>
                     {org.name}
@@ -622,56 +690,54 @@ export function Results() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Name</th>
+                  <th>Cycle Name</th>
+                  <th>Client Name</th>
                   <th>Type</th>
-                  <th>About</th>
-                  <th>Recipients</th>
-                  {isPlatform && <th>Organization</th>}
-                  <th>Template</th>
-                  <th>Sent</th>
+                  <th>Reviewed by</th>
+                  <th>Reviewed to</th>
+                  <th>Sent on</th>
                   <th>Progress</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="cursor-pointer hover:bg-ink-50 dark:hover:bg-ink-800/60"
-                    onClick={() => setSelected(row)}
-                  >
-                    <td className="font-medium text-ink-900 dark:text-ink-50">{row.name}</td>
-                    <td>{KIND_LABEL[row.kind] ?? row.kind}</td>
-                    <td className="text-ink-600 dark:text-ink-300">
-                      {row.target_label ?? '—'}
-                    </td>
-                    <td
-                      className="max-w-[220px] truncate text-ink-600 dark:text-ink-300"
-                      title={row.recipients.join(', ') || undefined}
+                {rows.map((row) => {
+                  const recipientsSummary =
+                    row.recipients.length === 0
+                      ? '—'
+                      : row.recipients.length === 1
+                        ? row.recipients[0]
+                        : `${row.recipients[0]} +${row.recipients.length - 1} more`
+                  return (
+                    <tr
+                      key={row.id}
+                      className="cursor-pointer hover:bg-ink-50 dark:hover:bg-ink-800/60"
+                      onClick={() => setSelected(row)}
                     >
-                      {row.recipients.length === 0
-                        ? '—'
-                        : row.recipients.length === 1
-                          ? row.recipients[0]
-                          : `${row.recipients[0]} +${row.recipients.length - 1} more`}
-                    </td>
-                    {isPlatform && (
+                      <td className="font-medium text-ink-900 dark:text-ink-50">{row.name}</td>
                       <td className="text-ink-600 dark:text-ink-300">{row.org_name ?? '—'}</td>
-                    )}
-                    <td className="text-ink-600 dark:text-ink-300">
-                      {row.template_name ?? '—'}
-                    </td>
-                    <td className="text-ink-500 dark:text-ink-400">
-                      {row.sent_at ? new Date(row.sent_at).toLocaleDateString() : '—'}
-                    </td>
-                    <td>
-                      <ProgressBar total={row.total} responded={row.responded} />
-                    </td>
-                    <td>
-                      <Chip value={row.status} />
-                    </td>
-                  </tr>
-                ))}
+                      <td>{KIND_LABEL[row.kind] ?? row.kind}</td>
+                      <td
+                        className="max-w-[220px] truncate text-ink-600 dark:text-ink-300"
+                        title={row.recipients.join(', ') || undefined}
+                      >
+                        {recipientsSummary}
+                      </td>
+                      <td className="text-ink-600 dark:text-ink-300">
+                        {row.target_label ?? '—'}
+                      </td>
+                      <td className="text-ink-500 dark:text-ink-400">
+                        {row.sent_at ? new Date(row.sent_at).toLocaleDateString() : '—'}
+                      </td>
+                      <td>
+                        <ProgressBar total={row.total} responded={row.responded} />
+                      </td>
+                      <td>
+                        <Chip value={row.status} />
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

@@ -5,7 +5,7 @@ import { LookupFilter, SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, Switch } from '../components/ui'
 import { useToast } from '../components/Toast'
-import { IconEdit, IconUsers } from '../components/icons'
+import { IconEdit, IconEye, IconUsers } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, downloadFile, uploadFile } from '../lib/api'
@@ -126,6 +126,59 @@ function FeedbackHistoryModal({
             Send feedback
           </button>
         )}
+      </div>
+    </Modal>
+  )
+}
+
+/** Read-only, fired by the eye icon in the row actions — every field on
+ * User in one place. Status appears once, in the modal's own header, same
+ * pattern as Organizations.tsx's OrgDetailModal. */
+function UserDetailModal({ person, onClose }: { person: User; onClose: () => void }) {
+  const formatDate = (value?: string | null) =>
+    value
+      ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+      : '—'
+
+  const fields: { label: string; value: React.ReactNode }[] = [
+    { label: 'Full name', value: person.full_name },
+    { label: 'Email', value: person.email },
+    { label: 'Phone', value: person.phone || '—' },
+    { label: 'Role', value: ROLE_LABEL[person.role] },
+    { label: 'Organization', value: person.org_name || '—' },
+    { label: 'Department', value: person.department || '—' },
+    { label: 'Job title', value: person.job_title || '—' },
+    { label: 'Feedback received', value: person.feedback_count ?? 0 },
+    { label: 'Joined', value: formatDate(person.created_at) },
+    { label: 'Last signed in', value: formatDate(person.last_login_at) },
+  ]
+
+  return (
+    <Modal
+      title={
+        <span className="inline-flex items-center gap-2">
+          {person.full_name}
+          <Chip value={person.status} />
+        </span>
+      }
+      hint="User details"
+      onClose={onClose}
+    >
+      <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+        {fields.map((f) => (
+          <div key={f.label}>
+            <p className="text-xs font-medium uppercase tracking-[0.04em] text-ink-400 dark:text-ink-500">
+              {f.label}
+            </p>
+            <p className="mt-0.5 text-sm font-medium text-ink-900 dark:text-ink-50">{f.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 flex gap-2 border-t border-ink-200 pt-4 dark:border-ink-700">
+        <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={onClose}>
+          Close
+        </button>
       </div>
     </Modal>
   )
@@ -885,6 +938,7 @@ export function People() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [viewingId, setViewingId] = useState<string | null>(null)
   const [viewingFeedbackId, setViewingFeedbackId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [showSendPanel, setShowSendPanel] = useState(false)
@@ -1234,6 +1288,15 @@ export function People() {
                           <button
                             type="button"
                             className="btn-secondary p-1.5"
+                            aria-label={`View ${person.full_name}`}
+                            title="View"
+                            onClick={() => setViewingId(person.id)}
+                          >
+                            <IconEye width={15} height={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary p-1.5"
                             aria-label={`Edit ${person.full_name}`}
                             title="Edit"
                             onClick={() => setEditingId(editingId === person.id ? null : person.id)}
@@ -1273,6 +1336,14 @@ export function People() {
           />
         )}
       </Card>
+
+      {viewingId && data && (
+        (() => {
+          const person = data.items.find((item) => item.id === viewingId)
+          if (!person) return null
+          return <UserDetailModal person={person} onClose={() => setViewingId(null)} />
+        })()
+      )}
 
       {viewingFeedbackId && data && (
         (() => {

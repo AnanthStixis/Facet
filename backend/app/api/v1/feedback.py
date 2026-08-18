@@ -150,6 +150,7 @@ async def list_feedback(
     status: str | None = None,
     org_id: uuid.UUID | None = None,
     cycle_name: str | None = None,
+    q: str | None = None,
     date_preset: DateFilterPreset = "all",
     date_start: date | None = None,
     date_end: date | None = None,
@@ -164,8 +165,14 @@ async def list_feedback(
     result-round counts make that entirely fine, and it avoids duplicating
     the same target-resolution logic in two places (a SQL version for
     filtering and this one for display).
+
+    `q` is the free-text "Search" box on the Results page — it matches
+    against exactly what's visible in the table (Cycle Name, Client, Type,
+    Reviewed by, Reviewed to, Status), not just the cycle's own name the
+    way `cycle_name` does.
     """
     date_floor, date_ceiling = _resolve_date_floor(date_preset, date_start, date_end)
+    q_term = q.strip().lower() if q and q.strip() else None
 
     stmt = select(ReviewCycle)
     if not actor.user.role.at_least(UserRole.CLIENT_ADMIN):
@@ -187,16 +194,19 @@ async def list_feedback(
     if not cycles:
         return Page(items=[], total=0, page=page, page_size=page_size)
 
-    org_names: dict[uuid.UUID, str] = {}
-    if actor.is_super_admin:
-        org_ids = {c.org_id for c in cycles}
-        org_names = dict(
-            (
-                await session.execute(
-                    select(Organization.id, Organization.name).where(Organization.id.in_(org_ids))
-                )
-            ).all()
-        )
+    # Client/org names — every actor sees these now (the Results table's
+    # "Client" column isn't Super-Admin-only anymore), not just a Super
+    # Admin narrowing across orgs. A single-org Client Admin just gets their
+    # own org's name repeated on every row, which is harmless and lets `q`
+    # match on it too.
+    org_ids = {c.org_id for c in cycles}
+    org_names: dict[uuid.UUID, str] = dict(
+        (
+            await session.execute(
+                select(Organization.id, Organization.name).where(Organization.id.in_(org_ids))
+            )
+        ).all()
+    )
 
     version_ids = {c.template_version_id for c in cycles}
     versions = dict(
@@ -266,10 +276,10 @@ async def list_feedback(
         for cycle_id, target_row in recipient_rows:
             external_targets.setdefault(cycle_id, target_row)
 
-    # Who the request actually went to, for the "Recipients" column — the
-    # external contacts for a campaign, or the internal reviewers for a
-    # cycle. Batched up front, same as targets/versions above, rather than
-    # a per-row query in the loop below.
+    # Who the request actually went to, for the "Reviewed by" / "Sent to"
+    # columns — the external contacts for a campaign, or the internal
+    # reviewers for a cycle. Batched up front, same as targets/versions
+    # above, rather than a per-row query in the loop below.
     recipient_names: dict[uuid.UUID, list[str]] = {}
     external_ids = [c.id for c in cycles if c.audience == CycleAudience.EXTERNAL]
     if external_ids:
@@ -310,6 +320,19 @@ async def list_feedback(
         if kind and cycle_kind != kind:
             continue
 
+        if q_term:
+            haystack_parts = [
+                cycle.name,
+                target.label if target else None,
+                org_names.get(cycle.org_id),
+                cycle_kind,
+                str(cycle.status),
+                *recipient_names.get(cycle.id, []),
+            ]
+            haystack = " ".join(part for part in haystack_parts if part).lower()
+            if q_term not in haystack:
+                continue
+
         # "Sent" for filtering purposes: opened_at when it has one, otherwise
         # the cycle's own created_at — a still-draft round has no opened_at
         # but should not just vanish from a date-filtered view.
@@ -343,8 +366,8 @@ async def list_feedback(
                 closes_at=cycle.closes_at,
                 total=total,
                 responded=responded,
-                org_id=cycle.org_id if actor.is_super_admin else None,
-                org_name=org_names.get(cycle.org_id) if actor.is_super_admin else None,
+                org_id=cycle.org_id,
+                org_name=org_names.get(cycle.org_id),
                 recipients=recipient_names.get(cycle.id, []),
             )
         )
@@ -353,6 +376,27 @@ async def list_feedback(
     start = (page - 1) * page_size
     page_items = items[start : start + page_size]
     return Page(items=page_items, total=total_matching, page=page, page_size=page_size)
+
+
+@router.get("/cycle-names", response_model=list[str])
+async def list_feedback_cycle_names(
+    session: DbSession,
+    actor: ManagerUser,
+    org_id: uuid.UUID | None = None,
+) -> list[str]:
+    """Distinct cycle names for the Results page's "Cycle name" filter dropdown.
+
+    Scoped the same way `list_feedback` is (own cycles only below Client
+    Admin, optional org narrowing for a Super Admin) so the dropdown never
+    offers a name the person couldn't actually filter to.
+    """
+    stmt = select(ReviewCycle.name).distinct()
+    if not actor.user.role.at_least(UserRole.CLIENT_ADMIN):
+        stmt = stmt.where(ReviewCycle.created_by_id == actor.id)
+    if org_id is not None:
+        stmt = stmt.where(ReviewCycle.org_id == org_id)
+    stmt = stmt.order_by(ReviewCycle.name.asc())
+    return [row[0] for row in (await session.execute(stmt)).all()]
 
 
 @router.get("/{cycle_id}/responses", response_model=list[FeedbackResponseItem])

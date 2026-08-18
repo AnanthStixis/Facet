@@ -5,7 +5,7 @@ import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, Switch } from '../components/ui'
 import { useToast } from '../components/Toast'
-import { IconBuilding, IconEdit } from '../components/icons'
+import { IconBuilding, IconEdit, IconEye } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, uploadFile } from '../lib/api'
@@ -433,6 +433,78 @@ function OrgFormModal({
   )
 }
 
+// Read-only, fired by the eye icon in the row actions — shows the fields a
+// Super Admin actually needs at a glance. Status appears exactly once, in
+// the modal's own header, rather than repeated in the body.
+function OrgDetailModal({ org, onClose }: { org: OrgDetail; onClose: () => void }) {
+  const formatDate = (value?: string | null) =>
+    value
+      ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+      : '—'
+
+  const countryName = COUNTRIES.find((c) => c.code === org.country)?.name ?? org.country ?? '—'
+
+  const fields: { label: string; value: React.ReactNode }[] = [
+    { label: 'Organization name', value: org.name },
+    { label: 'Primary contact name', value: org.contact_name },
+    { label: 'Primary contact email', value: org.contact_email },
+    { label: 'Country', value: countryName },
+    { label: 'User limit', value: org.seat_limit ?? 'Unlimited' },
+    { label: 'Users', value: org.user_count },
+    { label: 'Created', value: formatDate(org.created_at) },
+    { label: 'Approved', value: formatDate(org.approved_at) },
+  ]
+
+  return (
+    <Modal
+      title={
+        <span className="inline-flex items-center gap-2">
+          {org.name}
+          <Chip value={org.status} />
+        </span>
+      }
+      hint="Organization details"
+      onClose={onClose}
+    >
+      {org.branding?.logo_url && (
+        <img
+          src={org.branding.logo_url}
+          alt=""
+          className="mb-4 h-14 w-14 rounded-lg border border-ink-200 object-contain dark:border-ink-700"
+        />
+      )}
+
+      <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+        {fields.map((f) => (
+          <div key={f.label}>
+            <p className="text-xs font-medium uppercase tracking-[0.04em] text-ink-400 dark:text-ink-500">
+              {f.label}
+            </p>
+            <p className="mt-0.5 text-sm font-medium text-ink-900 dark:text-ink-50">{f.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {(org.rejection_reason || org.suspension_reason) && (
+        <div className="mt-5 border-t border-ink-200 pt-4 dark:border-ink-700">
+          {org.rejection_reason && (
+            <p className="text-sm text-critical">Rejected: {org.rejection_reason}</p>
+          )}
+          {org.suspension_reason && (
+            <p className="text-sm text-caution">Suspended: {org.suspension_reason}</p>
+          )}
+        </div>
+      )}
+
+      <div className="mt-5 flex gap-2 border-t border-ink-200 pt-4 dark:border-ink-700">
+        <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 // Edit-only: a Super Admin can add another Client Admin to an org that is
 // already active, from that org's Edit popup specifically. Never rendered
 // in create mode — see the `isEdit` gate where this is used below. Also
@@ -583,6 +655,7 @@ export function Organizations() {
   const [pending, setPending] = useState<Pending>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editOrgId, setEditOrgId] = useState<string | null>(null)
+  const [viewOrgId, setViewOrgId] = useState<string | null>(null)
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
 
   // Guards against an out-of-order response overwriting a newer one. Without
@@ -685,6 +758,16 @@ export function Organizations() {
                   finish(message, updated)
                 }}
               />
+            ))}
+        </>
+      )}
+
+      {viewOrgId && data && (
+        <>
+          {data.items
+            .filter((org) => org.id === viewOrgId)
+            .map((org) => (
+              <OrgDetailModal key={org.id} org={org} onClose={() => setViewOrgId(null)} />
             ))}
         </>
       )}
@@ -834,6 +917,15 @@ export function Organizations() {
                         />
                       </span>
                     )}
+                    <button
+                      type="button"
+                      className="btn-secondary p-1.5"
+                      aria-label={`View ${org.name}`}
+                      title="View"
+                      onClick={() => setViewOrgId(org.id)}
+                    >
+                      <IconEye width={15} height={15} />
+                    </button>
                     {org.status !== 'rejected' && (
                       <button
                         type="button"
