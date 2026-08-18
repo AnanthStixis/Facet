@@ -114,6 +114,8 @@ async def create_feedback(
         contact_ids=payload.contact_ids or None,
         target_label=payload.target_label,
         manager_ids=payload.manager_ids,
+        audience=payload.audience,
+        recipient_user_ids=payload.recipient_user_ids or None,
     )
 
     await audit.record(

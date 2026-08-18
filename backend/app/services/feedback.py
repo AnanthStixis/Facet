@@ -31,7 +31,14 @@ from app.models.catalog import (
     FeedbackTemplateVersion,
 )
 from app.models.cycle import FeedbackAssignment, ReviewCycle
-from app.models.enums import CycleAudience, CycleStatus, TargetType, TemplateStatus
+from app.models.enums import (
+    AssignmentStatus,
+    CycleAudience,
+    CycleStatus,
+    Relationship,
+    TargetType,
+    TemplateStatus,
+)
 from app.models.organization import Organization
 from app.models.user import User
 from app.services import campaigns as campaign_service
@@ -135,6 +142,8 @@ async def create_and_send(
     contact_ids: list[uuid.UUID] | None = None,
     target_label: str | None = None,
     manager_ids: list[uuid.UUID] | None = None,
+    audience: Literal["external", "internal"] = "external",
+    recipient_user_ids: list[uuid.UUID] | None = None,
 ) -> CreateAndSendResult:
     """Create a cycle for one of the 6 kinds and send it in one call.
 
@@ -147,6 +156,20 @@ async def create_and_send(
       own person-target (via `ensure_person_target`), so their answers also
       show up on that person's own results — the cross-linking the client
       specifically asked for.
+    - employee with `manager_ids` set: narrows which of the reviewee's
+      managers actually get an assignment to the checked subset, instead of
+      every manager on record.
+    - product/service with `audience="internal"`: same external-typed
+      target (a Product or Service), but delivered to a directly-chosen set
+      of internal staff instead of external client contacts — each gets a
+      direct `FeedbackAssignment` in their own "My feedback" queue, the same
+      delivery mechanism employee/management use, rather than an emailed
+      one-time link. Validated one layer up in `FeedbackCreateRequest`, so
+      by the time this runs `audience="internal"` only ever arrives for
+      `kind` in `{"product", "service"}`. Nothing below is kind-specific —
+      it reads `expect_type` off `kind` the same as every other branch — so
+      no other change was needed here to extend this from product to
+      service.
     """
     if org.id is None:
         raise ValidationFailed("A Super Admin must act within an organization.")
@@ -229,6 +252,76 @@ async def create_and_send(
 
         cycle.status = CycleStatus.OPEN
         cycle.opened_at = datetime.now(UTC)
+        await session.flush()
+        return CreateAndSendResult(cycle=cycle, warnings=warnings)
+
+    # --- External-typed kind delivered internally: Product review sent to
+    # chosen staff, not external contacts -------------------------------
+    if audience == "internal":
+        if not recipient_user_ids:
+            raise ValidationFailed("Choose at least one internal recipient.")
+
+        label = (target_label or "").strip()
+        if not label:
+            raise ValidationFailed("Say what this feedback is about.")
+        target = await _find_or_create_labeled_target(
+            session, org_id=org.id, target_type=expect_type, label=label
+        )
+
+        reviewers = (
+            (
+                await session.execute(
+                    select(User).where(
+                        User.id.in_(recipient_user_ids), User.org_id == org.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not reviewers:
+            raise Conflict("None of the selected recipients could be found.")
+        missing = len(set(recipient_user_ids)) - len(reviewers)
+        if missing > 0:
+            warnings.append(f"{missing} selected recipient(s) were not found.")
+
+        now = datetime.now(UTC)
+        cycle = ReviewCycle(
+            org_id=org.id,
+            name=clean_name,
+            template_version_id=version.id,
+            status=CycleStatus.OPEN,
+            audience=CycleAudience.INTERNAL,
+            is_anonymous=template.is_anonymous,
+            min_responses_to_reveal=template.min_responses_to_reveal,
+            target_id=target.id,
+            opens_at=now,
+            opened_at=now,
+            closes_at=closes_at,
+            created_by_id=actor.id,
+        )
+        session.add(cycle)
+        await session.flush()
+
+        for reviewer in reviewers:
+            session.add(
+                FeedbackAssignment(
+                    org_id=org.id,
+                    cycle_id=cycle.id,
+                    target_id=target.id,
+                    reviewer_user_id=reviewer.id,
+                    # No org-chart relationship applies here — the reviewer
+                    # was picked directly, not derived from self/manager/
+                    # report/peer the way an employee 360 is. PEER is the
+                    # closest existing "no hierarchy implied" value; it is
+                    # not a literal claim the reviewer is the product's
+                    # peer, just the least-wrong fit among what the enum
+                    # already offers.
+                    relationship_type=Relationship.PEER,
+                    status=AssignmentStatus.PENDING,
+                    due_at=closes_at,
+                )
+            )
         await session.flush()
         return CreateAndSendResult(cycle=cycle, warnings=warnings)
 

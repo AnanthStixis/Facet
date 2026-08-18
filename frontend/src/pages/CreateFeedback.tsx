@@ -311,7 +311,7 @@ function UserPicker({
 
   useEffect(() => {
     if (!open) return
-    const query = new URLSearchParams({ page_size: '200' })
+    const query = new URLSearchParams({ page_size: '200', status: 'active' })
     if (search) query.set('search', search)
     if (department) query.set('department', department)
     let cancelled = false
@@ -650,6 +650,72 @@ function MasterSelectPicker({
   )
 }
 
+interface AudienceOption {
+  value: 'external' | 'internal'
+  label: string
+}
+
+const AUDIENCE_OPTIONS: AudienceOption[] = [
+  { value: 'external', label: 'External - Clients' },
+  { value: 'internal', label: 'Internal - Employees' },
+]
+
+/** Same trigger-button-plus-floating-panel look as MasterSelectPicker above,
+ * minus the search box and "+" — there are only ever two audiences to pick
+ * from, so nothing to search and nothing to add. Kept as its own component
+ * rather than a native <select> so it matches the rest of "Who's involved"
+ * visually instead of falling back to the browser's own dropdown chrome. */
+function AudienceSelect({
+  value,
+  onChange,
+}: {
+  value: 'external' | 'internal'
+  onChange: (value: 'external' | 'internal') => void
+}) {
+  const [open, setOpen] = useState(false)
+  const { triggerRef, panelRef } = useDismiss(open, () => setOpen(false))
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const current = AUDIENCE_OPTIONS.find((option) => option.value === value)
+
+  return (
+    <div className="relative max-w-xs" ref={triggerRef}>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((state) => !state)}
+        className="field flex w-full items-center justify-between text-left"
+      >
+        <span className="truncate">{current?.label}</span>
+        <IconChevronDown className="shrink-0 opacity-60" />
+      </button>
+
+      <FloatingPanel anchorRef={buttonRef} panelRef={panelRef} open={open} className="w-72 p-2">
+        <ul>
+          {AUDIENCE_OPTIONS.map((option) => (
+            <li key={option.value}>
+              <button
+                type="button"
+                className={clsx(
+                  'w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-ink-100 dark:hover:bg-ink-800',
+                  option.value === value
+                    ? 'font-medium text-ink-900 dark:text-ink-50'
+                    : 'text-ink-800 dark:text-ink-100',
+                )}
+                onClick={() => {
+                  onChange(option.value)
+                  setOpen(false)
+                }}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </FloatingPanel>
+    </div>
+  )
+}
+
 /** Recipients as a dropdown: a trigger button showing how many are selected,
  * opening a floating panel with search, inline "new contact", and a
  * checkbox per contact for multi-select — the same collapsed/expanded
@@ -925,6 +991,12 @@ export function CreateFeedback() {
   const [targetLabel, setTargetLabel] = useState('')
   const [clientOrg, setClientOrg] = useState('')
   const [contactIds, setContactIds] = useState<string[]>([])
+  // Product and Service only: lets a review of either go to internal staff
+  // instead of external client contacts. `config.audience` stays each
+  // kind's fixed default (external) — this is a per-submission override the
+  // person picks on screen, not a property of the kind itself.
+  const [recipientAudience, setRecipientAudience] = useState<'external' | 'internal'>('external')
+  const [internalRecipients, setInternalRecipients] = useState<PickableUser[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nameTouched, setNameTouched] = useState(false)
@@ -955,6 +1027,8 @@ export function CreateFeedback() {
     setTargetLabel('')
     setClientOrg('')
     setContactIds([])
+    setRecipientAudience('external')
+    setInternalRecipients([])
     setNameTouched(false)
     setName('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1048,12 +1122,20 @@ export function CreateFeedback() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revieweeIdsKey])
 
+  // What actually decides where recipients come from. Fixed by the kind for
+  // everything except product/service, which each have their own on-screen
+  // toggle above.
+  const audienceTogglesFor = kind === 'product' || kind === 'service'
+  const effectiveAudience = audienceTogglesFor ? recipientAudience : config.audience
   const canSubmit = (() => {
     if (!templateId || !name.trim()) return false
     if (closesAtInvalid) return false
     if (kind === 'employee') return revieweeUsers.length > 0
     if (kind === 'management') return Boolean(revieweeId)
     if (kind === 'client') return (aboutUsers.length > 0 || targetLabel.trim()) && contactIds.length > 0
+    if (audienceTogglesFor && recipientAudience === 'internal') {
+      return Boolean(targetLabel.trim()) && internalRecipients.length > 0
+    }
     return Boolean(targetLabel.trim()) && contactIds.length > 0
   })()
 
@@ -1068,7 +1150,12 @@ export function CreateFeedback() {
         kind === 'client' || kind === 'product' || kind === 'service' || kind === 'proposal'
           ? targetLabel || null
           : null,
-      contact_ids: config.audience === 'external' ? contactIds : [],
+      contact_ids: effectiveAudience === 'external' ? contactIds : [],
+      audience: audienceTogglesFor ? recipientAudience : 'external',
+      recipient_user_ids:
+        audienceTogglesFor && recipientAudience === 'internal'
+          ? internalRecipients.map((user) => user.id)
+          : [],
     }
     // Client "about" and Employee "who is this about" both create one cycle
     // per selected person (each gets their own results); Management stays a
@@ -1310,22 +1397,37 @@ export function CreateFeedback() {
                 </div>
               )}
 
-              {kind === 'product' && (
-                <MasterSelectPicker
-                  path="/masters/products"
-                  label="Product"
-                  value={targetLabel}
-                  onChange={setTargetLabel}
-                />
+              {(kind === 'product' || kind === 'service') && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <MasterSelectPicker
+                    path={kind === 'product' ? '/masters/products' : '/masters/services'}
+                    label={kind === 'product' ? 'Product' : 'Service'}
+                    value={targetLabel}
+                    onChange={setTargetLabel}
+                  />
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                      Audience
+                    </span>
+                    <AudienceSelect
+                      value={recipientAudience}
+                      onChange={(nextAudience) => {
+                        setRecipientAudience(nextAudience)
+                        // Whichever recipient list was being built for the
+                        // audience just left behind no longer applies.
+                        setContactIds([])
+                        setInternalRecipients([])
+                        setDepartment('')
+                      }}
+                    />
+                  </div>
+                </div>
               )}
 
-              {kind === 'service' && (
-                <MasterSelectPicker
-                  path="/masters/services"
-                  label="Service"
-                  value={targetLabel}
-                  onChange={setTargetLabel}
-                />
+              {audienceTogglesFor && recipientAudience === 'internal' && (
+                <div className="max-w-xs">
+                  <DepartmentSelect value={department} onChange={setDepartment} />
+                </div>
               )}
 
               {(kind === 'client' || kind === 'proposal') && (
@@ -1345,7 +1447,20 @@ export function CreateFeedback() {
                 <ClientOrganizationSelect value={clientOrg} onChange={setClientOrg} />
               )}
 
-              {config.audience === 'external' && (
+              {audienceTogglesFor && recipientAudience === 'internal' && (
+                <div>
+                  <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                    Recipients
+                  </span>
+                  <UserPicker
+                    selected={internalRecipients}
+                    onChange={setInternalRecipients}
+                    department={department}
+                  />
+                </div>
+              )}
+
+              {effectiveAudience === 'external' && (
                 <div>
                   <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
                     Recipients

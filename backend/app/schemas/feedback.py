@@ -35,8 +35,20 @@ class FeedbackCreateRequest(BaseModel):
     # client (no about_user_id) / product / service / proposal
     target_label: str | None = Field(default=None, max_length=200)
 
-    # client / product / service / proposal
+        # client / product / service / proposal
     contact_ids: list[uuid.UUID] = Field(default_factory=list, max_length=1000)
+
+    # Only meaningful for kind="product" today: lets a Product review be
+    # sent to a chosen set of internal staff instead of external client
+    # contacts, reusing the same delivery mechanism as an Employee/
+    # Management round (each recipient gets a direct assignment in their
+    # "My feedback" queue) rather than emailed one-time links. The other
+    # external-typed kinds (client/service/proposal) keep the
+    # external-only behaviour they already had — the frontend does not
+    # offer this toggle for them yet, and the validator below rejects it
+    # rather than silently accepting a shape nothing acts on.
+    audience: Literal["external", "internal"] = "external"
+    recipient_user_ids: list[uuid.UUID] = Field(default_factory=list, max_length=1000)
 
     @model_validator(mode="after")
     def _check_shape(self) -> "FeedbackCreateRequest":
@@ -52,6 +64,14 @@ class FeedbackCreateRequest(BaseModel):
             raise ValueError(
                 "Say what this Client Review is about, or choose who it's about."
             )
+        if self.audience == "internal":
+            if self.kind not in {"product", "service"}:
+                raise ValueError(
+                    "Internal delivery is only available for Product and "
+                    "Service reviews right now."
+                )
+            if not self.recipient_user_ids:
+                raise ValueError("Choose at least one internal recipient.")
         return self
 
 
