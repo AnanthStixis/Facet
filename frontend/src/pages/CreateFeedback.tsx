@@ -501,9 +501,7 @@ function ClientOrganizationSelect({
           </option>
         ))}
       </select>
-      <span className="mt-1.5 block text-xs text-ink-400">
-        Narrows Recipients below to this organisation's contacts.
-      </span>
+      
     </div>
   )
 }
@@ -1418,6 +1416,7 @@ export function CreateFeedback() {
                         setContactIds([])
                         setInternalRecipients([])
                         setDepartment('')
+                        setClientOrg('') 
                       }}
                     />
                   </div>
@@ -1443,8 +1442,9 @@ export function CreateFeedback() {
                 />
               )}
 
-              {(kind === 'client' || kind === 'proposal') && (
+              {effectiveAudience === 'external' && (
                 <ClientOrganizationSelect value={clientOrg} onChange={setClientOrg} />
+          
               )}
 
               {audienceTogglesFor && recipientAudience === 'internal' && (
@@ -1465,11 +1465,7 @@ export function CreateFeedback() {
                   <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
                     Recipients
                   </span>
-                  <ContactPicker
-                    selected={contactIds}
-                    onChange={setContactIds}
-                    company={kind === 'client' || kind === 'proposal' ? clientOrg : undefined}
-                  />
+                  <ContactPicker selected={contactIds} onChange={setContactIds} company={clientOrg} />
                 </div>
               )}
             </div>
