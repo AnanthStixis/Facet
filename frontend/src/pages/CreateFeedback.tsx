@@ -479,7 +479,11 @@ function ClientOrganizationSelect({
   value: string
   onChange: (name: string) => void
 }) {
+  const [open, setOpen] = useState(false)
   const [options, setOptions] = useState<string[]>([])
+  const [search, setSearch] = useState('')
+  const { triggerRef, panelRef } = useDismiss(open, () => setOpen(false))
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     api
@@ -488,22 +492,85 @@ function ClientOrganizationSelect({
       .catch(() => setOptions([]))
   }, [])
 
+  // No dedicated search endpoint behind this one (see the component-level
+  // comment above) — the full company list is already loaded, so filtering
+  // it client-side is simpler than adding a `q` param nothing else needs.
+  const filtered = search
+    ? options.filter((name) => name.toLowerCase().includes(search.toLowerCase()))
+    : options
+
   return (
     <div>
       <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
         Client Organisation
       </span>
-      <select className="field" value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">All organisations</option>
-        {options.map((name) => (
-          <option key={name} value={name}>
-            {name}
-          </option>
-        ))}
-      </select>
-      <span className="mt-1.5 block text-xs text-ink-400">
-        
-      </span>
+      <div className="relative max-w-xs" ref={triggerRef}>
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => {
+            setSearch('')
+            setOpen((state) => !state)
+          }}
+                    className="field flex w-full items-center justify-between text-left"
+        >
+          <span className="truncate">{value || 'All organisations'}</span>
+          <IconChevronDown className="shrink-0 opacity-60" />
+        </button>
+
+        <FloatingPanel anchorRef={buttonRef} panelRef={panelRef} open={open} className="w-72 p-2">
+          <div className="mb-2 px-1 pt-1">
+            <SearchBox value={search} onChange={setSearch} placeholder="Search organisation" />
+          </div>
+                    <div className="max-h-56 overflow-y-auto">
+            <ul>
+              {!search && (
+                <li>
+                  <button
+                    type="button"
+                    className={clsx(
+                      'w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-ink-100 dark:hover:bg-ink-800',
+                      value === ''
+                        ? 'font-medium text-ink-900 dark:text-ink-50'
+                        : 'text-ink-800 dark:text-ink-100',
+                    )}
+                    onClick={() => {
+                      onChange('')
+                      setOpen(false)
+                    }}
+                  >
+                    All organisations
+                  </button>
+                </li>
+              )}
+              {filtered.length === 0 ? (
+                <p className="px-3 py-3 text-center text-sm text-ink-500">No matches.</p>
+              ) : (
+                filtered.map((name) => (
+                  <li key={name}>
+                    <button
+                      type="button"
+                      className={clsx(
+                        'w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-ink-100 dark:hover:bg-ink-800',
+                          name === value
+                          ? 'font-medium text-ink-900 dark:text-ink-50'
+                          : 'text-ink-800 dark:text-ink-100',
+                      )}
+                      onClick={() => {
+                        onChange(name)
+                        setOpen(false)
+                      }}
+                    >
+                      {name}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </FloatingPanel>
+      </div>
+      
     </div>
   )
 }

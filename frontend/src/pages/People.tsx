@@ -10,7 +10,7 @@ import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, downloadFile, uploadFile } from '../lib/api'
 import { ROLE_LABEL } from '../lib/types'
-import type { Paged, Role, User } from '../lib/types'
+import type { LookupItem, Paged, Role, User } from '../lib/types'
 import { useAuth } from '../store/auth'
 
 interface InviteResult {
@@ -128,6 +128,69 @@ function FeedbackHistoryModal({
         )}
       </div>
     </Modal>
+  )
+}
+
+
+/** "Manager" column cell — a compact count badge, same visual pattern as
+ * the Feedback column's pill in this same table (accent when non-zero,
+ * muted grey at zero), rather than the names themselves inline. Names in
+ * the cell made every row's width depend on how many managers that one
+ * person happened to have, which is exactly what made the column
+ * inconsistent and overly wide; a fixed-width badge doesn't. Clicking opens
+ * a small popup with the full list. */
+/** "Manager" column cell — plain comma-joined names up to 3; beyond that,
+ * the first 3 plus a "+N more" trigger opens a small, numbered popup
+ * listing every manager (smaller than the app's default modal width, since
+ * a short name list doesn't need it). */
+function ManagerCell({ managers }: { managers: LookupItem[] }) {
+  const [open, setOpen] = useState(false)
+
+  if (managers.length === 0) {
+    return <span className="text-ink-600 dark:text-ink-300">—</span>
+  }
+
+  if (managers.length <= 3) {
+    return (
+      <span className="text-ink-600 dark:text-ink-300">
+        {managers.map((manager) => manager.label).join(', ')}
+      </span>
+    )
+  }
+
+  const visible = managers.slice(0, 3)
+  const hidden = managers.length - visible.length
+
+  return (
+    <>
+      <span className="text-ink-600 dark:text-ink-300">
+        {visible.map((manager) => manager.label).join(', ')}{' '}
+        <button
+          type="button"
+          className="accent-text font-medium hover:opacity-80"
+          onClick={() => setOpen(true)}
+        >
+          +{hidden} more
+        </button>
+      </span>
+      {open && (
+        <Modal title="Managers" onClose={() => setOpen(false)} className="max-w-[26rem]">
+          <ol className="space-y-1.5">
+            {managers.map((manager, index) => (
+              <li key={manager.id} className="flex gap-2 text-sm text-ink-800 dark:text-ink-100">
+                <span className="shrink-0 tabular text-ink-400">{index + 1}.</span>
+                <span>
+                  {manager.label}
+                  {manager.sublabel && (
+                    <span className="text-ink-400"> · {manager.sublabel}</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </Modal>
+      )}
+    </>
   )
 }
 
@@ -1187,6 +1250,7 @@ export function People() {
                   )}
                   <th>Name</th>
                   <th>Role</th>
+                  <th>Manager</th>
                   {isPlatform && <th>Organization</th>}
                   <th>Department</th>
                   <th>Status</th>
@@ -1228,6 +1292,9 @@ export function People() {
                     </td>
                     <td>
                       <Chip value={person.role}>{ROLE_LABEL[person.role]}</Chip>
+                    </td>
+                    <td>
+                      <ManagerCell managers={person.managers ?? []} />
                     </td>
                     {isPlatform && (
                       <td className="text-ink-600 dark:text-ink-300">

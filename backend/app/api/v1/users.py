@@ -107,9 +107,20 @@ async def list_users(
         )
         feedback_counts = dict(rows.all())
 
-    # Same batching reasoning as feedback_counts — one grouped query for
+        # Same batching reasoning as feedback_counts — one grouped query for
     # every row's managers instead of one query per row.
     manager_ids_by_user = await managers_service.get_manager_ids_map(session, user_ids)
+
+    # The Users table needs manager *names*, not just ids — one more batched
+    # query covering every manager referenced above, still one query for the
+    # whole page rather than one per row.
+    all_manager_ids = {mid for ids in manager_ids_by_user.values() for mid in ids}
+    manager_names: dict[uuid.UUID, str] = {}
+    if all_manager_ids:
+        rows = await session.execute(
+            select(User.id, User.full_name).where(User.id.in_(all_manager_ids))
+        )
+        manager_names = dict(rows.all())
 
     items = []
     for user in users:
@@ -117,6 +128,10 @@ async def list_users(
         detail.org_name = org_names.get(user.org_id) if user.org_id else None
         detail.feedback_count = feedback_counts.get(user.id, 0)
         detail.manager_ids = manager_ids_by_user.get(user.id, [])
+        detail.managers = [
+            LookupItem(id=mid, label=manager_names.get(mid, "Unknown"))
+            for mid in detail.manager_ids
+        ]
         items.append(detail)
 
     return Page[UserDetail](items=items, total=total, page=page, page_size=page_size)

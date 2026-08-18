@@ -36,6 +36,7 @@ export interface User {
   status: string
   must_change_password: boolean
   manager_ids?: string[]
+  managers?: LookupItem[]
   last_login_at?: string | null
   created_at?: string
   feedback_count?: number
