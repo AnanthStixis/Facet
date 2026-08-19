@@ -183,15 +183,16 @@ def render_preview(
                 )
             except (KeyError, IndexError):
                 pass
-        heading = "Jordan, how did we do?"
+        heading = "Share Your Feedback"
         body_html = (
-            f"{escape(branding.org_name)} would value your review on "
-            f"<b>{escape(subject_label)}</b>. It takes about two minutes, and "
-            f"there is no account to create — the link below signs you straight "
-            f"in.<br><br>This link is personal to you, works once, and expires "
+            f"{escape(branding.org_name)} values your feedback on "
+            f"<b>{escape(subject_label)}</b> and would appreciate a few minutes "
+            f"of your time to share your experience. Your responses help us "
+            f"understand what is working well and where we can "
+            f"improve.<br><br>This is a personal, single-use link and expires "
             f"in 14 days."
         )
-        cta = ("Give feedback", "https://example.com/f/sample-token")
+        cta = ("Give Feedback", "https://example.com/f/sample-token")
 
     return {"subject": subject, "html": _shell(branding, heading, body_html, cta)}
 
@@ -214,9 +215,15 @@ async def send_feedback_request(
     gets deleted unread, which is the difference between a 40% response rate
     and a 4% one.
     """
+    import re
+
     first_name = full_name.split()[0] if full_name.strip() else "there"
     deadline = expires_at.strftime("%d %B %Y")
-    subject = f"Your feedback on {subject_label}"
+    # Strip a trailing parenthetical annotation (e.g. "Aarav Mehta (client
+    # relationship)" -> "Aarav Mehta") so the email reads naturally even when
+    # the caller passes a label that includes internal categorisation.
+    subject_label = re.sub(r"\s*\([^)]*\)\s*$", "", subject_label).strip()
+    subject = f"Your Feedback on {subject_label}"
     if subject_template:
         try:
             subject = subject_template.format(org_name=org_name, subject_label=subject_label)
@@ -225,22 +232,28 @@ async def send_feedback_request(
     return await send(
         to=to,
         subject=subject,
-        heading=f"{first_name}, how did we do?",
+        heading="Share Your Feedback",
         body_html=(
-            f"{escape(org_name)} would value your review on "
-            f"<b>{escape(subject_label)}</b>. It takes about two minutes, and "
-            f"there is no account to create — the link below signs you straight "
-            f"in.<br><br>"
-            f"This link is personal to you, works once, and expires on "
+            f"Dear {escape(first_name)},<br><br>"
+            f"{escape(org_name)} values your feedback on "
+            f"<b>{escape(subject_label)}</b> and would appreciate a few minutes "
+            f"of your time to share your experience. Your responses help us "
+            f"understand what is working well and where we can "
+            f"improve.<br><br>"
+            f"This is a personal, single-use link and will expire on "
             f"{escape(deadline)}."
         ),
         body_text=(
-            f"{org_name} would value your review on {subject_label}. It takes about "
-            f"two minutes and there is no account to create. This link is personal "
-            f"to you, works once, and expires on {deadline}."
+            f"Dear {first_name},\n\n"
+            f"{org_name} values your feedback on {subject_label} and would "
+            f"appreciate a few minutes of your time to share your experience. "
+            f"Your responses help us understand what is working well and "
+            f"where we can improve.\n\n"
+            f"This is a personal, single-use link and will expire on "
+            f"{deadline}."
         ),
         branding=branding,
-        cta=("Give feedback", link),
+        cta=("Give Feedback", link),
     )
 
 async def send_assignment_notice(
