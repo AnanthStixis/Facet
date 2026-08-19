@@ -6,6 +6,7 @@ import { ExportMenu, FloatingPanel, useDismiss } from '../components/filters'
 import { IconSearch } from '../components/icons'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, StatTile } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
 import { RELATIONSHIP_SHORT } from '../lib/cycleTypes'
@@ -616,13 +617,12 @@ export function Results() {
   }
 
   useEffect(() => {
-    // Only the free-text box gets a debounce — everything else (dropdowns,
-    // dates) is a single discrete action, so it should apply the instant
-    // it changes rather than waiting.
     const timer = setTimeout(load, searchTerm ? 300 : 0)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, clientNameFilter, kindFilter, cycleNameFilter, statusFilter, orgFilter, datePreset, dateStart, dateEnd, page])
+
+  useRefetchOnFocus(load)
 
   const filtersActive = useMemo(
     () =>
@@ -691,7 +691,7 @@ export function Results() {
     <>
       <PageHeader
         title="Results"
-        actions={<ExportMenu reportKey="results_overview" filters={exportFilters} disabled={loading} />}
+        actions={<ExportMenu reportKey="results_overview" filters={exportFilters} disabled={loading || rows.length === 0} />}
       />
 
       {error && (

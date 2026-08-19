@@ -1538,7 +1538,7 @@ export function CreateFeedback() {
                 {kind === 'management' && (
                   <div>
                     <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                      Direct reports
+                      Employees
                     </span>
                     {managerUsers.length === 0 ? (
                       <p className="text-xs text-ink-400">

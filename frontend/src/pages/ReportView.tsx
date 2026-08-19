@@ -115,7 +115,11 @@ export function ReportView({
         description={meta?.description}
         actions={
           meta && (
-            <ExportMenu reportKey={reportKey} filters={filters} disabled={loading} />
+            <ExportMenu
+              reportKey={reportKey}
+              filters={filters}
+              disabled={loading || !result || result.total === 0}
+            />
           )
         }
       />
