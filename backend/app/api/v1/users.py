@@ -78,7 +78,7 @@ async def list_users(
         ).scalar_one()
     )
     stmt = (
-        stmt.order_by(User.full_name.asc())
+        stmt.order_by(User.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
