@@ -49,19 +49,18 @@ function ScaleInput({
   value: number | undefined
   onChange: (value: number) => void
 }) {
-  const points = Array.from({ length: max - min + 1 }, (_, index) => min + index)
+    const points = Array.from({ length: max - min + 1 }, (_, index) => min + index)
   return (
-    <div>
-      <div className="flex flex-wrap gap-1.5">
-        {points.map((point) => {
-          const active = value === point
-          return (
+    <div className="flex flex-wrap gap-2.5">
+      {points.map((point) => {
+        const active = value === point
+        const label = labels[String(point)]
+        return (
+          <div key={point} className="flex flex-col items-center gap-1">
             <button
-              key={point}
               type="button"
               onClick={() => onChange(point)}
               aria-pressed={active}
-              title={labels[String(point)]}
               className={clsx(
                 'h-9 min-w-9 rounded-md border px-3 text-sm font-medium transition-colors',
                 active
@@ -71,14 +70,14 @@ function ScaleInput({
             >
               {point}
             </button>
-          )
-        })}
-      </div>
-      {value !== undefined && labels[String(value)] && (
-        <p className="mt-1.5 text-xs text-ink-500 dark:text-ink-400">
-          {labels[String(value)]}
-        </p>
-      )}
+            {label && (
+              <span className="max-w-14 truncate text-2xs leading-none text-ink-400">
+                {label}
+              </span>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

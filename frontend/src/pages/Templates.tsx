@@ -288,6 +288,37 @@ function AnonymityField({
   )
 }
 
+function ScaleLabelsEditor({
+  scale,
+  onChange,
+}: {
+  scale: { min: number; max: number; labels: Record<string, string> }
+  onChange: (labels: Record<string, string>) => void
+}) {
+  const points = Array.from({ length: scale.max - scale.min + 1 }, (_, i) => scale.min + i)
+  return (
+    <div className="mt-3">
+      <span className="mb-1.5 flex items-center text-sm font-medium text-ink-700 dark:text-ink-200">
+        Rating scale labels (optional)
+        <InfoTooltip text="Shown under each number on every rating-scale question in this template — e.g. 1 = Poor, 5 = Excellent. Leave any blank to show just the number." />
+      </span>
+      <div className="grid grid-cols-5 gap-2">
+        {points.map((point) => (
+          <label key={point} className="block">
+            <span className="mb-1 block text-2xs tabular text-ink-400">{point}</span>
+            <input
+              className="field text-sm"
+              value={scale.labels[String(point)] ?? ''}
+              onChange={(event) => onChange({ ...scale.labels, [String(point)]: event.target.value })}
+              placeholder={`e.g. ${point === scale.min ? 'Poor' : point === scale.max ? 'Excellent' : 'Average'}`}
+            />
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function QuestionEditor({
   question,
   onChange,
@@ -644,6 +675,15 @@ export function TemplateModal({
               />
             </label>
             <AnonymityField isAnonymous={isAnonymous} onAnonymousChange={setIsAnonymous} />
+
+            {definition.sections.some((section) =>
+              section.questions.some((question) => question.type === 'scale'),
+            ) && (
+              <ScaleLabelsEditor
+                scale={definition.scale}
+                onChange={(labels) => setDefinition({ ...definition, scale: { ...definition.scale, labels } })}
+              />
+            )}
 
             <SectionsEditor sections={definition.sections} onChange={(sections) => setDefinition({ ...definition, sections })} />
           </>

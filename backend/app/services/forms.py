@@ -24,7 +24,7 @@ MAX_COMMENT = 5000
 MAX_OPTIONS = 12
 
 QUESTION_TYPES = {"scale", "choice", "text", "boolean"}
-
+OVERALL_RATING_TITLE = "overall rating"
 
 @dataclass(frozen=True, slots=True)
 class Question:
@@ -35,6 +35,7 @@ class Question:
     options: list[str]
     section_key: str
     section_title: str
+    
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +54,25 @@ class Form:
     def scored_keys(self) -> list[str]:
         return [q.key for q in self.questions if q.type == "scale"]
 
+    @property
+    def overall_rating_key(self) -> str | None:
+        """The key of the first rating-scale question titled exactly
+        "Overall rating" (case-insensitive, extra whitespace collapsed), if
+        the template author added one. None means they haven't —
+        validate_answers below falls back to averaging every scale
+        question, exactly the behavior every template already had. If more
+        than one question happens to share that title, the first one (in
+        question order) wins — a title collision is far more likely to be
+        an innocent coincidence than a deliberate double-flag, so this
+        resolves it rather than rejecting the whole template over it.
+        """
+        for question in self.questions:
+            if (
+                question.type == "scale"
+                and OVERALL_RATING_TITLE in " ".join(question.text.split()).lower()
+            ):
+                return question.key
+        return None
 
 def _fail(message: str, **details: Any) -> None:
     raise ValidationFailed(message, **details)
@@ -159,6 +179,7 @@ def validate_definition(definition: Any) -> Form:
         _fail(f"A questionnaire cannot have more than {MAX_QUESTIONS_TOTAL} questions.")
 
     closing = definition.get("closing") or {}
+    
     return Form(
         intro=str(definition.get("intro") or "").strip()[:2000],
         scale_min=scale_min,
@@ -276,7 +297,11 @@ def validate_answers(
     if problems:
         _fail("Some answers still need attention.", **problems)
 
-    overall = round(sum(scores) / len(scores), 2) if scores else None
+    if form.overall_rating_key is not None:
+        rating_value = cleaned.get(form.overall_rating_key)
+        overall = float(rating_value) if isinstance(rating_value, int) else None
+    else:
+        overall = round(sum(scores) / len(scores), 2) if scores else None
     return ScoredAnswers(
         answers=cleaned,
         comment=cleaned_comment,

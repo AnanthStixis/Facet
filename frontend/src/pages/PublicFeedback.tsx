@@ -51,14 +51,14 @@ function ScaleRow({
         {question.required && <span className="ml-1 text-critical">*</span>}
       </p>
 
-      {question.type === 'scale' && (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {points.map((point) => {
-              const active = value === point
-              return (
+                  {question.type === 'scale' && (
+        <div className="flex flex-wrap gap-3">
+          {points.map((point) => {
+            const active = value === point
+            const label = form.scale.labels[String(point)]
+            return (
+              <div key={point} className="flex flex-col items-center gap-1">
                 <button
-                  key={point}
                   type="button"
                   onClick={() => onChange(point)}
                   aria-pressed={active}
@@ -72,14 +72,15 @@ function ScaleRow({
                 >
                   {point}
                 </button>
-              )
-            })}
-          </div>
-          <div className="mt-1.5 flex justify-between text-2xs text-ink-400">
-            <span>{form.scale.labels[String(form.scale.min)]}</span>
-            <span>{form.scale.labels[String(form.scale.max)]}</span>
-          </div>
-        </>
+                {label && (
+                  <span className="max-w-16 truncate text-2xs leading-none text-ink-400">
+                    {label}
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
       )}
 
       {question.type === 'choice' && (

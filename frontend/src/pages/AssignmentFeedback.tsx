@@ -49,85 +49,40 @@ function ScaleRow({
         {question.required && <span className="ml-1 text-critical">*</span>}
       </p>
 
-      {question.type === 'scale' && (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {points.map((point) => {
-              const active = value === point
-              return (
-                <button
-                  key={point}
-                  type="button"
-                  onClick={() => onChange(point)}
-                  aria-pressed={active}
-                  className={clsx(
-                    'h-11 min-w-11 rounded-lg border text-base font-medium transition-all',
-                    active
-                      ? 'border-transparent text-white shadow-sm'
-                      : 'border-ink-200 text-ink-600 hover:border-ink-400 dark:border-ink-700 dark:text-ink-300',
-                  )}
-                  style={active ? { background: accent } : undefined}
-                >
-                  {point}
-                </button>
-              )
-            })}
-          </div>
-          <div className="mt-1.5 flex justify-between text-2xs text-ink-400">
-            <span>{form.scale.labels[String(form.scale.min)]}</span>
-            <span>{form.scale.labels[String(form.scale.max)]}</span>
-          </div>
-        </>
-      )}
-
-      {question.type === 'choice' && (
+            {question.type === 'scale' && (
         <div className="flex flex-wrap gap-2">
-          {question.options.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onChange(option)}
-              className={clsx(
-                'rounded-lg border px-3.5 py-2 text-sm transition-all',
-                value === option
-                  ? 'border-transparent text-white'
-                  : 'border-ink-200 text-ink-600 hover:border-ink-400 dark:border-ink-700 dark:text-ink-300',
-              )}
-              style={value === option ? { background: accent } : undefined}
-            >
-              {option}
-            </button>
-          ))}
+          {points.map((point) => {
+            const active = value === point
+            const label = form.scale.labels[String(point)]
+            return (
+              <button
+                key={point}
+                type="button"
+                onClick={() => onChange(point)}
+                aria-pressed={active}
+                className={clsx(
+                  'flex min-w-11 flex-col items-center gap-0.5 rounded-lg border px-2.5 py-2 transition-all',
+                  active
+                    ? 'border-transparent text-white shadow-sm'
+                    : 'border-ink-200 text-ink-600 hover:border-ink-400 dark:border-ink-700 dark:text-ink-300',
+                )}
+                style={active ? { background: accent } : undefined}
+              >
+                <span className="text-base font-medium">{point}</span>
+                {label && (
+                  <span
+                    className={clsx(
+                      'max-w-16 truncate text-2xs leading-none',
+                      active ? 'text-white/85' : 'text-ink-400',
+                    )}
+                  >
+                    {label}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
-      )}
-
-      {question.type === 'boolean' && (
-        <div className="flex gap-2">
-          {[true, false].map((option) => (
-            <button
-              key={String(option)}
-              type="button"
-              onClick={() => onChange(option)}
-              className={clsx(
-                'rounded-lg border px-5 py-2 text-sm transition-all',
-                value === option
-                  ? 'border-transparent text-white'
-                  : 'border-ink-200 text-ink-600 hover:border-ink-400 dark:border-ink-700 dark:text-ink-300',
-              )}
-              style={value === option ? { background: accent } : undefined}
-            >
-              {option ? 'Yes' : 'No'}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {question.type === 'text' && (
-        <textarea
-          className="field min-h-24 resize-y"
-          value={(value as string) ?? ''}
-          onChange={(event) => onChange(event.target.value)}
-        />
       )}
     </div>
   )
