@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { IconCheck, IconClock, IconLock, IconShield } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -333,6 +333,8 @@ function FeedbackFormView({
 }
 export function MyFeedback() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { assignmentId } = useParams<{ assignmentId?: string }>()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [assignments, setAssignments] = useState<Assignment[] | null>(null)
   const [active, setActive] = useState<AssignmentForm | null>(null)
@@ -355,31 +357,51 @@ export function MyFeedback() {
   useEffect(load, [])
   useRefetchOnFocus(load)
 
-  const open = async (assignment: Assignment) => {
-    setOpening(assignment.id)
+    const open = async (id: string) => {
+    setOpening(id)
     try {
-      setActive(await api.get<AssignmentForm>(`/assignments/${assignment.id}`))
+      setActive(await api.get<AssignmentForm>(`/assignments/${id}`))
     } catch (caught) {
       toast.show(
         'critical',
         'Could not open that form',
-        caught instanceof ApiError ? caught.message : undefined,
+        caught instanceof ApiError
+          ? caught.message
+          : 'That link may have expired, or you may have already responded.',
       )
+      // A deep link from an email pointing at an assignment that no longer
+      // applies (already submitted, cycle closed, wrong account) should
+      // land the person on their list instead of a dead end.
+      if (assignmentId) navigate('/my-feedback', { replace: true })
     } finally {
       setOpening(null)
     }
   }
 
+  // The "you have been asked" email links straight to one assignment's
+  // form (`/my-feedback/{id}`), not the generic list — this is what makes
+  // that land on the actual form instead of requiring a second click, the
+  // same experience the external one-time link already gives an outside
+  // respondent. Runs once per id the URL actually carries.
+  useEffect(() => {
+    if (assignmentId) void open(assignmentId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignmentId])
+
   if (active) {
     return (
       <FeedbackFormView
         data={active}
-        onCancel={() => setActive(null)}
+                onCancel={() => {
+          setActive(null)
+          if (assignmentId) navigate('/my-feedback', { replace: true })
+        }}
         onDone={(message) => {
           const submittedId = active.assignment.id
           setActive(null)
           toast.show('success', message)
           setAssignments((current) => (current ? current.filter((a) => a.id !== submittedId) : current))
+          if (assignmentId) navigate('/my-feedback', { replace: true })
         }}
       />
     )
@@ -394,7 +416,7 @@ export function MyFeedback() {
         description="Feedback you have been asked to give. Nothing here is visible to the person concerned until enough people have responded."
       />
 
-      {!assignments ? (
+        {(!assignments || (assignmentId && opening === assignmentId)) ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, index) => (
             <Skeleton key={index} className="h-20 w-full rounded-lg" />
@@ -441,7 +463,7 @@ export function MyFeedback() {
                   type="button"
                   className="btn-primary shrink-0 px-3 py-1.5 text-sm"
                   disabled={opening === assignment.id}
-                  onClick={() => open(assignment)}
+                  onClick={() => open(assignment.id)}
                 >
                   {opening === assignment.id && <Spinner />}
                   {assignment.status === 'in_progress' ? 'Continue' : 'Give feedback'}

@@ -50,6 +50,11 @@ from app.services import audit
 from app.services import email as email_service
 from app.services.campaigns import maybe_auto_close
 from app.services.forms import form_payload, validate_answers, validate_definition
+from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
+from app.models.enums import AssignmentStatus, Relationship
+from app.services import cycles as cycle_service
+from app.services.forms import form_payload, validate_answers, validate_definition
+from app.services import cycles as cycle_service
 
 log = get_logger("facet.public")
 
@@ -423,4 +428,200 @@ async def unsubscribe(
     await session.commit()
     return MessageResponse(
         message="You will not receive further feedback requests from this organization."
+    )
+
+
+class _AssignmentLink:
+    __slots__ = ("assignment_id", "org_id", "cycle_id", "target_id", "reviewer_user_id")
+
+    def __init__(self, row: Any) -> None:
+        self.assignment_id: uuid.UUID = row["assignment_id"]
+        self.org_id: uuid.UUID = row["org_id"]
+        self.cycle_id: uuid.UUID = row["cycle_id"]
+        self.target_id: uuid.UUID = row["target_id"]
+        self.reviewer_user_id: uuid.UUID = row["reviewer_user_id"]
+
+
+async def _resolve_assignment(
+    session: DbSession, token: str, request: Request
+) -> _AssignmentLink:
+    """Same shape as `_resolve`, for an internal assignment's token instead
+    of an external recipient's."""
+    await limiter.hit(f"link:ip:{audit.client_ip(request) or 'unknown'}", LINK_PER_IP)
+
+    if not token or len(token) < 20 or len(token) > 128:
+        raise NotFound(DEAD_LINK)
+
+    token_hash = hash_token(token)
+    await limiter.hit(f"link:tok:{token_hash[:16]}", LINK_PER_TOKEN)
+
+    row = (
+        await session.execute(
+            text("SELECT * FROM facet_assignment_link(:token_hash)"),
+            {"token_hash": token_hash},
+        )
+    ).mappings().first()
+
+    if row is None:
+        raise NotFound(DEAD_LINK)
+
+    status = AssignmentStatus(row["status"])
+    if (
+        status in {AssignmentStatus.SUBMITTED, AssignmentStatus.DECLINED}
+        or CycleStatus(row["cycle_status"]) != CycleStatus.OPEN
+    ):
+        raise NotFound(DEAD_LINK)
+
+    await bind_tenant(
+        session, TenantContext(org_id=row["org_id"], is_super_admin=False)
+    )
+    return _AssignmentLink(row)
+
+
+@router.get("/assignment/{token}")
+async def open_assignment_link(
+    token: str, request: Request, response: Response, session: DbSession
+) -> dict[str, Any]:
+    """Render the branded form for a valid internal assignment link."""
+    link = await _resolve_assignment(session, token, request)
+    _harden(response)
+
+    assignment = (
+        await session.execute(
+            select(FeedbackAssignment).where(FeedbackAssignment.id == link.assignment_id)
+        )
+    ).scalar_one()
+    cycle = (
+        await session.execute(select(ReviewCycle).where(ReviewCycle.id == link.cycle_id))
+    ).scalar_one()
+    target = (
+        await session.execute(
+            select(FeedbackTarget).where(FeedbackTarget.id == link.target_id)
+        )
+    ).scalar_one()
+    org = (
+        await session.execute(
+            select(Organization).where(Organization.id == link.org_id)
+        )
+    ).scalar_one()
+    version = (
+        await session.execute(
+            select(FeedbackTemplateVersion).where(
+                FeedbackTemplateVersion.id == cycle.template_version_id
+            )
+        )
+    ).scalar_one()
+
+    if assignment.status == AssignmentStatus.PENDING:
+        assignment.status = AssignmentStatus.IN_PROGRESS
+        assignment.started_at = datetime.now(UTC)
+        await session.commit()
+
+    form = validate_definition(version.definition)
+    return {
+        "organization": {
+            "name": org.name,
+            "accent_color": org.branding.accent_color if org.branding else "#B4633A",
+            "logo_url": (
+                f"{settings.public_api_url}/api/v1/public/assignment-logo/{token}"
+                if org.branding and org.branding.logo_path
+                else None
+            ),
+        },
+        "subject": {"label": target.label, "type": str(target.target_type)},
+        "cycle": {"name": cycle.name, "closes_at": cycle.closes_at},
+        "relationship": str(assignment.relationship_type),
+        "is_anonymous": cycle.is_anonymous and assignment.relationship_type != Relationship.SELF,
+        "form": form_payload(form),
+    }
+
+
+@router.post("/assignment/{token}/submit", response_model=MessageResponse)
+async def submit_assignment_link(
+    token: str,
+    payload: SubmitResponseRequest,
+    request: Request,
+    response: Response,
+    session: DbSession,
+) -> MessageResponse:
+    """Accept one submission and burn the token — same "answer, then the
+    link stops working" contract as the external path, just for an
+    internal reviewer who followed an emailed link instead of logging in.
+    """
+    await limiter.hit(
+        f"submit:ip:{audit.client_ip(request) or 'unknown'}", SUBMIT_PER_IP
+    )
+    link = await _resolve_assignment(session, token, request)
+    _harden(response)
+
+    assignment = (
+        await session.execute(
+            select(FeedbackAssignment).where(FeedbackAssignment.id == link.assignment_id)
+        )
+    ).scalar_one()
+    cycle = (
+        await session.execute(select(ReviewCycle).where(ReviewCycle.id == link.cycle_id))
+    ).scalar_one()
+    version = (
+        await session.execute(
+            select(FeedbackTemplateVersion).where(
+                FeedbackTemplateVersion.id == cycle.template_version_id
+            )
+        )
+    ).scalar_one()
+
+    form = validate_definition(version.definition)
+    scored = validate_answers(form, payload.answers, payload.comment)
+
+    # Same self-assessment exception as the authenticated submit path: a
+    # self-review is always attributable, so it is never treated as
+    # anonymous even on an anonymous cycle.
+    anonymous = cycle.is_anonymous and assignment.relationship_type != Relationship.SELF
+
+    session.add(
+        FeedbackResponse(
+            org_id=cycle.org_id,
+            cycle_id=cycle.id,
+            target_id=assignment.target_id,
+            template_version_id=version.id,
+            assignment_id=None if anonymous else assignment.id,
+            reviewer_user_id=None if anonymous else link.reviewer_user_id,
+            is_anonymous=anonymous,
+            relationship_type=assignment.relationship_type,
+            answers=scored.answers,
+            comment=scored.comment,
+            overall_score=scored.overall_score,
+            answered_count=scored.answered_count,
+            submitted_at=datetime.now(UTC),
+        )
+    )
+
+    assignment.status = AssignmentStatus.SUBMITTED
+    assignment.submitted_at = datetime.now(UTC)
+    # Burn the token in the same transaction as the response, same reason
+    # as the external path: a failure here can never leave a spent link
+    # that still works or a burnt link with no answers behind it.
+    assignment.token_hash = hash_token(uuid.uuid4().hex + uuid.uuid4().hex)
+    await session.flush()
+    await cycle_service.maybe_auto_close(session, cycle)
+
+    await audit.record(
+        session,
+        action=AuditAction.RESPONSE_SUBMITTED,
+        summary=f"A response was submitted in '{cycle.name}'",
+        org_id=cycle.org_id,
+        target_type="review_cycle",
+        target_id=cycle.id,
+        target_label=cycle.name,
+        context={"anonymous": anonymous, "relationship": str(assignment.relationship_type)},
+        request=request,
+    )
+    await session.commit()
+
+    return MessageResponse(
+        message=(
+            "Thank you. Your feedback was submitted anonymously and cannot be traced back to you."
+            if anonymous
+            else "Thank you. Your feedback was submitted."
+        )
     )

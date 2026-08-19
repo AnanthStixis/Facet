@@ -243,6 +243,51 @@ async def send_feedback_request(
         cta=("Give feedback", link),
     )
 
+async def send_assignment_notice(
+    *,
+    to: str,
+    full_name: str,
+    org_name: str,
+    subject_label: str,
+    cycle_name: str,
+    link: str,
+    due_at: datetime | None,
+    branding: Branding,
+    external: bool = False,
+) -> bool:
+    """Sent once, the moment a reviewer is assigned — distinct from
+    `send_reminder`'s later "you still haven't" nudge, this is the one-time
+    "you have been asked" notice. Same external/internal split as the
+    reminder: an internal reviewer already has an account and the link just
+    points them at their queue, so only the external framing claims the link
+    signs them straight in.
+    """
+    first_name = full_name.split()[0] if full_name.strip() else "there"
+    when = f" It closes on {due_at.strftime('%d %B')}." if due_at else ""
+    return await send(
+        to=to,
+        subject=f"You have been asked for feedback on {subject_label}",
+        heading=f"{first_name}, you have been asked for feedback",
+        body_html=(
+            f"You have been asked to give feedback on "
+            f"<b>{escape(subject_label)}</b> for {escape(cycle_name)}.{escape(when)}"
+            + (
+                "<br><br>It takes about two minutes, and this link signs you "
+                "straight in."
+                if external
+                else "<br><br>It takes about two minutes — sign in to respond."
+            )
+        ),
+        body_text=(
+            f"You have been asked to give feedback on {subject_label} for "
+            f"{cycle_name}.{when} It takes about two minutes."
+        ),
+        branding=branding,
+        cta=("Give feedback", link),
+    )
+
+
+
 
 async def send_reminder(
     *,

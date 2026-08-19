@@ -43,6 +43,13 @@ class GenerationResult:
     skipped_existing: int
     by_relationship: dict[str, int]
     warnings: list[str]
+    # Every assignment actually created this call — not the skipped-existing
+    # ones, since those were already notified whenever they were first
+    # created. This is what lets a caller send a "you have been asked" email
+    # per new assignment, using each row's own id for a deep link straight
+    # to that one form, without `generate_assignments` itself needing to
+    # know anything about email.
+    created_assignments: list[FeedbackAssignment]
 
 
 async def ensure_person_target(
@@ -154,6 +161,7 @@ async def generate_assignments(
     skipped = 0
     counts: dict[str, int] = {}
     warnings: list[str] = []
+    created_assignments: list[FeedbackAssignment] = []
 
     for reviewee_id in reviewee_ids:
         reviewee = by_id.get(reviewee_id)
@@ -217,19 +225,19 @@ async def generate_assignments(
                 skipped += 1
                 continue
             existing_pairs.add((target.id, reviewer.id))
-            session.add(
-                FeedbackAssignment(
-                    org_id=cycle.org_id,
-                    cycle_id=cycle.id,
-                    target_id=target.id,
-                    reviewer_user_id=reviewer.id,
-                    relationship_type=relationship,
-                    status=AssignmentStatus.PENDING,
-                    due_at=due_at or cycle.closes_at,
-                )
+            assignment = FeedbackAssignment(
+                org_id=cycle.org_id,
+                cycle_id=cycle.id,
+                target_id=target.id,
+                reviewer_user_id=reviewer.id,
+                relationship_type=relationship,
+                status=AssignmentStatus.PENDING,
+                due_at=due_at or cycle.closes_at,
             )
+            session.add(assignment)
             created += 1
             counts[relationship.value] = counts.get(relationship.value, 0) + 1
+            created_assignments.append(assignment)
 
     await session.flush()
     # Deduplicate while preserving order, so the caller sees each distinct
@@ -242,6 +250,7 @@ async def generate_assignments(
         skipped_existing=skipped,
         by_relationship=counts,
         warnings=unique_warnings,
+        created_assignments=created_assignments,
     )
 
 

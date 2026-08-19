@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.config import settings
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import (
     FeedbackTarget,
@@ -43,6 +44,8 @@ from app.models.organization import Organization
 from app.models.user import User
 from app.services import campaigns as campaign_service
 from app.services import cycles as cycle_service
+from app.services import email as email_service
+from app.core import security
 
 FeedbackKind = Literal[
     "client", "employee", "management", "product", "service", "proposal"
@@ -126,6 +129,77 @@ async def _find_or_create_labeled_target(
         session.add(target)
         await session.flush()
     return target
+
+
+def _org_branding(org: Organization) -> email_service.Branding:
+    """Same branding-construction shape as everywhere else email gets sent
+    (see `api/v1/users.py::invite_user`) — kept as one function here since
+    both internal-delivery branches below need it."""
+    return email_service.Branding(
+        org_name=org.name,
+        accent_color=org.branding.accent_color if org.branding else "#B4633A",
+        logo_url=(
+            f"{settings.public_api_url}/api/v1/orgs/{org.id}/logo"
+            if org.branding and org.branding.logo_path
+            else None
+        ),
+        footer_note=org.branding.email_footer_note if org.branding else None,
+    )
+
+
+async def _notify_new_assignments(
+    session: AsyncSession,
+    *,
+    org: Organization,
+    cycle: ReviewCycle,
+    assignments: list[FeedbackAssignment],
+    subject_label: str,
+) -> list[str]:
+    """One "you have been asked" email per assignment, additional to — never
+    instead of — the "My feedback" queue entry each one already has the
+    moment its `FeedbackAssignment` row exists.
+
+    Each assignment gets its own single-use token here, the same
+    generate_token()/hash_token() pair used for invitations and password
+    resets — only the raw token is ever put in the email; the row stores
+    the hash. This is what lets the link work without login, the same
+    security property `campaign_recipients.token_hash` already gives
+    external respondents, rather than trusting the assignment's plain
+    database id to be secret.
+    """
+    if not assignments:
+        return []
+    reviewer_ids = {a.reviewer_user_id for a in assignments}
+    reviewers = {
+        user.id: user
+        for user in (
+            (await session.execute(select(User).where(User.id.in_(reviewer_ids))))
+            .scalars()
+            .all()
+        )
+    }
+    branding = _org_branding(org)
+    warnings: list[str] = []
+    for assignment in assignments:
+        reviewer = reviewers.get(assignment.reviewer_user_id)
+        if reviewer is None:
+            continue
+        raw_token = security.generate_token()
+        assignment.token_hash = security.hash_token(raw_token)
+        sent = await email_service.send_assignment_notice(
+            to=reviewer.email,
+            full_name=reviewer.full_name,
+            org_name=org.name,
+            subject_label=subject_label,
+            cycle_name=cycle.name,
+            link=f"{settings.public_app_url}/give-feedback/{raw_token}",
+            due_at=cycle.closes_at,
+            branding=branding,
+        )
+        if not sent:
+            warnings.append(f"Could not email {reviewer.full_name}.")
+    await session.flush()
+    return warnings
 
 
 async def create_and_send(
@@ -253,6 +327,17 @@ async def create_and_send(
         cycle.status = CycleStatus.OPEN
         cycle.opened_at = datetime.now(UTC)
         await session.flush()
+        if result.created_assignments:
+            warnings.extend(
+                await _notify_new_assignments(
+                    session,
+                    org=org,
+                    cycle=cycle,
+                    assignments=result.created_assignments,
+                    subject_label=reviewee.full_name,
+                )
+            )
+
         return CreateAndSendResult(cycle=cycle, warnings=warnings)
 
     # --- External-typed kind delivered internally: Product review sent to
@@ -303,26 +388,27 @@ async def create_and_send(
         session.add(cycle)
         await session.flush()
 
+        new_assignments: list[FeedbackAssignment] = []
         for reviewer in reviewers:
-            session.add(
-                FeedbackAssignment(
-                    org_id=org.id,
-                    cycle_id=cycle.id,
-                    target_id=target.id,
-                    reviewer_user_id=reviewer.id,
-                    # No org-chart relationship applies here — the reviewer
-                    # was picked directly, not derived from self/manager/
-                    # report/peer the way an employee 360 is. PEER is the
-                    # closest existing "no hierarchy implied" value; it is
-                    # not a literal claim the reviewer is the product's
-                    # peer, just the least-wrong fit among what the enum
-                    # already offers.
-                    relationship_type=Relationship.PEER,
-                    status=AssignmentStatus.PENDING,
-                    due_at=closes_at,
-                )
+            assignment = FeedbackAssignment(
+                org_id=org.id,
+                cycle_id=cycle.id,
+                target_id=target.id,
+                reviewer_user_id=reviewer.id,
+                relationship_type=Relationship.PEER,
+                status=AssignmentStatus.PENDING,
+                due_at=closes_at,
             )
+            session.add(assignment)
+            new_assignments.append(assignment)
         await session.flush()
+
+        warnings.extend(
+            await _notify_new_assignments(
+                session, org=org, cycle=cycle, assignments=new_assignments, subject_label=label
+            )
+        )
+
         return CreateAndSendResult(cycle=cycle, warnings=warnings)
 
     # --- External kinds: client, product, service, proposal ------------

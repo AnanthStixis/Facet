@@ -184,18 +184,19 @@ class FeedbackAssignment(UUIDPrimaryKey, Timestamped, Base):
     declined_reason: Mapped[str | None] = mapped_column(Text)
     reminders_sent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    token_hash: Mapped[str | None] = mapped_column(String(64))
 
     cycle: Mapped[ReviewCycle] = relationship(back_populates="assignments")
 
     __table_args__ = (
-        # One person is asked about one target once per cycle. Without this a
-        # retried assignment generation silently doubles someone's workload.
-        UniqueConstraint(
-            "cycle_id", "target_id", "reviewer_user_id", name="uq_assignment_unique"
-        ),
-        Index("ix_assignments_reviewer_status", "reviewer_user_id", "status"),
-        Index("ix_assignments_cycle_status", "cycle_id", "status"),
-    )
+    UniqueConstraint(
+        "cycle_id", "target_id", "reviewer_user_id", name="uq_assignment_unique"
+    ),
+    UniqueConstraint("token_hash", name="uq_feedback_assignments_token_hash"),
+    Index("ix_assignments_reviewer_status", "reviewer_user_id", "status"),
+    Index("ix_assignments_cycle_status", "cycle_id", "status"),
+    Index("ix_feedback_assignments_token", "token_hash"),
+)
 
 
 class FeedbackResponse(UUIDPrimaryKey, Timestamped, Base):

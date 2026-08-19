@@ -638,7 +638,7 @@ function MasterSelectPicker({
   return (
     <div>
       <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">{label}</span>
-      <div className="relative flex items-center gap-2" ref={triggerRef}>
+      <div className="relative flex max-w-xs items-center gap-2" ref={triggerRef}>
         <button
           ref={buttonRef}
           type="button"
@@ -1516,7 +1516,13 @@ export function CreateFeedback() {
               )}
 
               {effectiveAudience === 'external' && (
-                <ClientOrganizationSelect value={clientOrg} onChange={setClientOrg} />
+                <ClientOrganizationSelect
+                  value={clientOrg}
+                  onChange={(nextOrg) => {
+                    setClientOrg(nextOrg)
+                    setContactIds([])
+                  }}
+                />
               )}
 
               {audienceTogglesFor && recipientAudience === 'internal' && (

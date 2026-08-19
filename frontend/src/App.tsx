@@ -25,6 +25,7 @@ import { Settings } from './pages/Settings'
 import { Categories } from './pages/Categories'
 import { Templates } from './pages/Templates'
 import { useAuth } from './store/auth'
+import { AssignmentFeedback } from './pages/AssignmentFeedback'
 
 function Booting() {
   return (
@@ -97,7 +98,7 @@ function SessionExpiredModal() {
 // Routes an unauthenticated stranger is meant to reach. Attempting a session
 // restore on these is pointless: the visitor has no account, and it costs a
 // wasted request plus a 401 in their console.
-const PUBLIC_PREFIXES = ['/f/', '/register', '/accept-invite', '/reset-password']
+const PUBLIC_PREFIXES = ['/f/', '/give-feedback/', '/register', '/accept-invite', '/reset-password']
 
 export default function App() {
   const { phase, boot, sessionExpiredNotice } = useAuth()
@@ -132,6 +133,16 @@ export default function App() {
           prompt on their way to giving feedback. */}
       <Route path="/f/:token" element={<PublicFeedback />} />
 
+      {/* The internal "you have been asked" email's landing spot — same
+          authenticated form as My feedback, deliberately outside the AppShell
+          so someone arriving straight from their inbox doesn't have to
+          navigate a sidebar first. */}
+      {/* The internal "you have been asked" email's landing spot. Public and
+    token-based, same as /f/:token for external respondents — a single-use
+    token minted per assignment stands in for login, so someone arriving
+    straight from their inbox never sees a sign-in prompt. */}
+    <Route path="/give-feedback/:token" element={<AssignmentFeedback />} />   
+
       <Route
         element={
           <RequireAuth>
@@ -141,6 +152,7 @@ export default function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="my-feedback" element={<MyFeedback />} />
+        <Route path="my-feedback/:assignmentId" element={<MyFeedback />} />
         <Route path="my-results" element={<MyResults />} />
         <Route
           path="create-feedback"
