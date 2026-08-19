@@ -231,6 +231,7 @@ async def send_pending(
             link=_link(raw_token),
             expires_at=recipient.expires_at,
             branding=branding,
+            target_type=str(target.target_type),
             subject_template=feedback_request_subject,
         )
         if ok:

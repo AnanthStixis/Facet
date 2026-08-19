@@ -17,8 +17,49 @@ from html import escape
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.models.enums import TargetType
 
 log = get_logger("facet.email")
+
+# `send_feedback_request` covers every polymorphic target type, and one
+# generic "we value your feedback on X, share your experience" sentence does
+# not read naturally for all of them. A client, product, or service is a
+# thing the recipient has an *experience with* — the original copy fits. An
+# employee, manager, team, or department is a *person or group being
+# reviewed* — the recipient is being asked to evaluate someone, not to
+# recount their own experience of them, so the framing has to shift to
+# "share feedback on" rather than "share your experience of".
+#
+# `send_assignment_notice` and `send_reminder` share this same distinction
+# (see `_person_review_noun` below), so all three functions read from the
+# one mapping rather than keeping their own copies in sync by hand.
+_PERSON_REVIEW_TARGET_TYPES = {
+    TargetType.EMPLOYEE,
+    TargetType.MANAGER,
+    TargetType.TEAM,
+    TargetType.DEPARTMENT,
+}
+
+_PERSON_REVIEW_NOUNS = {
+    TargetType.EMPLOYEE: "colleague",
+    TargetType.MANAGER: "manager",
+    TargetType.TEAM: "team",
+    TargetType.DEPARTMENT: "department",
+}
+
+
+def _person_review_noun(target_type: str | TargetType | None) -> str | None:
+    """Resolve `target_type` to its "your <noun>" word, or None if this
+    target isn't a person/group being reviewed (client, product, service,
+    an unrecognised type, or no type at all). Centralised so the three
+    call sites below can't quietly drift out of sync with each other."""
+    try:
+        resolved = TargetType(target_type) if target_type else None
+    except ValueError:
+        resolved = None
+    if resolved not in _PERSON_REVIEW_TARGET_TYPES:
+        return None
+    return _PERSON_REVIEW_NOUNS[resolved]
 
 
 @dataclass(slots=True)
@@ -52,7 +93,7 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
              padding:12px 22px;border-radius:6px;display:inline-block">{escape(label)}</a>
         </td></tr>
         <tr><td style="font:400 12px Helvetica,Arial,sans-serif;color:#8A93A0;padding-top:10px">
-          If the button does not work, paste this into your browser:<br>
+          Or click the link below:<br>
           <span style="color:#5A6472;word-break:break-all">{escape(url)}</span>
         </td></tr>"""
 
@@ -206,6 +247,7 @@ async def send_feedback_request(
     link: str,
     expires_at: datetime,
     branding: Branding,
+    target_type: str | TargetType | None = None,
     subject_template: str | None = None,
 ) -> bool:
     """Invite an external contact to give feedback.
@@ -214,6 +256,15 @@ async def send_feedback_request(
     looks like it came from a software company the recipient has never heard of
     gets deleted unread, which is the difference between a 40% response rate
     and a 4% one.
+
+    `target_type` picks the copy: `subject_label` is a *thing with which the
+    recipient has an experience* (a client relationship, a product, a
+    service) for most target types, but for employee, manager, team, and
+    department targets it names a *person or group being reviewed*, and the
+    wording switches accordingly. An unrecognised or missing target_type
+    falls back to the original client-style copy rather than raising, since a
+    caller passing a still-valid but newly-added TargetType should degrade
+    gracefully, not break the send.
     """
     import re
 
@@ -223,17 +274,47 @@ async def send_feedback_request(
     # relationship)" -> "Aarav Mehta") so the email reads naturally even when
     # the caller passes a label that includes internal categorisation.
     subject_label = re.sub(r"\s*\([^)]*\)\s*$", "", subject_label).strip()
-    subject = f"Your Feedback on {subject_label}"
-    if subject_template:
-        try:
-            subject = subject_template.format(org_name=org_name, subject_label=subject_label)
-        except (KeyError, IndexError):
-            pass
-    return await send(
-        to=to,
-        subject=subject,
-        heading="Share Your Feedback",
-        body_html=(
+
+    noun = _person_review_noun(target_type)
+
+    if noun is not None:
+        subject = f"Feedback Request: {subject_label}"
+        if subject_template:
+            try:
+                subject = subject_template.format(org_name=org_name, subject_label=subject_label)
+            except (KeyError, IndexError):
+                pass
+        heading = f"Share feedback on {subject_label}"
+        body_html = (
+            f"Dear {escape(first_name)},<br><br>"
+            f"{escape(org_name)} has asked you to share feedback on your "
+            f"{noun}, <b>{escape(subject_label)}</b>. Your input helps build "
+            f"a clear, well-rounded picture of how things are going and "
+            f"where there is room to grow.<br><br>"
+            f"This is a personal, single-use link and will expire on "
+            f"{escape(deadline)}."
+        )
+        body_text = (
+            f"Dear {first_name},\n\n"
+            f"{org_name} has asked you to share feedback on your {noun}, "
+            f"{subject_label}. Your input helps build a clear, well-rounded "
+            f"picture of how things are going and where there is room to "
+            f"grow.\n\n"
+            f"This is a personal, single-use link and will expire on "
+            f"{deadline}."
+        )
+    else:
+        # Client, product, service, and any unrecognised target type: the
+        # recipient has an experience of the subject_label itself, so the
+        # original "share your experience" framing fits.
+        subject = f"Your Feedback on {subject_label}"
+        if subject_template:
+            try:
+                subject = subject_template.format(org_name=org_name, subject_label=subject_label)
+            except (KeyError, IndexError):
+                pass
+        heading = "Share Your Feedback"
+        body_html = (
             f"Dear {escape(first_name)},<br><br>"
             f"{escape(org_name)} values your feedback on "
             f"<b>{escape(subject_label)}</b> and would appreciate a few minutes "
@@ -242,8 +323,8 @@ async def send_feedback_request(
             f"improve.<br><br>"
             f"This is a personal, single-use link and will expire on "
             f"{escape(deadline)}."
-        ),
-        body_text=(
+        )
+        body_text = (
             f"Dear {first_name},\n\n"
             f"{org_name} values your feedback on {subject_label} and would "
             f"appreciate a few minutes of your time to share your experience. "
@@ -251,10 +332,18 @@ async def send_feedback_request(
             f"where we can improve.\n\n"
             f"This is a personal, single-use link and will expire on "
             f"{deadline}."
-        ),
+        )
+
+    return await send(
+        to=to,
+        subject=subject,
+        heading=heading,
+        body_html=body_html,
+        body_text=body_text,
         branding=branding,
         cta=("Give Feedback", link),
     )
+
 
 async def send_assignment_notice(
     *,
@@ -267,6 +356,7 @@ async def send_assignment_notice(
     due_at: datetime | None,
     branding: Branding,
     external: bool = False,
+    target_type: str | TargetType | None = None,
 ) -> bool:
     """Sent once, the moment a reviewer is assigned — distinct from
     `send_reminder`'s later "you still haven't" nudge, this is the one-time
@@ -274,32 +364,59 @@ async def send_assignment_notice(
     reminder: an internal reviewer already has an account and the link just
     points them at their queue, so only the external framing claims the link
     signs them straight in.
+
+    `target_type` picks the copy, same as `send_feedback_request`: for
+    employee, manager, team, and department targets `subject_label` names a
+    person or group being reviewed, not something the recipient merely has
+    an "experience with", so the wording shifts to "share feedback on your
+    <noun>, <name>" for those.
     """
     first_name = full_name.split()[0] if full_name.strip() else "there"
     when = f" It closes on {due_at.strftime('%d %B')}." if due_at else ""
+    noun = _person_review_noun(target_type)
+
+    if noun is not None:
+        opening_html = (
+            f"You have been asked to share feedback on your {noun}, "
+            f"<b>{escape(subject_label)}</b>, as part of "
+            f"{escape(cycle_name)}.{escape(when)}"
+        )
+        opening_text = (
+            f"You have been asked to share feedback on your {noun}, "
+            f"{subject_label}, as part of {cycle_name}.{when}"
+        )
+    else:
+        opening_html = (
+            f"You have been asked to share your feedback on "
+            f"<b>{escape(subject_label)}</b> as part of "
+            f"{escape(cycle_name)}.{escape(when)}"
+        )
+        opening_text = (
+            f"You have been asked to share your feedback on {subject_label} "
+            f"as part of {cycle_name}.{when}"
+        )
+
+    closing_html = (
+        "It only takes a couple of minutes — the link below will sign you "
+        "in automatically."
+        if external
+        else "It only takes a couple of minutes. Sign in to get started."
+    )
+    closing_text = "It only takes a couple of minutes."
+
     return await send(
         to=to,
-        subject=f"You have been asked for feedback on {subject_label}",
-        heading=f"{first_name}, you have been asked for feedback",
+        subject=f"Feedback Request: {subject_label}",
+        heading="Your feedback has been requested",
         body_html=(
-            f"You have been asked to give feedback on "
-            f"<b>{escape(subject_label)}</b> for {escape(cycle_name)}.{escape(when)}"
-            + (
-                "<br><br>It takes about two minutes, and this link signs you "
-                "straight in."
-                if external
-                else "<br><br>It takes about two minutes — sign in to respond."
-            )
+            f"Dear {escape(first_name)},<br><br>{opening_html}<br><br>{closing_html}"
         ),
         body_text=(
-            f"You have been asked to give feedback on {subject_label} for "
-            f"{cycle_name}.{when} It takes about two minutes."
+            f"Dear {first_name},\n\n{opening_text}\n\n{closing_text}"
         ),
         branding=branding,
         cta=("Give feedback", link),
     )
-
-
 
 
 async def send_reminder(
@@ -313,32 +430,59 @@ async def send_reminder(
     due_at: datetime | None,
     branding: Branding,
     external: bool = False,
+    target_type: str | TargetType | None = None,
 ) -> bool:
     """A single, specific nudge.
 
     Names the one thing outstanding rather than saying "you have pending
     items". A reminder that requires the reader to go and look up what it is
     about is a reminder that gets postponed.
+
+    `target_type` picks the copy, same as `send_feedback_request` and
+    `send_assignment_notice`: employee, manager, team, and department
+    targets get "your <noun>" framing instead of the generic
+    "your feedback on <label>" phrasing.
     """
     first_name = full_name.split()[0] if full_name.strip() else "there"
     when = f" It closes on {due_at.strftime('%d %B')}." if due_at else ""
+    noun = _person_review_noun(target_type)
+
+    if noun is not None:
+        opening_html = (
+            f"You have not yet shared your feedback on your {noun}, "
+            f"<b>{escape(subject_label)}</b>, for "
+            f"{escape(cycle_name)}.{escape(when)}"
+        )
+        opening_text = (
+            f"You have not yet shared your feedback on your {noun}, "
+            f"{subject_label}, for {cycle_name}.{when}"
+        )
+    else:
+        opening_html = (
+            f"You have not yet given your feedback on "
+            f"<b>{escape(subject_label)}</b> for {escape(cycle_name)}.{escape(when)}"
+        )
+        opening_text = (
+            f"You have not yet given your feedback on {subject_label} for "
+            f"{cycle_name}.{when}"
+        )
+
+    closing_html = (
+        "It takes about two minutes, and this link signs you straight in."
+        if external
+        else "It takes about two minutes."
+    )
+    closing_text = "It takes about two minutes."
+
     return await send(
         to=to,
         subject=f"Reminder: your feedback on {subject_label}",
-        heading=f"{first_name}, a quick reminder",
+        heading="A quick reminder",
         body_html=(
-            f"You have not yet given your feedback on "
-            f"<b>{escape(subject_label)}</b> for {escape(cycle_name)}.{escape(when)}"
-            + (
-                "<br><br>It takes about two minutes, and this link signs you "
-                "straight in."
-                if external
-                else "<br><br>It takes about two minutes."
-            )
+            f"Dear {escape(first_name)},<br><br>{opening_html}<br><br>{closing_html}"
         ),
         body_text=(
-            f"You have not yet given your feedback on {subject_label} for "
-            f"{cycle_name}.{when} It takes about two minutes."
+            f"Dear {first_name},\n\n{opening_text}\n\n{closing_text}"
         ),
         branding=branding,
         cta=("Give feedback", link),
