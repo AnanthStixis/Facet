@@ -15,6 +15,11 @@ import { minClosingDate } from '../lib/date'
 // a scroll of cards; the rest collapse behind one "N more" toggle.
 const CHIP_TRUNCATE_AT = 8
 
+// Same idea as CHIP_TRUNCATE_AT above, but for Management Review's "Direct
+// reports" line — a manager with a large team otherwise turns one line
+// into a wall of names before the round is even sent.
+const DIRECT_REPORTS_TRUNCATE_AT = 5
+
 export type FeedbackKind = 'client' | 'employee' | 'management' | 'product' | 'service' | 'proposal'
 
 interface KindConfig {
@@ -277,6 +282,52 @@ function ChipList({
         </button>
       )}
     </div>
+  )
+}
+
+/** One manager's direct-reports line on Management Review — up to
+ * DIRECT_REPORTS_TRUNCATE_AT names shown inline, with a "+N more" trigger
+ * that opens a small numbered popup of the rest. Self-contained (its own
+ * open state) since several of these can be on screen at once, one per
+ * selected manager. */
+function DirectReportsCell({ reports }: { reports: LookupItem[] }) {
+  const [open, setOpen] = useState(false)
+  const { triggerRef, panelRef } = useDismiss(open, () => setOpen(false))
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  if (reports.length === 0) {
+    return <span className="text-xs text-ink-400">no direct reports on record</span>
+  }
+
+  const visible = reports.slice(0, DIRECT_REPORTS_TRUNCATE_AT)
+  const hidden = reports.slice(DIRECT_REPORTS_TRUNCATE_AT)
+
+  return (
+    <span className="relative" ref={triggerRef}>
+      <span className="text-ink-700 dark:text-ink-200">
+        {visible.map((report) => report.label).join(', ')}
+      </span>
+      {hidden.length > 0 && (
+        <>
+          {' '}
+          <button
+            ref={buttonRef}
+            type="button"
+            className="accent-text text-xs font-medium underline hover:no-underline"
+            onClick={() => setOpen((state) => !state)}
+          >
+            +{hidden.length} more
+          </button>
+          <FloatingPanel anchorRef={buttonRef} panelRef={panelRef} open={open} className="w-64 p-2">
+            <ol className="max-h-56 list-decimal space-y-1 overflow-y-auto py-1 pl-6 pr-2 text-sm text-ink-700 dark:text-ink-200">
+              {reports.map((report) => (
+                <li key={report.id}>{report.label}</li>
+              ))}
+            </ol>
+          </FloatingPanel>
+        </>
+      )}
+    </span>
   )
 }
 
@@ -1507,13 +1558,7 @@ export function CreateFeedback() {
                                 {manager.full_name}
                               </span>
                               <span className="text-ink-400"> — </span>
-                              {reports.length === 0 ? (
-                                <span className="text-xs text-ink-400">no direct reports on record</span>
-                              ) : (
-                                <span className="text-ink-700 dark:text-ink-200">
-                                  {reports.map((report) => report.label).join(', ')}
-                                </span>
-                              )}
+                              <DirectReportsCell reports={reports} />
                             </li>
                           )
                         })}
