@@ -45,12 +45,14 @@ export function FloatingPanel({
   panelRef,
   open,
   className,
+  width,
   children,
 }: {
   anchorRef: RefObject<HTMLElement | null>
   panelRef: RefObject<HTMLDivElement | null>
   open: boolean
   className?: string
+  width?: number
   children: ReactNode
 }) {
   const [position, setPosition] = useState<{
@@ -75,7 +77,7 @@ export function FloatingPanel({
   // overlapping the trigger it was supposed to clear. Anchoring the edge
   // closest to the trigger and letting the box grow away from it (up to
   // `maxHeight`) is correct regardless of when or how much content arrives.
-  const recalc = () => {
+    const recalc = () => {
     const rect = anchorRef.current?.getBoundingClientRect()
     if (!rect) return
     const margin = 8
@@ -83,10 +85,26 @@ export function FloatingPanel({
     const spaceAbove = rect.top - margin
     const panelHeight = panelRef.current?.scrollHeight ?? 0
     const openAbove = panelHeight > spaceBelow && spaceAbove > spaceBelow
+
+    // Horizontal overflow gets the same treatment vertical already has
+    // above. A panel left-aligned to a trigger sitting near the right edge
+    // of the viewport (the Export button in a page header, for instance)
+    // would render most of its width off-screen — nothing here previously
+    // checked for that. When the panel's actual width would overflow past
+    // the right edge, anchor its *right* edge to the trigger's right edge
+    // instead, so it grows leftward and stays fully on screen. Falls back
+    // to the panel's default width (w-72, 288px) before it has mounted and
+    // reported a real one — the same race `attachPanel` below already
+    // resolves for height, resolved the same way here once it re-fires
+    // this with the real measurement.
+    const panelWidth = width ?? panelRef.current?.getBoundingClientRect().width ?? 288
+    const spaceRight = window.innerWidth - rect.left - margin
+    const left = panelWidth > spaceRight ? Math.max(margin, rect.right - panelWidth) : rect.left
+
     setPosition(
       openAbove
-        ? { anchor: 'bottom', offset: window.innerHeight - rect.top + 6, left: rect.left, maxHeight: Math.max(80, spaceAbove) }
-        : { anchor: 'top', offset: rect.bottom + 6, left: rect.left, maxHeight: Math.max(80, spaceBelow) },
+        ? { anchor: 'bottom', offset: window.innerHeight - rect.top + 6, left, maxHeight: Math.max(80, spaceAbove) }
+        : { anchor: 'top', offset: rect.bottom + 6, left, maxHeight: Math.max(80, spaceBelow) },
     )
   }
   const recalcRef = useRef(recalc)
@@ -146,6 +164,7 @@ export function FloatingPanel({
         maxHeight: position.maxHeight,
         top: position.anchor === 'top' ? position.offset : 'auto',
         bottom: position.anchor === 'bottom' ? position.offset : 'auto',
+        width: width ?? undefined,
       }}
       className={clsx(
         'fixed z-50 w-72 overflow-y-auto rounded-lg border border-ink-200 bg-white p-1.5 shadow-lift dark:border-ink-700 dark:bg-ink-900',
@@ -577,9 +596,9 @@ export function OptionFilter({
 // --- Export ----------------------------------------------------------------
 
 const FORMATS = [
-  { value: 'csv', label: 'CSV', hint: 'Raw rows for analysis' },
-  { value: 'xlsx', label: 'Excel', hint: 'Formatted, with filters' },
-  { value: 'pdf', label: 'PDF', hint: 'Branded, ready to circulate' },
+  { value: 'csv', label: 'CSV' },
+  { value: 'xlsx', label: 'Excel' },
+  { value: 'pdf', label: 'PDF'},
 ]
 
 export function ExportMenu({
@@ -624,8 +643,8 @@ export function ExportMenu({
         <IconChevronDown width={13} height={13} className="opacity-70" />
       </button>
 
-      <FloatingPanel anchorRef={triggerRef} panelRef={panelRef} open={open}>
-          <p className="label-caps px-2.5 pb-1 pt-1.5">Download current view</p>
+      <FloatingPanel anchorRef={triggerRef} panelRef={panelRef} open={open} width={224}>
+          <p className="label-caps px-2.5 pb-1 pt-1.5">Download</p>
           {FORMATS.map((format) => (
             <button
               key={format.value}
@@ -638,7 +657,7 @@ export function ExportMenu({
                 <span className="block text-sm font-medium text-ink-800 dark:text-ink-100">
                   {format.label}
                 </span>
-                <span className="block text-2xs text-ink-400">{format.hint}</span>
+                {/* <span className="block text-2xs text-ink-400">{format.hint}</span> */}
               </span>
               {busy === format.value && <Spinner className="text-ink-400" />}
             </button>
