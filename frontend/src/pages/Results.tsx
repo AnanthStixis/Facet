@@ -459,7 +459,10 @@ function OrganisationNameFilter({
           className="field w-full pl-8"
           placeholder="Search organisations"
           value={draft}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setDraft('')
+            setOpen(true)
+          }}
           onChange={(event) => {
             setDraft(event.target.value)
             setOpen(true)
