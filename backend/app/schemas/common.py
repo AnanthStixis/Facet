@@ -55,6 +55,7 @@ class LookupItem(BaseModel):
 
 
 DateRangePreset = Literal[
+    "all",
     "today",
     "yesterday",
     "last_7_days",
@@ -97,6 +98,11 @@ class FilterState(BaseModel):
     actor_ids: list[uuid.UUID] = Field(default_factory=list)
     actions: list[str] = Field(default_factory=list)
     severities: list[str] = Field(default_factory=list)
+    # Exact-match filters used only by the Results export (feedback rounds
+    # list) — a name picked off a dropdown, not free text, so it doesn't
+    # belong in `search`. Optional and unused by every other report.
+    client_name: str | None = Field(default=None, max_length=200)
+    cycle_name: str | None = Field(default=None, max_length=200)
     sort: str | None = None
     sort_dir: Literal["asc", "desc"] = "desc"
     page: int = Field(default=1, ge=1)

@@ -142,23 +142,26 @@ async def create_feedback(
     )
 
 
-@router.get("", response_model=Page[FeedbackListItem])
-async def list_feedback(
+async def _build_feedback_items(
     session: DbSession,
     actor: ManagerUser,
-    kind: str | None = None,
-    status: str | None = None,
-    org_id: uuid.UUID | None = None,
-    client_name: str | None = None,
-    cycle_name: str | None = None,
-    q: str | None = None,
-    date_preset: DateFilterPreset = "all",
-    date_start: date | None = None,
-    date_end: date | None = None,
-    page: int = 1,
-    page_size: int = 15,
-) -> Page[FeedbackListItem]:
+    *,
+    kind: str | None,
+    status: str | None,
+    org_id: uuid.UUID | None,
+    client_name: str | None,
+    cycle_name: str | None,
+    q: str | None,
+    date_floor: datetime | None,
+    date_ceiling: datetime | None,
+) -> list[FeedbackListItem]:
     """Every feedback round, internal and external together, newest first.
+
+    This is the one place the Results table is built — both `GET /feedback`
+    (the screen) and the `results_overview` report definition (the Export
+    button) call it with the same arguments, so the file a person downloads
+    can never disagree with what they were looking at when they clicked
+    Export.
 
     `kind` and the date window are derived/computed per row rather than
     stored columns, so filtering on them happens in Python after the rows are
@@ -167,16 +170,16 @@ async def list_feedback(
     the same target-resolution logic in two places (a SQL version for
     filtering and this one for display).
 
-    `q` is the free-text "Search" box on the Results page — it matches
-    against exactly what's visible in the table (Cycle Name, Client, Type,
-    Reviewed by, Reviewed to, Status), not just the cycle's own name the
-    way `cycle_name` does. `client_name` is a separate, exact-match filter
-    from the "Organisation Name" dropdown — when set, `q` only searches
-    within that organisation's rows, since both filters apply together in
-    the same pass below rather than one replacing the other.
+    `q` is the free-text "Search" box on the Results page, already lower-
+    cased by the caller — it matches against exactly what's visible in the
+    table (Cycle Name, Client, Type, Reviewed by, Reviewed to, Status), not
+    just the cycle's own name the way `cycle_name` does. `client_name` is a
+    separate, exact-match filter from the "Organisation Name" dropdown —
+    when set, `q` only searches within that organisation's rows, since both
+    filters apply together in the same pass below rather than one replacing
+    the other.
     """
-    date_floor, date_ceiling = _resolve_date_floor(date_preset, date_start, date_end)
-    q_term = q.strip().lower() if q and q.strip() else None
+    q_term = q
 
     stmt = select(ReviewCycle)
     if not actor.user.role.at_least(UserRole.CLIENT_ADMIN):
@@ -196,7 +199,7 @@ async def list_feedback(
         .all()
     )
     if not cycles:
-        return Page(items=[], total=0, page=page, page_size=page_size)
+        return []
 
     # Client/org names — every actor sees these now (the Results table's
     # "Client" column isn't Super-Admin-only anymore), not just a Super
@@ -408,6 +411,43 @@ async def list_feedback(
                 recipients=recipient_names.get(cycle.id, []),
             )
         )
+
+    return items
+
+
+@router.get("", response_model=Page[FeedbackListItem])
+async def list_feedback(
+    session: DbSession,
+    actor: ManagerUser,
+    kind: str | None = None,
+    status: str | None = None,
+    org_id: uuid.UUID | None = None,
+    client_name: str | None = None,
+    cycle_name: str | None = None,
+    q: str | None = None,
+    date_preset: DateFilterPreset = "all",
+    date_start: date | None = None,
+    date_end: date | None = None,
+    page: int = 1,
+    page_size: int = 15,
+) -> Page[FeedbackListItem]:
+    """The paginated screen the Results page reads from — see
+    `_build_feedback_items` for the actual query and filtering."""
+    date_floor, date_ceiling = _resolve_date_floor(date_preset, date_start, date_end)
+    q_term = q.strip().lower() if q and q.strip() else None
+
+    items = await _build_feedback_items(
+        session,
+        actor,
+        kind=kind,
+        status=status,
+        org_id=org_id,
+        client_name=client_name,
+        cycle_name=cycle_name,
+        q=q_term,
+        date_floor=date_floor,
+        date_ceiling=date_ceiling,
+    )
 
     total_matching = len(items)
     start = (page - 1) * page_size

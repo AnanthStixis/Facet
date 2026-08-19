@@ -12,6 +12,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.api.v1.feedback import _build_feedback_items
 from app.models.audit import AuditLog
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import Contact, FeedbackTarget
@@ -660,5 +661,98 @@ RESULTS_REPORT = register(
         anonymity_sensitive=True,
         default_sort="cycle",
         filters_supported=["search"],
+    )
+)
+
+
+# --- Results overview (Results.tsx "Export" button) -------------------------
+
+RESULTS_OVERVIEW_COLUMNS = [
+    Column("cycle_name", "Cycle Name", width=26),
+    Column("client_name", "Client Name", width=22),
+    Column("kind", "Type", width=14, kind="badge"),
+    Column("reviewed_by", "Reviewed by", width=30, detail_only=True),
+    Column("reviewed_to", "Reviewed to", width=24),
+    Column("sent_on", "Sent on", width=14, kind="datetime"),
+    Column("responded", "Responded", width=10, kind="number"),
+    Column("total", "Total", width=8, kind="number"),
+    Column("status", "Status", width=11, kind="badge"),
+]
+
+
+async def _query_results_overview(
+    session: AsyncSession, actor: Any, filters: FilterState, *, paginate: bool
+) -> ReportPage:
+    """The exact rows the Results table shows, for its Export button.
+
+    Delegates to `_build_feedback_items` — the same function that builds
+    `GET /feedback` for the screen — so this can never drift from what a
+    person was looking at when they clicked Export. `actions`/`severities`
+    are reused here as the single-value `kind`/`status` filters, the same
+    way other reports in this module reuse them for their own per-report
+    meaning; `client_name`/`cycle_name` are the two fields FilterState
+    carries specifically for this report's exact-match dropdowns.
+    """
+    timezone_name = actor.org.timezone if actor.org else "UTC"
+    window = resolve_window(filters.date_range, timezone_name)
+
+    org_id = filters.org_ids[0] if filters.org_ids else None
+    kind = filters.actions[0] if filters.actions else None
+    status = filters.severities[0] if filters.severities else None
+    q_term = filters.search.strip().lower() if filters.search and filters.search.strip() else None
+
+    items = await _build_feedback_items(
+        session,
+        actor,
+        kind=kind,
+        status=status,
+        org_id=org_id,
+        client_name=filters.client_name,
+        cycle_name=filters.cycle_name,
+        q=q_term,
+        date_floor=window.start_at,
+        date_ceiling=window.end_at,
+    )
+
+    total = len(items)
+    page = _apply_pagination_to_list(items, filters, paginate)
+
+    rows = [
+        {
+            "cycle_name": item.name,
+            "client_name": item.client_name,
+            "kind": item.kind,
+            "reviewed_by": ", ".join(item.recipients) if item.recipients else None,
+            "reviewed_to": item.target_label,
+            "sent_on": item.sent_at,
+            "responded": item.responded,
+            "total": item.total,
+            "status": item.status,
+        }
+        for item in page
+    ]
+    return ReportPage(rows=rows, total=total, window=window)
+
+
+def _apply_pagination_to_list(items: list, filters: FilterState, paginate: bool) -> list:
+    if not paginate:
+        return items
+    start = (filters.page - 1) * filters.page_size
+    return items[start : start + filters.page_size]
+
+
+RESULTS_OVERVIEW_REPORT = register(
+    ReportDefinition(
+        key="results_overview",
+        title="Results",
+        description=(
+            "Every feedback round listed on the Results page — internal and "
+            "external together, with who it went to and how far it got."
+        ),
+        columns=RESULTS_OVERVIEW_COLUMNS,
+        query=_query_results_overview,
+        min_role=UserRole.MANAGER,
+        default_sort="cycle_name",
+        filters_supported=["search", "date_range", "orgs"],
     )
 )

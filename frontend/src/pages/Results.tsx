@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FEEDBACK_TYPES } from './CreateFeedback'
 import { Pagination } from '../components/DataTable'
-import { FloatingPanel, useDismiss } from '../components/filters'
+import { ExportMenu, FloatingPanel, useDismiss } from '../components/filters'
 import { IconSearch } from '../components/icons'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, StatTile } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -10,7 +10,7 @@ import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
 import { RELATIONSHIP_SHORT } from '../lib/cycleTypes'
 import type { Relationship, TargetResults } from '../lib/cycleTypes'
-import type { OrgDetail, Paged } from '../lib/types'
+import type { FilterState, OrgDetail, Paged } from '../lib/types'
 import { useAuth } from '../store/auth'
 
 interface FeedbackListItem {
@@ -625,9 +625,52 @@ export function Results() {
 
   const rows = data?.items ?? []
 
+  // The Export button downloads exactly what these filters produce — the
+  // same `results_overview` query the screen itself reads from (see
+  // `_build_feedback_items` on the backend) — so the file can never
+  // disagree with the table on screen. `kindFilter`/`statusFilter` reuse
+  // the generic `actions`/`severities` fields the way other reports do;
+  // `clientNameFilter`/`cycleNameFilter` have their own dedicated fields
+  // since they're exact-match dropdown picks, not free text.
+  const exportFilters: FilterState = useMemo(() => {
+    const toISODate = (date: Date) => date.toISOString().slice(0, 10)
+    const today = new Date()
+
+    let dateRange: FilterState['date_range']
+    if (datePreset === 'custom') {
+      dateRange = { preset: 'custom', start: dateStart || undefined, end: dateEnd || undefined }
+    } else if (datePreset === 'last_6_months' || datePreset === 'last_12_months') {
+      const daysBack = datePreset === 'last_6_months' ? 182 : 365
+      const start = new Date(today)
+      start.setDate(start.getDate() - daysBack)
+      dateRange = { preset: 'custom', start: toISODate(start), end: toISODate(today) }
+    } else if (datePreset === 'last_30_days') {
+      dateRange = { preset: 'last_30_days' }
+    } else {
+      dateRange = { preset: 'all' }
+    }
+
+    return {
+      search: searchTerm || null,
+      client_name: clientNameFilter || null,
+      cycle_name: cycleNameFilter || null,
+      date_range: dateRange,
+      org_ids: orgFilter ? [orgFilter] : [],
+      actor_ids: [],
+      actions: kindFilter ? [kindFilter] : [],
+      severities: statusFilter ? [statusFilter] : [],
+      sort_dir: 'desc',
+      page: 1,
+      page_size: PAGE_SIZE,
+    }
+  }, [searchTerm, clientNameFilter, cycleNameFilter, kindFilter, statusFilter, orgFilter, datePreset, dateStart, dateEnd])
+
   return (
     <>
-      <PageHeader title="Results" />
+      <PageHeader
+        title="Results"
+        actions={<ExportMenu reportKey="results_overview" filters={exportFilters} disabled={loading} />}
+      />
 
       {error && (
         <Banner tone="error" className="mb-4">

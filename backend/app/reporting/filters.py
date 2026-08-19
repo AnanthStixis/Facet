@@ -14,6 +14,7 @@ from app.core.errors import ValidationFailed
 from app.schemas.common import DateRange, FilterState, ResolvedWindow
 
 _PRESET_LABELS = {
+    "all": "All time",
     "today": "Today",
     "yesterday": "Yesterday",
     "last_7_days": "Last 7 days",
@@ -54,6 +55,15 @@ def resolve_window(date_range: DateRange, timezone_name: str) -> ResolvedWindow:
     zone = get_zone(timezone_name)
     today = datetime.now(zone).date()
     preset = date_range.preset
+
+    # "All time" has no meaningful start date, so it is resolved directly
+    # rather than falling into the day-count math below — a decade-plus span
+    # would otherwise trip the MAX_RANGE_DAYS guard meant for accidental
+    # multi-year custom ranges, not for a deliberate "everything" export.
+    if preset == "all":
+        start_at = datetime(2000, 1, 1, tzinfo=UTC)
+        end_at = datetime.combine(today + timedelta(days=1), time.min, tzinfo=zone).astimezone(UTC)
+        return ResolvedWindow(start_at=start_at, end_at=end_at, label=_PRESET_LABELS["all"])
 
     if preset == "custom":
         if not date_range.start or not date_range.end:

@@ -61,6 +61,7 @@ export interface ApiErrorBody {
 }
 
 export type DateRangePreset =
+  | 'all'
   | 'today'
   | 'yesterday'
   | 'last_7_days'
@@ -79,6 +80,10 @@ export interface FilterState {
   actor_ids: string[]
   actions: string[]
   severities: string[]
+  // Exact-match filters used only by the Results export — see
+  // backend/app/schemas/common.py.
+  client_name?: string | null
+  cycle_name?: string | null
   sort?: string | null
   sort_dir: 'asc' | 'desc'
   page: number
