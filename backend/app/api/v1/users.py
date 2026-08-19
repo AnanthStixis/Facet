@@ -21,7 +21,7 @@ from app.models.catalog import FeedbackTarget, FeedbackTemplate, FeedbackTemplat
 from app.models.cycle import FeedbackResponse, ReviewCycle
 from app.models.enums import AuditAction, UserRole, UserStatus
 from app.models.organization import Organization
-from app.models.user import Invitation, PasswordResetToken, User
+from app.models.user import Invitation, PasswordResetToken, User, UserManager
 from app.schemas.common import LookupItem, MessageResponse, Page
 from app.schemas.feedback import UserFeedbackItem
 from app.schemas.org import InviteResult, UserCreateRequest, UserDetail, UserUpdateRequest
@@ -42,6 +42,7 @@ async def list_users(
     status: UserStatus | None = None,
     org_id: uuid.UUID | None = None,
     department: str | None = None,
+    is_manager: bool | None = None,
     page: int = 1,
     page_size: int = 25,
 ) -> Page[UserDetail]:
@@ -64,6 +65,10 @@ async def list_users(
         # Client Admin's session is already RLS-scoped to their own org, so
         # this is a no-op filter for them rather than a privilege check.
         stmt = stmt.where(User.org_id == org_id)
+    if is_manager:
+        stmt = stmt.where(
+            User.id.in_(select(UserManager.manager_id).distinct())
+        )
 
     total = int(
         (
@@ -107,20 +112,9 @@ async def list_users(
         )
         feedback_counts = dict(rows.all())
 
-        # Same batching reasoning as feedback_counts — one grouped query for
+    # Same batching reasoning as feedback_counts — one grouped query for
     # every row's managers instead of one query per row.
     manager_ids_by_user = await managers_service.get_manager_ids_map(session, user_ids)
-
-    # The Users table needs manager *names*, not just ids — one more batched
-    # query covering every manager referenced above, still one query for the
-    # whole page rather than one per row.
-    all_manager_ids = {mid for ids in manager_ids_by_user.values() for mid in ids}
-    manager_names: dict[uuid.UUID, str] = {}
-    if all_manager_ids:
-        rows = await session.execute(
-            select(User.id, User.full_name).where(User.id.in_(all_manager_ids))
-        )
-        manager_names = dict(rows.all())
 
     items = []
     for user in users:
@@ -128,10 +122,6 @@ async def list_users(
         detail.org_name = org_names.get(user.org_id) if user.org_id else None
         detail.feedback_count = feedback_counts.get(user.id, 0)
         detail.manager_ids = manager_ids_by_user.get(user.id, [])
-        detail.managers = [
-            LookupItem(id=mid, label=manager_names.get(mid, "Unknown"))
-            for mid in detail.manager_ids
-        ]
         items.append(detail)
 
     return Page[UserDetail](items=items, total=total, page=page, page_size=page_size)
@@ -229,6 +219,28 @@ async def user_managers(
     rows = (
         await session.execute(
             select(User.id, User.full_name, User.job_title).where(User.id.in_(manager_ids))
+        )
+    ).all()
+    return [
+        LookupItem(id=row.id, label=row.full_name, sublabel=row.job_title)
+        for row in rows
+    ]
+
+
+@router.get("/{user_id}/reports", response_model=list[LookupItem])
+async def user_reports(
+    user_id: uuid.UUID, session: DbSession, actor: CurrentUser
+) -> list[LookupItem]:
+    """This person's current direct reports — what the Management Review
+    form's "Reviewed by" side is built from once a manager is chosen, the
+    reverse of user_managers above.
+    """
+    report_ids = await managers_service.get_report_ids(session, user_id)
+    if not report_ids:
+        return []
+    rows = (
+        await session.execute(
+            select(User.id, User.full_name, User.job_title).where(User.id.in_(report_ids))
         )
     ).all()
     return [

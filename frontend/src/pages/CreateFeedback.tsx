@@ -53,7 +53,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     targetType: 'manager',
     audience: 'internal',
     blurb: 'Upward feedback on a manager, gathered from their direct reports.',
-    revieweeLabel: 'Which manager',
+    revieweeLabel: 'Which managers',
   },
   {
     kind: 'product',
@@ -297,11 +297,13 @@ function UserPicker({
   onChange,
   department,
   multi = true,
+  managersOnly = false,
 }: {
   selected: PickableUser[]
   onChange: (users: PickableUser[]) => void
   department?: string
   multi?: boolean
+  managersOnly?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [users, setUsers] = useState<PickableUser[]>([])
@@ -312,6 +314,7 @@ function UserPicker({
   useEffect(() => {
     if (!open) return
     const query = new URLSearchParams({ page_size: '200', status: 'active' })
+    if (managersOnly) query.set('is_manager', 'true')
     if (search) query.set('search', search)
     if (department) query.set('department', department)
     let cancelled = false
@@ -322,7 +325,7 @@ function UserPicker({
     return () => {
       cancelled = true
     }
-  }, [search, open, department])
+  }, [search, open, department, managersOnly])
 
   const toggle = (user: PickableUser) => {
     if (!multi) {
@@ -1034,8 +1037,7 @@ export function CreateFeedback() {
   const [templateId, setTemplateId] = useState('')
   const [name, setName] = useState('')
   const [closesAt, setClosesAt] = useState('')
-  const [revieweeUser, setRevieweeUser] = useState<PickableUser | null>(null)
-  const revieweeId = revieweeUser?.id ?? null
+  const [managerUsers, setManagerUsers] = useState<PickableUser[]>([])
   const [revieweeUsers, setRevieweeUsers] = useState<PickableUser[]>([])
   // Only meaningful with exactly one reviewee — with several picked at once
   // each could have a different set of managers, so the checkbox list below
@@ -1087,7 +1089,7 @@ export function CreateFeedback() {
       return next
     })
     setTemplateId('')
-    setRevieweeUser(null)
+    setManagerUsers([])
     setRevieweeUsers([])
     setAboutUsers([])
     setDepartment('')
@@ -1189,6 +1191,48 @@ export function CreateFeedback() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revieweeIdsKey])
 
+  // Management Review's "Reviewed by" side — the reverse lookup of the
+  // Employee Review managers fetch above: for each selected manager, who
+  // actually reports to them. Fetched per manager (not merged), the same
+  // reason the Employee Review checklist keeps managers-by-employee
+  // separate per person — each manager's own reports need their own line,
+  // not one blended list once more than one manager is picked.
+  const managementRevieweeIds = kind === 'management' ? managerUsers.map((u) => u.id) : []
+  const managementIdsKey = [...managementRevieweeIds].sort().join(',')
+
+  const [reportsByManager, setReportsByManager] = useState<Record<string, LookupItem[]>>({})
+  const [managementReportsLoading, setManagementReportsLoading] = useState(false)
+
+  useEffect(() => {
+    if (managementRevieweeIds.length === 0) {
+      setReportsByManager({})
+      return
+    }
+    let cancelled = false
+    setManagementReportsLoading(true)
+    Promise.all(
+      managementRevieweeIds.map((id) => api.get<LookupItem[]>(`/users/${id}/reports`)),
+    )
+      .then((results) => {
+        if (cancelled) return
+        const byManager: Record<string, LookupItem[]> = {}
+        managementRevieweeIds.forEach((id, i) => {
+          byManager[id] = results[i]
+        })
+        setReportsByManager(byManager)
+      })
+      .catch(() => {
+        if (!cancelled) setReportsByManager({})
+      })
+      .finally(() => {
+        if (!cancelled) setManagementReportsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [managementIdsKey])
+
   // What actually decides where recipients come from. Fixed by the kind for
   // everything except product/service, which each have their own on-screen
   // toggle above.
@@ -1198,7 +1242,7 @@ export function CreateFeedback() {
     if (!templateId || !name.trim()) return false
     if (closesAtInvalid) return false
     if (kind === 'employee') return revieweeUsers.length > 0
-    if (kind === 'management') return Boolean(revieweeId)
+    if (kind === 'management') return managerUsers.length > 0
     if (kind === 'client') return (aboutUsers.length > 0 || targetLabel.trim()) && contactIds.length > 0
     if (audienceTogglesFor && recipientAudience === 'internal') {
       return Boolean(targetLabel.trim()) && internalRecipients.length > 0
@@ -1229,7 +1273,9 @@ export function CreateFeedback() {
     // single call since there is only ever one manager per round.
     const aboutTargets = kind === 'client' && aboutUsers.length > 0 ? aboutUsers : [null]
     const revieweeTargets = kind === 'employee' && revieweeUsers.length > 0 ? revieweeUsers : [null]
-    const targets = kind === 'employee' ? revieweeTargets : aboutTargets
+    const managerTargets = kind === 'management' && managerUsers.length > 0 ? managerUsers : [null]
+    const targets =
+      kind === 'employee' ? revieweeTargets : kind === 'management' ? managerTargets : aboutTargets
     try {
       const results = await Promise.all(
         targets.map((user) =>
@@ -1238,7 +1284,7 @@ export function CreateFeedback() {
             name: targets.length > 1 ? `${name.trim()} — ${user!.full_name}` : name.trim(),
             about_user_id: kind === 'client' ? (user?.id ?? null) : null,
             reviewee_user_id:
-              kind === 'employee' ? (user?.id ?? null) : kind === 'management' ? revieweeId : null,
+              kind === 'employee' || kind === 'management' ? (user?.id ?? null) : null,
             manager_ids:
               kind === 'employee' && user ? (selectedManagerIdsByEmployee[user.id] ?? []) : undefined,
           }),
@@ -1357,125 +1403,126 @@ export function CreateFeedback() {
           </Card>
 
           <Card title="Who's involved">
-            <div className="space-y-5">
-              {(kind === 'client' || kind === 'employee' || kind === 'management') && (
-                <DepartmentSelect value={department} onChange={setDepartment} />
-              )}
+            <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+              <div className="space-y-5">
+                <p className="label-caps">Reviewed by</p>
 
-              {kind === 'client' && (
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                    About (optional)
-                  </span>
-                  <UserPicker selected={aboutUsers} onChange={setAboutUsers} department={department} />
-                </div>
-              )}
+                {kind === 'employee' && (
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                      Managers
+                    </span>
+                    {employeeRevieweeIds.length === 0 ? (
+                      <p className="text-xs text-ink-400">
+                        Pick who this is about to see their managers.
+                      </p>
+                    ) : managersLoading ? (
+                      <p className="flex items-center gap-1.5 text-xs text-ink-400">
+                        <Spinner /> Loading managers…
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {revieweeUsers.map((user) => {
+                          const managers = managersByEmployee[user.id] ?? []
+                          return (
+                            <li
+                              key={user.id}
+                              className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm"
+                            >
+                              <span className="whitespace-nowrap font-medium text-ink-800 dark:text-ink-100">
+                                {user.full_name}
+                              </span>
+                              <span className="text-ink-400">—</span>
+                              {managers.length === 0 ? (
+                                <span className="text-xs text-ink-400">no manager on record</span>
+                              ) : (
+                                managers.map((manager, i) => {
+                                  const checked = (selectedManagerIdsByEmployee[user.id] ?? []).includes(
+                                    manager.id,
+                                  )
+                                  return (
+                                    <label
+                                      key={manager.id}
+                                      className="inline-flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-ink-50 dark:hover:bg-ink-800/60"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        className="h-3.5 w-3.5 accent-[color:var(--accent)]"
+                                        checked={checked}
+                                        onChange={(event) =>
+                                          setSelectedManagerIdsByEmployee((current) => {
+                                            const forThisEmployee = current[user.id] ?? []
+                                            return {
+                                              ...current,
+                                              [user.id]: event.target.checked
+                                                ? [...forThisEmployee, manager.id]
+                                                : forThisEmployee.filter((id) => id !== manager.id),
+                                            }
+                                          })
+                                        }
+                                      />
+                                      <span className="text-ink-700 dark:text-ink-200">
+                                        {manager.label}
+                                        {i < managers.length - 1 ? ',' : ''}
+                                      </span>
+                                    </label>
+                                  )
+                                })
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                    {employeeRevieweeIds.length > 0 && (
+                      <span className="mt-1.5 block text-xs text-ink-400">
+                        {revieweeUsers.length > 1
+                          ? 'Only checked managers receive a review, and only for the people they actually manage.'
+                          : 'Only the managers checked here will receive this review.'}
+                      </span>
+                    )}
+                  </div>
+                )}
 
-              {kind === 'employee' && (
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                    {config.revieweeLabel}
-                  </span>
-                  <UserPicker selected={revieweeUsers} onChange={setRevieweeUsers} department={department} />
-                </div>
-              )}
+                {kind === 'management' && (
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                      Direct reports
+                    </span>
+                    {managerUsers.length === 0 ? (
+                      <p className="text-xs text-ink-400">
+                        Pick who this is about to see their direct reports.
+                      </p>
+                    ) : managementReportsLoading ? (
+                      <p className="flex items-center gap-1.5 text-xs text-ink-400">
+                        <Spinner /> Loading direct reports…
+                      </p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {managerUsers.map((manager) => {
+                          const reports = reportsByManager[manager.id] ?? []
+                          return (
+                            <li key={manager.id} className="text-sm">
+                              <span className="whitespace-nowrap font-medium text-ink-800 dark:text-ink-100">
+                                {manager.full_name}
+                              </span>
+                              <span className="text-ink-400"> — </span>
+                              {reports.length === 0 ? (
+                                <span className="text-xs text-ink-400">no direct reports on record</span>
+                              ) : (
+                                <span className="text-ink-700 dark:text-ink-200">
+                                  {reports.map((report) => report.label).join(', ')}
+                                </span>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
 
-              {kind === 'employee' && employeeRevieweeIds.length > 0 && (
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                    Manager
-                  </span>
-                  {managersLoading ? (
-                    <p className="flex items-center gap-1.5 text-xs text-ink-400">
-                      <Spinner /> Loading managers…
-                    </p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {revieweeUsers.map((user) => {
-                        const managers = managersByEmployee[user.id] ?? []
-                        return (
-                          <li
-                            key={user.id}
-                            className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm"
-                          >
-                            <span className="whitespace-nowrap font-medium text-ink-800 dark:text-ink-100">
-                              {user.full_name}
-                            </span>
-                            <span className="text-ink-400">—</span>
-                            {managers.length === 0 ? (
-                              <span className="text-xs text-ink-400">no manager on record</span>
-                            ) : (
-                              managers.map((manager, i) => {
-                                const checked = (selectedManagerIdsByEmployee[user.id] ?? []).includes(
-                                  manager.id,
-                                )
-                                return (
-                                  <label
-                                    key={manager.id}
-                                    className="inline-flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-ink-50 dark:hover:bg-ink-800/60"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      className="h-3.5 w-3.5 accent-[color:var(--accent)]"
-                                      checked={checked}
-                                      onChange={(event) =>
-                                        setSelectedManagerIdsByEmployee((current) => {
-                                          const forThisEmployee = current[user.id] ?? []
-                                          return {
-                                            ...current,
-                                            [user.id]: event.target.checked
-                                              ? [...forThisEmployee, manager.id]
-                                              : forThisEmployee.filter((id) => id !== manager.id),
-                                          }
-                                        })
-                                      }
-                                    />
-                                    <span className="text-ink-700 dark:text-ink-200">
-                                      {manager.label}
-                                      {i < managers.length - 1 ? ',' : ''}
-                                    </span>
-                                  </label>
-                                )
-                              })
-                            )}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                  <span className="mt-1.5 block text-xs text-ink-400">
-                    {revieweeUsers.length > 1
-                      ? 'Only checked managers receive a review, and only for the people they actually manage.'
-                      : 'Only the managers checked here will receive this review.'}
-                  </span>
-                </div>
-              )}
-
-              {kind === 'management' && (
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                    {config.revieweeLabel}
-                  </span>
-                  <UserPicker
-                    multi={false}
-                    selected={revieweeUser ? [revieweeUser] : []}
-                    onChange={(picked) => setRevieweeUser(picked[picked.length - 1] ?? null)}
-                    department={department}
-                  />
-                  <span className="mt-1.5 block text-xs text-ink-400">
-                    Their direct reports will be asked to review them.
-                  </span>
-                </div>
-              )}
-
-              {(kind === 'product' || kind === 'service') && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <MasterSelectPicker
-                    path={kind === 'product' ? '/masters/products' : '/masters/services'}
-                    label={kind === 'product' ? 'Product' : 'Service'}
-                    value={targetLabel}
-                    onChange={setTargetLabel}
-                  />
+                {(kind === 'product' || kind === 'service') && (
                   <div>
                     <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
                       Audience
@@ -1493,59 +1540,108 @@ export function CreateFeedback() {
                       }}
                     />
                   </div>
-                </div>
-              )}
+                )}
 
-              {audienceTogglesFor && recipientAudience === 'internal' && (
-                <div className="max-w-xs">
-                  <DepartmentSelect value={department} onChange={setDepartment} />
-                </div>
-              )}
+                {audienceTogglesFor && recipientAudience === 'internal' && (
+                  <div className="max-w-xs">
+                    <DepartmentSelect value={department} onChange={setDepartment} />
+                  </div>
+                )}
 
-              {(kind === 'client' || kind === 'proposal') && (
-                <Field
-                  label={kind === 'client' ? 'Description' : "What's this about"}
-                  value={targetLabel}
-                  onChange={(event) => setTargetLabel(event.target.value)}
-                  placeholder={
-                    kind === 'client'
-                      ? 'e.g. Northwind relationship'
-                      : 'e.g. Parata / NEXiA platform modernisation'
-                  }
-                />
-              )}
-
-              {effectiveAudience === 'external' && (
-                <ClientOrganizationSelect
-                  value={clientOrg}
-                  onChange={(nextOrg) => {
-                    setClientOrg(nextOrg)
-                    setContactIds([])
-                  }}
-                />
-              )}
-
-              {audienceTogglesFor && recipientAudience === 'internal' && (
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                    Recipients
-                  </span>
-                  <UserPicker
-                    selected={internalRecipients}
-                    onChange={setInternalRecipients}
-                    department={department}
+                {effectiveAudience === 'external' && (
+                  <ClientOrganizationSelect
+                    value={clientOrg}
+                    onChange={(nextOrg) => {
+                      setClientOrg(nextOrg)
+                      setContactIds([])
+                    }}
                   />
-                </div>
-              )}
+                )}
 
-              {effectiveAudience === 'external' && (
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                    Recipients
-                  </span>
-                  <ContactPicker selected={contactIds} onChange={setContactIds} company={clientOrg} />
-                </div>
-              )}
+                {audienceTogglesFor && recipientAudience === 'internal' && (
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                      Recipients
+                    </span>
+                    <UserPicker
+                      selected={internalRecipients}
+                      onChange={setInternalRecipients}
+                      department={department}
+                    />
+                  </div>
+                )}
+
+                {effectiveAudience === 'external' && (
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                      Recipients
+                    </span>
+                    <ContactPicker selected={contactIds} onChange={setContactIds} company={clientOrg} />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-5">
+                <p className="label-caps">Reviewed to</p>
+
+                {(kind === 'client' || kind === 'employee' || kind === 'management') && (
+                  <DepartmentSelect value={department} onChange={setDepartment} />
+                )}
+
+                {kind === 'client' && (
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                      About (optional)
+                    </span>
+                    <UserPicker selected={aboutUsers} onChange={setAboutUsers} department={department} />
+                  </div>
+                )}
+
+                {kind === 'employee' && (
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                      {config.revieweeLabel}
+                    </span>
+                    <UserPicker selected={revieweeUsers} onChange={setRevieweeUsers} department={department} />
+                  </div>
+                )}
+
+                {kind === 'management' && (
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                      {config.revieweeLabel}
+                    </span>
+                    <UserPicker
+                      managersOnly
+                      selected={managerUsers}
+                      onChange={setManagerUsers}
+                      department={department}
+                    />
+                  </div>
+                )}
+
+                {(kind === 'product' || kind === 'service') && (
+                  <MasterSelectPicker
+                    path={kind === 'product' ? '/masters/products' : '/masters/services'}
+                    label={kind === 'product' ? 'Product' : 'Service'}
+                    value={targetLabel}
+                    onChange={setTargetLabel}
+                  />
+                )}
+
+                {(kind === 'client' || kind === 'proposal') && (
+                  <Field
+                    label={kind === 'client' ? 'Description' : "What's this about"}
+                    value={targetLabel}
+                    onChange={(event) => setTargetLabel(event.target.value)}
+                    placeholder={
+                      kind === 'client'
+                        ? 'e.g. Northwind relationship'
+                        : 'e.g. Parata / NEXiA platform modernisation'
+                    }
+                  />
+                )}
+              </div>
             </div>
           </Card>
 
@@ -1558,7 +1654,7 @@ export function CreateFeedback() {
                 onClick={submit}
               >
                 {busy && <Spinner />}
-                Create Feedback
+                Send Feedback
               </button>
             </div>
           </Card>

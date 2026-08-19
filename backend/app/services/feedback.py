@@ -442,7 +442,7 @@ async def create_and_send(
                 session,
                 org_id=org.id,
                 target_type=TargetType.CLIENT,
-                label=f"{about_user.full_name} (client relationship)",
+                label=f"{about_user.full_name} (client reviewed)",
             )
             target.subject_user_id = about_user.id
             await session.flush()

@@ -28,6 +28,20 @@ async def get_manager_ids(session: AsyncSession, employee_id: uuid.UUID) -> list
     return list(rows)
 
 
+async def get_report_ids(session: AsyncSession, manager_id: uuid.UUID) -> list[uuid.UUID]:
+    """Every employee who currently reports to one manager — the reverse of
+    get_manager_ids, for one manager rather than one employee. What the
+    Management Review form's "Reviewed by" side is built from once a
+    manager is chosen, the same way get_manager_ids feeds the Employee
+    Review form's manager checklist."""
+    rows = (
+        await session.execute(
+            select(UserManager.employee_id).where(UserManager.manager_id == manager_id)
+        )
+    ).scalars().all()
+    return list(rows)
+
+
 async def get_manager_ids_map(
     session: AsyncSession, employee_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, list[uuid.UUID]]:

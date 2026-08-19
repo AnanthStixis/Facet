@@ -558,16 +558,38 @@ export function Results() {
   }, [])
 
   // Every distinct cycle name the person can filter to, for the "Cycle
-  // name" dropdown. Re-fetched when a Super Admin narrows to a client, so
-  // the list never offers a name that client has none of.
+  // name" dropdown. Re-fetched whenever Organisation Name changes (and, for
+  // a Super Admin, when Client narrows too), so the list never offers a
+  // name that scope has none of.
   const [cycleNames, setCycleNames] = useState<string[]>([])
   useEffect(() => {
-    const query = orgFilter ? `?org_id=${orgFilter}` : ''
+    const query = new URLSearchParams()
+    if (orgFilter) query.set('org_id', orgFilter)
+    if (clientNameFilter) query.set('client_name', clientNameFilter)
+    const qs = query.toString()
     api
-      .get<string[]>(`/feedback/cycle-names${query}`)
+      .get<string[]>(`/feedback/cycle-names${qs ? `?${qs}` : ''}`)
       .then(setCycleNames)
       .catch(() => setCycleNames([]))
-  }, [orgFilter])
+  }, [orgFilter, clientNameFilter])
+
+  // Same idea, for "Feedback type" — which kinds are actually present for
+  // the current Organisation Name / Client scope, rather than always
+  // listing every kind FEEDBACK_TYPES knows about regardless of whether
+  // this organisation has ever had one. `null` (not yet loaded, or the
+  // fetch failed) falls back to showing every kind, so the dropdown is
+  // never stuck empty while this is in flight.
+  const [availableKinds, setAvailableKinds] = useState<string[] | null>(null)
+  useEffect(() => {
+    const query = new URLSearchParams()
+    if (orgFilter) query.set('org_id', orgFilter)
+    if (clientNameFilter) query.set('client_name', clientNameFilter)
+    const qs = query.toString()
+    api
+      .get<string[]>(`/feedback/kinds${qs ? `?${qs}` : ''}`)
+      .then(setAvailableKinds)
+      .catch(() => setAvailableKinds(null))
+  }, [orgFilter, clientNameFilter])
 
   const load = () => {
     setLoading(true)
@@ -728,7 +750,9 @@ export function Results() {
               }}
             >
               <option value="">All types</option>
-              {FEEDBACK_TYPES.map((t) => (
+              {FEEDBACK_TYPES.filter(
+                (t) => !availableKinds || availableKinds.includes(t.kind),
+              ).map((t) => (
                 <option key={t.kind} value={t.kind}>
                   {t.label}
                 </option>
@@ -886,6 +910,15 @@ export function Results() {
                       : row.recipients.length === 1
                         ? row.recipients[0]
                         : `${row.recipients[0]} +${row.recipients.length - 1} more`
+                  // A label like "employee2 (client reviewed)" was wrapping
+                  // wherever the browser's natural word-wrap happened to
+                  // land — splitting mid-phrase ("employee2 (client" /
+                  // "reviewed)") instead of at a sensible point. Pulling the
+                  // trailing "(...)" out explicitly puts it on its own line
+                  // below the name every time, regardless of column width.
+                  const reviewedToMatch = row.target_label?.match(/^(.*?)\s*(\([^)]*\))\s*$/)
+                  const reviewedToName = reviewedToMatch ? reviewedToMatch[1] : row.target_label
+                  const reviewedToSuffix = reviewedToMatch ? reviewedToMatch[2] : null
                   return (
                     <tr
                       key={row.id}
@@ -902,7 +935,16 @@ export function Results() {
                         {recipientsSummary}
                       </td>
                       <td className="text-ink-600 dark:text-ink-300">
-                        {row.target_label ?? '—'}
+                        {row.target_label ? (
+                          <>
+                            <span className="block">{reviewedToName}</span>
+                            {reviewedToSuffix && (
+                              <span className="block text-2xs text-ink-400">{reviewedToSuffix}</span>
+                            )}
+                          </>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="text-ink-500 dark:text-ink-400">
                         {row.sent_at ? new Date(row.sent_at).toLocaleDateString() : '—'}

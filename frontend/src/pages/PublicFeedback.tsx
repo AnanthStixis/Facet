@@ -145,7 +145,6 @@ export function PublicFeedback() {
   const [error, setError] = useState<string | null>(null)
   const [problems, setProblems] = useState<string[]>([])
   const [done, setDone] = useState<string | null>(null)
-  const [unsubscribed, setUnsubscribed] = useState(false)
 
   useEffect(() => {
     const load = () => {
@@ -237,27 +236,8 @@ export function PublicFeedback() {
             {done}
           </p>
           <p className="mt-5 text-2xs text-ink-400">
-            {data.organization.name} · This link has now been used and will not open again.
+            {data.organization.name}
           </p>
-          {!unsubscribed && (
-            <button
-              type="button"
-              className="mt-5 text-2xs text-ink-400 underline hover:text-ink-600"
-              onClick={async () => {
-                await fetch(`${BASE}/unsubscribe/${encodeURIComponent(token)}`, {
-                  method: 'POST',
-                })
-                setUnsubscribed(true)
-              }}
-            >
-              Stop receiving feedback requests from {data.organization.name}
-            </button>
-          )}
-          {unsubscribed && (
-            <p className="mt-5 text-2xs text-ink-400">
-              You will not receive further requests.
-            </p>
-          )}
         </div>
       </div>
     )
