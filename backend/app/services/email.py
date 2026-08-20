@@ -150,8 +150,6 @@ async def send(
     backend = settings.email_backend
 
     if backend == "file":
-        # Development transport: writes a .eml the user can open in any mail
-        # client, so templates are reviewable without a running SMTP server.
         outbox = settings.outbox_path
         outbox.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
@@ -176,14 +174,9 @@ async def send(
                     client.send_message(message)
                 return True
             except Exception as exc:  # noqa: BLE001
-                # Never fail the originating action because mail is down. The
-                # caller reports email_sent=false and the admin can resend.
                 log.error("email_send_failed", to=to, error=str(exc))
                 return False
 
-        # smtplib is blocking. Run it off the event loop so one slow or
-        # unreachable SMTP handshake (an office365 timeout, say) cannot stall
-        # every other request the server is handling concurrently.
         return await asyncio.to_thread(_send_sync)
 
     log.warning("email_backend_not_implemented", backend=backend)
@@ -208,9 +201,11 @@ def render_preview(
                 pass
         heading = "Welcome, Jordan"
         body_html = (
+            f"Welcome to {escape(branding.org_name)}! We're excited to have you "
+            f"on board.<br><br>"
             f"You have been given access to <b>{escape(branding.org_name)}</b> on "
-            f"{escape(settings.product_name)}. Set a password to activate your "
-            f"account. This link can be used once and expires in "
+            f"{escape(settings.product_name)} as an Admin. Set a password to "
+            f"activate your account. This link can be used once and expires in "
             f"{settings.invite_token_ttl_hours} hours."
         )
         cta = ("Set your password", "https://example.com/accept-invite?token=sample")
@@ -270,9 +265,6 @@ async def send_feedback_request(
 
     first_name = full_name.split()[0] if full_name.strip() else "there"
     deadline = expires_at.strftime("%d %B %Y")
-    # Strip a trailing parenthetical annotation (e.g. "Aarav Mehta (client
-    # relationship)" -> "Aarav Mehta") so the email reads naturally even when
-    # the caller passes a label that includes internal categorisation.
     subject_label = re.sub(r"\s*\([^)]*\)\s*$", "", subject_label).strip()
 
     noun = _person_review_noun(target_type)
@@ -304,9 +296,6 @@ async def send_feedback_request(
             f"{deadline}."
         )
     else:
-        # Client, product, service, and any unrecognised target type: the
-        # recipient has an experience of the subject_label itself, so the
-        # original "share your experience" framing fits.
         subject = f"Your Feedback on {subject_label}"
         if subject_template:
             try:
@@ -358,19 +347,6 @@ async def send_assignment_notice(
     external: bool = False,
     target_type: str | TargetType | None = None,
 ) -> bool:
-    """Sent once, the moment a reviewer is assigned — distinct from
-    `send_reminder`'s later "you still haven't" nudge, this is the one-time
-    "you have been asked" notice. Same external/internal split as the
-    reminder: an internal reviewer already has an account and the link just
-    points them at their queue, so only the external framing claims the link
-    signs them straight in.
-
-    `target_type` picks the copy, same as `send_feedback_request`: for
-    employee, manager, team, and department targets `subject_label` names a
-    person or group being reviewed, not something the recipient merely has
-    an "experience with", so the wording shifts to "share feedback on your
-    <noun>, <name>" for those.
-    """
     first_name = full_name.split()[0] if full_name.strip() else "there"
     when = f" It closes on {due_at.strftime('%d %B')}." if due_at else ""
     noun = _person_review_noun(target_type)
@@ -432,17 +408,6 @@ async def send_reminder(
     external: bool = False,
     target_type: str | TargetType | None = None,
 ) -> bool:
-    """A single, specific nudge.
-
-    Names the one thing outstanding rather than saying "you have pending
-    items". A reminder that requires the reader to go and look up what it is
-    about is a reminder that gets postponed.
-
-    `target_type` picks the copy, same as `send_feedback_request` and
-    `send_assignment_notice`: employee, manager, team, and department
-    targets get "your <noun>" framing instead of the generic
-    "your feedback on <label>" phrasing.
-    """
     first_name = full_name.split()[0] if full_name.strip() else "there"
     when = f" It closes on {due_at.strftime('%d %B')}." if due_at else ""
     noun = _person_review_noun(target_type)
@@ -499,7 +464,6 @@ async def send_escalation(
     link: str,
     branding: Branding,
 ) -> bool:
-    """One digest to the round's owner when nudging has stopped working."""
     first_name = full_name.split()[0] if full_name.strip() else "there"
     shown = outstanding[:15]
     items = "".join(f"<li>{escape(name)}</li>" for name in shown)
@@ -539,12 +503,6 @@ async def send_proposal_feedback_request(
     link: str,
     branding: Branding,
 ) -> bool:
-    """Ask a prospect what they thought of a proposal.
-
-    The framing matters commercially: this is sent while a decision may still
-    be pending, so it must read as a request to improve rather than a nudge to
-    buy. Getting that wrong makes the whole module unusable by a sales team.
-    """
     first_name = full_name.split()[0] if full_name.strip() else "there"
     return await send(
         to=to,
@@ -569,6 +527,123 @@ async def send_proposal_feedback_request(
     )
 
 
+async def send_org_rejected(
+    *,
+    to: str,
+    org_name: str,
+    contact_name: str,
+    rejection_reason: str,
+    branding: Branding,
+) -> bool:
+    """Tell a self-registered applicant their organization was not approved.
+
+    No CTA — there is nothing for the recipient to click through to. This is
+    a closed loop, not an invitation to take further action on the platform.
+    """
+    first_name = contact_name.split()[0] if contact_name.strip() else "there"
+    return await send(
+        to=to,
+        subject=f"Your Registration for {org_name} Was Not Approved",
+        heading=f"Dear {first_name}",
+        body_html=(
+            f"Thank you for your interest in {escape(settings.product_name)}.<br><br>"
+            f"We have reviewed your registration request for "
+            f"<b>{escape(org_name)}</b> and regret to inform you that we are "
+            f"unable to approve it at this time.<br><br>"
+            f"Reason: {escape(rejection_reason)}<br><br>"
+            f"We appreciate the time you took to register, and wish you the "
+            f"best in your future endeavors."
+        ),
+        body_text=(
+            f"Thank you for your interest in {settings.product_name}.\n\n"
+            f"We have reviewed your registration request for {org_name} and "
+            f"regret to inform you that we are unable to approve it at this "
+            f"time.\n\n"
+            f"Reason: {rejection_reason}\n\n"
+            f"We appreciate the time you took to register, and wish you the "
+            f"best in your future endeavors."
+        ),
+        branding=branding,
+    )
+
+
+async def send_org_suspended(
+    *,
+    to: str,
+    org_name: str,
+    contact_name: str,
+    suspension_reason: str,
+    branding: Branding,
+) -> bool:
+    """Tell an org's primary contact that their organization has been
+    suspended, and that this already took effect — not that it is about to.
+
+    No CTA — there is no link to give someone whose sessions were just
+    revoked; a "sign in" button here would only invite a failed attempt.
+    """
+    first_name = contact_name.split()[0] if contact_name.strip() else "there"
+    return await send(
+        to=to,
+        subject=f"Your {org_name} Account Has Been Suspended",
+        heading=f"Dear {first_name}",
+        body_html=(
+            f"We would like to inform you that access to "
+            f"{escape(settings.product_name)} for <b>{escape(org_name)}</b> has "
+            f"been temporarily suspended.<br><br>"
+            f"Reason: {escape(suspension_reason)}<br><br>"
+            f"As part of this action, all active sessions associated with "
+            f"your organization have been signed out. Access will remain "
+            f"unavailable until the organization is reactivated."
+        ),
+        body_text=(
+            f"We would like to inform you that access to "
+            f"{settings.product_name} for {org_name} has been temporarily "
+            f"suspended.\n\n"
+            f"Reason: {suspension_reason}\n\n"
+            f"As part of this action, all active sessions associated with "
+            f"your organization have been signed out. Access will remain "
+            f"unavailable until the organization is reactivated."
+        ),
+        branding=branding,
+    )
+
+
+async def send_organization_reactivated(
+    *,
+    to: str,
+    org_name: str,
+    contact_name: str,
+    branding: Branding,
+) -> bool:
+    """Tell an org's primary contact that access has been restored.
+
+    Counterpart to `send_org_suspended` — no CTA here either. There is no
+    token or one-time link involved in a reactivation; existing accounts
+    simply work again, so the message just needs to say sign-in is open,
+    not hand the recipient another link to click.
+    """
+    first_name = contact_name.split()[0] if contact_name.strip() else "there"
+    return await send(
+        to=to,
+        subject=f"Your {org_name} Account Has Been Reactivated",
+        heading=f"Dear {first_name}",
+        body_html=(
+            f"We would like to inform you that access to "
+            f"{escape(settings.product_name)} for <b>{escape(org_name)}</b> has "
+            f"been reactivated.<br><br>"
+            f"You and your team can now sign in and continue using the "
+            f"platform."
+        ),
+        body_text=(
+            f"We would like to inform you that access to "
+            f"{settings.product_name} for {org_name} has been reactivated.\n\n"
+            f"You and your team can now sign in and continue using the "
+            f"platform."
+        ),
+        branding=branding,
+    )
+
+
 async def send_invitation(
     *,
     to: str,
@@ -577,7 +652,42 @@ async def send_invitation(
     invite_url: str,
     branding: Branding,
     subject_template: str | None = None,
+    kind: str = "invitation",
 ) -> bool:
+    first_name = full_name.split()[0] if full_name.strip() else "there"
+
+    if kind == "approval":
+        subject = f"Your Organization Has Been Approved — Welcome to {settings.product_name}"
+        if subject_template:
+            try:
+                subject = subject_template.format(org_name=org_name)
+            except (KeyError, IndexError):
+                pass
+        return await send(
+            to=to,
+            subject=subject,
+            heading=f"Dear {first_name}",
+            body_html=(
+                f"We are pleased to inform you that your request to register "
+                f"<b>{escape(org_name)}</b> on {escape(settings.product_name)} "
+                f"has been approved. You may now activate your admin account "
+                f"using the link below.<br><br>"
+                f"This link is valid for a single use and will expire in "
+                f"{settings.invite_token_ttl_hours} hours."
+            ),
+            body_text=(
+                f"We are pleased to inform you that your request to register "
+                f"{org_name} on {settings.product_name} has been approved. You "
+                f"may now activate your admin account using the link below.\n\n"
+                f"This link is valid for a single use and will expire in "
+                f"{settings.invite_token_ttl_hours} hours."
+            ),
+            branding=branding,
+            cta=("Activate Your Account", invite_url),
+        )
+
+    # Default: "invitation" — admin-created account, recipient did not
+    # initiate the request.
     subject = f"You have been invited to {org_name}"
     if subject_template:
         try:
@@ -590,15 +700,19 @@ async def send_invitation(
     return await send(
         to=to,
         subject=subject,
-        heading=f"Welcome, {full_name.split()[0]}",
+        heading=f"Dear, {first_name}",
         body_html=(
+            f"Welcome to {escape(org_name)}! We're excited to have you on "
+            f"board.<br><br>"
             f"You have been given access to <b>{escape(org_name)}</b> on "
-            f"{escape(settings.product_name)}. Set a password to activate your "
-            f"account. This link can be used once and expires in "
-            f"{settings.invite_token_ttl_hours} hours."
+            f"{escape(settings.product_name)} as an Admin. Set a password to "
+            f"activate your account. This link can be used once and expires "
+            f"in {settings.invite_token_ttl_hours} hours."
         ),
         body_text=(
-            f"You have been given access to {org_name}. Set a password to activate "
+            f"Welcome to {org_name}! We're excited to have you on board.\n\n"
+            f"You have been given access to {org_name} on "
+            f"{settings.product_name} as an Admin. Set a password to activate "
             f"your account. This link is single use and expires in "
             f"{settings.invite_token_ttl_hours} hours."
         ),
@@ -616,13 +730,6 @@ async def send_password_reset(
     expires_in_hours: int,
     branding: Branding,
 ) -> bool:
-    """An admin-initiated reset link for an existing account.
-
-    Distinct wording from the invitation email on purpose — this is not
-    onboarding, and a recipient who did not expect it should be able to tell
-    at a glance that someone with admin access requested a password change
-    on their account.
-    """
     first_name = full_name.split()[0] if full_name.strip() else "there"
     return await send(
         to=to,
@@ -654,13 +761,6 @@ async def send_thank_you(
     subject_label: str,
     branding: Branding,
 ) -> bool:
-    """Sent to an external respondent right after they submit.
-
-    No link, no call to action — just a close of the loop. Someone who just
-    gave two minutes of honest feedback and hears nothing again reasonably
-    assumes it went nowhere; this is the one message that tells them
-    otherwise.
-    """
     first_name = full_name.split()[0] if full_name.strip() else "there"
     return await send(
         to=to,
@@ -691,15 +791,6 @@ async def send_response_notification(
     comment: str | None,
     branding: Branding,
 ) -> bool:
-    """BCC copy sent to a configured internal address when an external
-    response comes in, carrying the full answer content itself — this is
-    read by someone who explicitly does not want to open the app for every
-    response, so a link to "sign in and look" defeats the point.
-    `respondent_name` is omitted entirely for an anonymous round — this
-    notification must not become a side channel that de-anonymises a
-    response the product otherwise protects. The answers themselves are not
-    identity-revealing and are always included.
-    """
     who = escape(respondent_name) if respondent_name else "Someone"
     who_text = respondent_name if respondent_name else "Someone"
 

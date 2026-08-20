@@ -75,11 +75,6 @@ async def _unique_slug(session: DbSession, desired: str) -> str:
 
 def _logo_url(org: Organization) -> str | None:
     if org.branding and org.branding.logo_path:
-        # Cache-busting: the endpoint below is intentionally cached for 5
-        # minutes (it's fetched on every page, every email, every feedback
-        # form), but replacing a logo must not mean waiting out that cache.
-        # Appending the upload's own timestamp makes each replace a distinct
-        # URL, so the old cached copy is simply never asked for again.
         version = (
             int(org.branding.logo_updated_at.timestamp())
             if org.branding.logo_updated_at
@@ -193,14 +188,6 @@ async def self_register(
     )
     await bind_tenant(session, TenantContext(org_id=None, is_super_admin=True))
 
-    # Deliberate departure from the "identical response either way" rule this
-    # endpoint otherwise follows for the organization itself: the contact
-    # email becomes the admin's login the moment this org is approved, so
-    # telling the person now — while there's still time to use a different
-    # email, or just sign in instead — is more useful than a silent pending
-    # registration that fails invisibly at approval time, days later. This
-    # does trade away some enumeration resistance for that; REGISTRATION_PER_IP
-    # above is what keeps that from being cheap to abuse.
     existing_user = (
         await session.execute(
             select(User.id).where(func.lower(User.email) == payload.contact_email.lower())
@@ -242,8 +229,6 @@ async def self_register(
     )
     await session.commit()
 
-    # The response is intentionally identical whether or not this organization
-    # already exists, so the endpoint cannot be used to probe the customer list.
     return MessageResponse(
         message=(
             "Thank you. Your registration is with our team for review, and the "
@@ -359,6 +344,11 @@ async def provision_organization(
     # Scheduled after commit, so the response returns as soon as the org
     # exists — a slow or unreachable SMTP server should never make the
     # person clicking "Provision" sit and wait for it.
+    #
+    # kind is left at its default ("invitation") here: the Super Admin
+    # vetted and created this org directly, so the recipient never submitted
+    # a request of their own — this is a plain "you've been given access"
+    # email, not an approval of anything they asked for.
     background_tasks.add_task(
         email_service.send_invitation,
         to=admin.email,
@@ -509,6 +499,10 @@ async def approve_organization(
     await session.commit()
 
     invite_url = f"{settings.public_app_url}/accept-invite?token={raw_token}"
+    # This is the one path where the recipient initiated the request
+    # themselves (the public "Request access" self-registration form) and a
+    # Super Admin has now reviewed and approved it — so it gets the
+    # "approval" copy rather than the default "you've been invited" one.
     background_tasks.add_task(
         email_service.send_invitation,
         to=admin.email,
@@ -516,6 +510,7 @@ async def approve_organization(
         org_name=org.name,
         invite_url=invite_url,
         branding=email_service.Branding(org_name=org.name),
+        kind="approval",
     )
     # Never returned to the caller, in any environment — see the matching
     # comment in provision_organization above.
@@ -527,6 +522,7 @@ async def reject_organization(
     org_id: uuid.UUID,
     payload: OrgRejectionRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     session: DbSession,
     actor: SuperAdmin,
 ) -> OrgDetail:
@@ -553,6 +549,17 @@ async def reject_organization(
         request=request,
     )
     await session.commit()
+
+    # Scheduled after commit, same reasoning as approve_organization above:
+    # the response should not wait on a slow or unreachable SMTP server.
+    background_tasks.add_task(
+        email_service.send_org_rejected,
+        to=org.contact_email,
+        org_name=org.name,
+        contact_name=org.contact_name,
+        rejection_reason=payload.reason,
+        branding=email_service.Branding(org_name=org.name),
+    )
     return _detail(org)
 
 
@@ -561,6 +568,7 @@ async def suspend_organization(
     org_id: uuid.UUID,
     payload: OrgStatusChangeRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     session: DbSession,
     actor: SuperAdmin,
 ) -> OrgDetail:
@@ -573,8 +581,6 @@ async def suspend_organization(
     org.status = OrgStatus.SUSPENDED
     org.suspension_reason = payload.reason
 
-    # Suspension has to take effect now, not whenever the current access tokens
-    # happen to expire, so every session in the tenant is killed here.
     from app.services.auth import revoke_all_sessions
 
     members = (
@@ -601,6 +607,17 @@ async def suspend_organization(
         request=request,
     )
     await session.commit()
+
+    # Sessions are already revoked by this point, so the email correctly
+    # describes something that has already happened, not something pending.
+    background_tasks.add_task(
+        email_service.send_org_suspended,
+        to=org.contact_email,
+        org_name=org.name,
+        contact_name=org.contact_name,
+        suspension_reason=payload.reason,
+        branding=email_service.Branding(org_name=org.name),
+    )
     return _detail(org)
 
 
@@ -609,6 +626,7 @@ async def reactivate_organization(
     org_id: uuid.UUID,
     payload: OrgReactivateRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     session: DbSession,
     actor: SuperAdmin,
 ) -> OrgDetail:
@@ -635,6 +653,17 @@ async def reactivate_organization(
         request=request,
     )
     await session.commit()
+
+    # Same after-commit background pattern as suspend_organization above:
+    # the org is already active by this point, so the email correctly
+    # describes something that has already happened.
+    background_tasks.add_task(
+        email_service.send_organization_reactivated,
+        to=org.contact_email,
+        org_name=org.name,
+        contact_name=org.contact_name,
+        branding=email_service.Branding(org_name=org.name),
+    )
     return _detail(org)
 
 
@@ -689,6 +718,8 @@ async def invite_org_admin(
     await session.commit()
 
     invite_url = f"{settings.public_app_url}/accept-invite?token={raw_token}"
+    # Default "invitation" copy: this is an existing org's admin adding a
+    # colleague, not a self-registration being approved.
     background_tasks.add_task(
         email_service.send_invitation,
         to=admin.email,
@@ -877,9 +908,6 @@ async def get_logo(org_id: uuid.UUID, session: DbSession) -> Response:
         media_type=content_type,
         headers={
             "cache-control": "private, max-age=300",
-            # An uploaded SVG is an executable document. Forcing a download
-            # context and a null CSP means a malicious one cannot run script
-            # in the application's origin.
             "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
             "x-content-type-options": "nosniff",
         },

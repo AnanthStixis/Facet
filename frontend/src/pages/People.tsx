@@ -214,6 +214,12 @@ function UserDetailModal({ person, onClose }: { person: User; onClose: () => voi
     { label: 'Feedback received', value: person.feedback_count ?? 0 },
     { label: 'Joined', value: formatDate(person.created_at) },
     { label: 'Last signed in', value: formatDate(person.last_login_at) },
+    {
+      label: 'Manager',
+      value: person.managers && person.managers.length > 0
+        ? person.managers.map((manager) => manager.label).join(', ')
+        : '—',
+    },
   ]
 
   return (
