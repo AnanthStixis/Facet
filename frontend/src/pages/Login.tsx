@@ -296,9 +296,9 @@ export function Login() {
                 <span className="h-px flex-1 bg-ink-200 dark:bg-ink-800" />
               </div>
               <p className="text-center text-sm text-ink-500 dark:text-ink-400">
-                Registering an organization?{' '}
+                Don't have an account yet?{' '}
                 <Link to="/register" className="accent-text font-medium hover:underline">
-                  Request access
+                   Register here.
                 </Link>
               </p>
             </>
@@ -306,7 +306,7 @@ export function Login() {
 
           <p className="mt-9 flex items-center justify-center gap-1.5 text-2xs text-ink-400">
             <IconLock width={12} height={12} />
-            Protected by rotating sessions.
+            Powered by Stixis AI Solutions © Copyright 2026-2027
           </p>
         </div>
       </div>

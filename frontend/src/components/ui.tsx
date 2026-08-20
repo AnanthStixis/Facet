@@ -316,12 +316,22 @@ export function Modal({
   onClose,
   children,
   className,
+  centered = false,
 }: {
   title: ReactNode
   hint?: ReactNode
   onClose: () => void
   children: ReactNode
   className?: string
+  // Vertically centers the dialog instead of pinning it near the top with
+  // `py-10`. Only safe for content that's reliably short — a modal that
+  // could grow taller than the viewport (a long form, a scrollable list)
+  // needs to stay top-aligned with room to scroll, since centering an
+  // overflowing flex child clips it inconsistently across browsers rather
+  // than letting the whole thing scroll. ConfirmDialog is the one caller
+  // that opts in, since a title, one line of body text, and two buttons
+  // are never going to hit that problem.
+  centered?: boolean
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
@@ -329,25 +339,18 @@ export function Modal({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Rendered into document.body rather than in place: this component is
-  // used from inside table rows and cards that carry their own entrance
-  // animation (`animate-fade-up`, a transform), and a transformed ancestor
-  // becomes the containing block for any `position: fixed` descendant — so
-  // without the portal, the modal was clipped to that ancestor's box instead
-  // of covering the viewport ("not displaying full page").
-  // Clicking the backdrop deliberately does not close this — a stray click
-  // outside the dialog (common when a form has grown taller than the
-  // viewport) should never discard in-progress input. Escape and the close
-  // button are the only ways out.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/50 p-4 py-10 backdrop-blur-[1px]">
+    <div
+      className={clsx(
+        'fixed inset-0 z-50 flex justify-center overflow-y-auto bg-ink-950/50 p-4 backdrop-blur-[1px]',
+        centered ? 'items-center' : 'items-start py-10',
+      )}
+    >
+            
       <div
         role="dialog"
         aria-modal="true"
-        className={clsx(
-          'surface w-full max-w-2xl animate-fade-up',
-          className,
-        )}
+        className={clsx('surface w-full max-w-2xl animate-fade-up', className)}
       >
         <header className="flex items-start justify-between gap-4 border-b border-ink-200 px-5 py-3.5 dark:border-ink-800">
           <div className="min-w-0">
@@ -424,7 +427,7 @@ export function ConfirmDialog({
   onCancel: () => void
 }) {
   return (
-    <Modal title={title} onClose={onCancel} className="max-w-sm">
+    <Modal title={title} onClose={onCancel} className="max-w-sm" centered>
       {body && <p className="text-sm text-ink-600 dark:text-ink-300">{body}</p>}
       <div className="mt-5 flex gap-2">
         <button

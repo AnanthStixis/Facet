@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
-import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, Switch } from '../components/ui'
+import { Banner, Card, Chip, ConfirmDialog, EmptyState, Field, Modal, Skeleton, Spinner, Switch } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { IconBuilding, IconEdit, IconEye } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
@@ -657,6 +657,11 @@ export function Organizations() {
   const [editOrgId, setEditOrgId] = useState<string | null>(null)
   const [viewOrgId, setViewOrgId] = useState<string | null>(null)
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
+  // Captured from the reason form, then held here while the confirmation
+  // dialog is open — the actual suspend API call only fires once that's
+  // confirmed, not the moment a reason is typed in.
+  const [confirmSuspend, setConfirmSuspend] = useState<{ org: OrgDetail; reason: string } | null>(null)
+  const [suspending, setSuspending] = useState(false)
 
   // Guards against an out-of-order response overwriting a newer one. Without
   // this, rejecting an org and immediately switching tabs could have the
@@ -961,16 +966,44 @@ export function Organizations() {
                     }}
                   />
                 )}
-                {pending?.id === org.id && pending.action === 'suspend' && (
+                                {pending?.id === org.id && pending.action === 'suspend' && (
                   <ReasonForm
                     label="Reason for suspension"
-                    confirmLabel="Suspend and sign everyone out"
+                    confirmLabel="Suspend organization"
                     tone="critical"
                     onCancel={() => setPending(null)}
                     onSubmit={async (reason) => {
-                      const updated = await api.post<OrgDetail>(`/orgs/${org.id}/suspend`, { reason })
-                      finish(`${org.name} suspended. All of its sessions were revoked.`, updated)
+                      setPending(null)
+                      setConfirmSuspend({ org, reason })
                     }}
+                  />
+                )}
+                {confirmSuspend?.org.id === org.id && (
+                  <ConfirmDialog
+                    title={`Suspend ${org.name}?`}
+                    body={`All users${org.user_count === 1 ? '' : 's'} will be signed out immediately and won't be able to sign back in until the organization is reactivated.`}
+                    confirmLabel="Suspend "
+                    tone="critical"
+                    busy={suspending}
+                    onConfirm={async () => {
+                      setSuspending(true)
+                      try {
+                        const updated = await api.post<OrgDetail>(`/orgs/${org.id}/suspend`, {
+                          reason: confirmSuspend.reason,
+                        })
+                        setConfirmSuspend(null)
+                        finish(`${org.name} suspended. All of its sessions were revoked.`, updated)
+                      } catch (caught) {
+                        toast.show(
+                          'critical',
+                          'Suspension failed',
+                          caught instanceof ApiError ? caught.message : 'That did not work.',
+                        )
+                      } finally {
+                        setSuspending(false)
+                      }
+                    }}
+                    onCancel={() => setConfirmSuspend(null)}
                   />
                 )}
               </li>

@@ -174,7 +174,7 @@ function ManagerCell({ managers }: { managers: LookupItem[] }) {
         </button>
       </span>
       {open && (
-        <Modal title="Managers" onClose={() => setOpen(false)} className="max-w-[26rem]">
+        <Modal title="Managers" onClose={() => setOpen(false)} className="max-w-[26rem]" centered>
           <ol className="space-y-1.5">
             {managers.map((manager, index) => (
               <li key={manager.id} className="flex gap-2 text-sm text-ink-800 dark:text-ink-100">

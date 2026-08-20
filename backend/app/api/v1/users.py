@@ -116,12 +116,31 @@ async def list_users(
     # every row's managers instead of one query per row.
     manager_ids_by_user = await managers_service.get_manager_ids_map(session, user_ids)
 
+    # manager_ids_by_user only carries raw ids — the People table displays
+    # names, not ids, so those need resolving to LookupItems in one more
+    # grouped query, same batching reasoning as everything above it.
+    all_manager_ids = {mid for ids in manager_ids_by_user.values() for mid in ids}
+    manager_lookup: dict[uuid.UUID, LookupItem] = {}
+    if all_manager_ids:
+        rows = await session.execute(
+            select(User.id, User.full_name, User.job_title).where(User.id.in_(all_manager_ids))
+        )
+        manager_lookup = {
+            row.id: LookupItem(id=row.id, label=row.full_name, sublabel=row.job_title)
+            for row in rows.all()
+        }
+
     items = []
     for user in users:
         detail = UserDetail.model_validate(user)
         detail.org_name = org_names.get(user.org_id) if user.org_id else None
         detail.feedback_count = feedback_counts.get(user.id, 0)
         detail.manager_ids = manager_ids_by_user.get(user.id, [])
+        detail.managers = [
+            manager_lookup[mid]
+            for mid in manager_ids_by_user.get(user.id, [])
+            if mid in manager_lookup
+        ]
         items.append(detail)
 
     return Page[UserDetail](items=items, total=total, page=page, page_size=page_size)
@@ -276,7 +295,8 @@ async def invite_user(
         )
         if used >= org.seat_limit:
             raise Conflict(
-                f"This organization has used all {org.seat_limit} of its seats."
+                f"This organization has reached its seat limit "
+                f"({org.seat_limit} seat{'' if org.seat_limit == 1 else 's'})."
             )
 
     # No pre-check SELECT here: RLS restricts this session to its own org's
