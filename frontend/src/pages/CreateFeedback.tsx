@@ -516,7 +516,7 @@ function DepartmentSelect({ value, onChange }: { value: string; onChange: (name:
           </option>
         ))}
       </select>
-      <span className="mt-1.5 block text-xs text-ink-400">Narrows the person picker below to this department.</span>
+      
     </div>
   )
 }
@@ -558,7 +558,7 @@ function ClientOrganizationSelect({
       <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
         Client Organisation
       </span>
-      <div className="relative max-w-xs" ref={triggerRef}>
+      <div className="relative" ref={triggerRef}>
         <button
           ref={buttonRef}
           type="button"
@@ -692,7 +692,7 @@ function MasterSelectPicker({
   return (
     <div>
       <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">{label}</span>
-      <div className="relative flex max-w-xs items-center gap-2" ref={triggerRef}>
+      <div className="relative flex items-center gap-2" ref={triggerRef}>
         <button
           ref={buttonRef}
           type="button"
@@ -800,7 +800,7 @@ function AudienceSelect({
   const current = AUDIENCE_OPTIONS.find((option) => option.value === value)
 
   return (
-    <div className="relative max-w-xs" ref={triggerRef}>
+    <div className="relative" ref={triggerRef}>
       <button
         ref={buttonRef}
         type="button"
@@ -1427,8 +1427,8 @@ export function CreateFeedback() {
                 )}
               </label>
 
-              {kind !== 'proposal' && (
-                <div className="max-w-[260px]">
+                            {kind !== 'proposal' && (
+                <div>
                   <MasterSelectPicker
                     path="/masters/cycle-names"
                     label="Feedback Cycle Name"
@@ -1441,7 +1441,7 @@ export function CreateFeedback() {
                 </div>
               )}
 
-              <div className="min-w-0 max-w-[180px]">
+              <div>
                 <Field
                   label="Closes on (optional)"
                   type="date"
@@ -1600,10 +1600,10 @@ export function CreateFeedback() {
                 )}
 
                 {audienceTogglesFor && recipientAudience === 'internal' && (
-                  <div className="max-w-xs">
-                    <DepartmentSelect value={department} onChange={setDepartment} />
-                  </div>
-                )}
+                <div>
+                  <DepartmentSelect value={department} onChange={setDepartment} />
+                </div>
+              )}
 
                 {effectiveAudience === 'external' && (
                   <ClientOrganizationSelect

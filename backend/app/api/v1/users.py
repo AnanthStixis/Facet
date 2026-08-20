@@ -58,6 +58,12 @@ async def list_users(
         stmt = stmt.where(User.role == role)
     if status:
         stmt = stmt.where(User.status == status)
+    else:
+        # Soft-deleted people never show up unless someone explicitly asks
+        # for them (a future ?status=deleted filter) — their historical
+        # feedback and audit trail stay intact, but they no longer clutter
+        # the everyday People list.
+        stmt = stmt.where(User.status != UserStatus.DELETED)
     if department:
         stmt = stmt.where(User.department == department)
     if org_id:
@@ -780,3 +786,44 @@ async def admin_reset_password(
         # withheld in production.
         "reset_url": reset_url if not settings.is_production else None,
     }
+
+@router.delete("/{user_id}", response_model=MessageResponse)
+async def delete_user(
+    user_id: uuid.UUID,
+    request: Request,
+    session: DbSession,
+    actor: AdminUser,
+) -> MessageResponse:
+    """Soft delete: the row stays — feedback history, audit trail, and
+    manager/report relationships all reference it — but the person no
+    longer appears in the default Users list (see list_users' status
+    filter above) and can no longer sign in. Nothing here is destroyed,
+    even though there is no "restore" UI yet.
+    """
+    user = (
+        await session.execute(select(User).where(User.id == user_id))
+    ).scalar_one_or_none()
+    if user is None:
+        raise NotFound("That user does not exist.")
+    if user.id == actor.id:
+        raise PermissionDenied("You cannot delete your own account.")
+
+    user.status = UserStatus.DELETED
+    revoked = await auth_service.revoke_all_sessions(
+        session, user_id=user.id, reason="user_deleted"
+    )
+
+    await audit.record(
+        session,
+        action=AuditAction.USER_DELETED,
+        summary=f"{actor.user.full_name} deleted {user.email}",
+        org_id=actor.org_id,
+        actor=actor.user,
+        target_type="user",
+        target_id=user.id,
+        target_label=user.email,
+        context={"sessions_revoked": revoked},
+        request=request,
+    )
+    await session.commit()
+    return MessageResponse(message=f"{user.email} was removed.")

@@ -3,9 +3,9 @@ import { Fragment, useEffect, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { LookupFilter, SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
-import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, Switch } from '../components/ui'
+import { Banner, Card, Chip, ConfirmDialog, EmptyState, Field, Modal, Skeleton, Spinner, Switch } from '../components/ui'
 import { useToast } from '../components/Toast'
-import { IconEdit, IconEye, IconUsers } from '../components/icons'
+import { IconEdit, IconEye, IconTrash, IconUsers } from '../components/icons'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api, downloadFile, uploadFile } from '../lib/api'
@@ -1011,6 +1011,8 @@ export function People() {
   const [viewingFeedbackId, setViewingFeedbackId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [showSendPanel, setShowSendPanel] = useState(false)
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -1046,6 +1048,11 @@ export function People() {
     )
   }
 
+  const removePerson = (id: string) => {
+    setData((current) =>
+      current ? { ...current, items: current.items.filter((p) => p.id !== id) } : current,
+    )
+  }
   const canManage = user?.role === 'client_admin' || user?.role === 'super_admin'
   const isPlatform = user?.role === 'super_admin'
   // A Super Admin with no org has no organization to create a user into —
@@ -1378,8 +1385,19 @@ export function People() {
                             title="Edit"
                             onClick={() => setEditingId(editingId === person.id ? null : person.id)}
                           >
-                            <IconEdit width={15} height={15} />
+                                                        <IconEdit width={15} height={15} />
                           </button>
+                          {person.id !== user?.id && (
+                            <button
+                              type="button"
+                              className="btn-ghost p-1.5 text-critical"
+                              aria-label={`Delete ${person.full_name}`}
+                              title="Delete"
+                              onClick={() => setConfirmingDeleteId(person.id)}
+                            >
+                              <IconTrash width={15} height={15} />
+                            </button>
+                          )}
                         </span>
                       </td>
                     )}
@@ -1395,6 +1413,34 @@ export function People() {
                         toast.show('success', 'Person updated', `${person.full_name}'s details were updated.`)
                         load()
                       }}
+                    />
+                  )}
+                  {confirmingDeleteId === person.id && (
+                    <ConfirmDialog
+                      title={`Delete ${person.full_name}?`}
+                      body={`Are you sure you want to delete ${person.full_name}?`}
+                      confirmLabel="Delete"
+                      tone="critical"
+                      busy={deleting}
+                      onConfirm={async () => {
+                        setDeleting(true)
+                        try {
+                          await api.delete(`/users/${person.id}`)
+                          setConfirmingDeleteId(null)
+                          removePerson(person.id)
+                          toast.show('success', 'Person deleted', `${person.full_name} was removed.`)
+                          load()
+                        } catch (caught) {
+                          toast.show(
+                            'critical',
+                            'Delete failed',
+                            caught instanceof ApiError ? caught.message : 'Could not delete this person.',
+                          )
+                        } finally {
+                          setDeleting(false)
+                        }
+                      }}
+                      onCancel={() => setConfirmingDeleteId(null)}
                     />
                   )}
                   </Fragment>

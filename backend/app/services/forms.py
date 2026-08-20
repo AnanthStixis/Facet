@@ -186,9 +186,7 @@ def validate_definition(definition: Any) -> Form:
         scale_max=scale_max,
         scale_labels={str(k): str(v) for k, v in labels.items()},
         questions=questions,
-        comment_prompt=str(
-            closing.get("comment_prompt") or "Anything else you would like to add?"
-        )[:300],
+        comment_prompt=str(closing.get("comment_prompt") or "").strip()[:300],
         comment_required=bool(closing.get("comment_required", False)),
     )
 
@@ -278,21 +276,23 @@ def validate_answers(
                 continue
             cleaned[key] = text
 
-    # Closing comment: previously this silently truncated an overlong comment
-    # with no warning at all, losing whatever came after MAX_COMMENT without
-    # telling the respondent. It is now checked and reported the same way a
-    # text-question answer is, instead of being cut quietly.
+    # Closing comment: only meaningful when the template actually has a
+    # prompt for it — an empty comment_prompt means the author never added
+    # a closing box at all, so there is no field for a stray comment to
+    # belong to. Any comment sent anyway (a stale client, a hand-crafted
+    # request) is silently ignored rather than validated or stored.
     cleaned_comment = None
-    if comment is not None:
-        raw_comment = str(comment).strip()
-        if len(raw_comment) > MAX_COMMENT:
-            problems.setdefault("closing_comment", []).append(
-                f"Your closing comment is too long (max {MAX_COMMENT} characters)"
-            )
-        else:
-            cleaned_comment = raw_comment or None
-    if form.comment_required and not cleaned_comment:
-        problems.setdefault("closing_comment", []).append("A closing comment is required")
+    if form.comment_prompt:
+        if comment is not None:
+            raw_comment = str(comment).strip()
+            if len(raw_comment) > MAX_COMMENT:
+                problems.setdefault("closing_comment", []).append(
+                    f"Your closing comment is too long (max {MAX_COMMENT} characters)"
+                )
+            else:
+                cleaned_comment = raw_comment or None
+        if form.comment_required and not cleaned_comment:
+            problems.setdefault("closing_comment", []).append("A closing comment is required")
 
     if problems:
         _fail("Some answers still need attention.", **problems)

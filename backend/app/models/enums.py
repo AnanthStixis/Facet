@@ -53,6 +53,7 @@ class UserStatus(StrEnum):
     INVITED = "invited"
     ACTIVE = "active"
     DISABLED = "disabled"
+    DELETED = "deleted"
 
 
 class TargetType(StrEnum):

@@ -2,8 +2,8 @@ import clsx from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FEEDBACK_TYPES } from './CreateFeedback'
 import { Pagination } from '../components/DataTable'
-import { ExportMenu, FloatingPanel, useDismiss } from '../components/filters'
-import { IconSearch } from '../components/icons'
+import { ExportMenu, FloatingPanel, SearchBox, useDismiss } from '../components/filters'
+import { IconChevronDown, IconSearch } from '../components/icons'
 import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, StatTile } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
@@ -432,76 +432,72 @@ function OrganisationNameFilter({
   onChange: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState(value)
-  const { triggerRef, panelRef } = useDismiss(open, () => {
-    setOpen(false)
-    setDraft(value)
-  })
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [search, setSearch] = useState('')
+  const { triggerRef, panelRef } = useDismiss(open, () => setOpen(false))
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
-  const filtered = draft
-    ? options.filter((name) => name.toLowerCase().includes(draft.toLowerCase()))
+  const filtered = search
+    ? options.filter((name) => name.toLowerCase().includes(search.toLowerCase()))
     : options
 
   const pick = (next: string) => {
     onChange(next)
-    setDraft(next)
+    setSearch('')
     setOpen(false)
   }
 
   return (
     <div className="relative" ref={triggerRef}>
-      <div className="relative">
-        <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
-        <input
-          ref={inputRef}
-          type="text"
-          autoComplete="off"
-          className="field w-full pl-8"
-          placeholder="Search organisations"
-          value={draft}
-          onFocus={() => {
-            setDraft('')
-            setOpen(true)
-          }}
-          onChange={(event) => {
-            setDraft(event.target.value)
-            setOpen(true)
-          }}
-        />
-      </div>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => {
+          setSearch('')
+          setOpen((state) => !state)
+        }}
+        className="field flex w-full items-center justify-between text-left"
+      >
+        <span className="truncate">{value || 'All organisations'}</span>
+        <IconChevronDown className="shrink-0 opacity-60" />
+      </button>
 
-      <FloatingPanel anchorRef={inputRef} panelRef={panelRef} open={open} className="w-72 p-2">
+      <FloatingPanel anchorRef={buttonRef} panelRef={panelRef} open={open} className="w-72 p-2">
+        <div className="mb-2 px-1 pt-1">
+          <SearchBox value={search} onChange={setSearch} placeholder="Search organisations" />
+        </div>
         <div className="max-h-56 overflow-y-auto">
           <ul>
-            <li>
-              <button
-                type="button"
-                className={clsx(
-                  'w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-ink-100 dark:hover:bg-ink-800',
-                  value === '' ? 'accent-text font-medium' : 'text-ink-800 dark:text-ink-100',
-                )}
-                onClick={() => pick('')}
-              >
-                All organisations
-              </button>
-            </li>
-            {filtered.map((name) => (
-              <li key={name}>
+            {!search && (
+              <li>
                 <button
                   type="button"
                   className={clsx(
                     'w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-ink-100 dark:hover:bg-ink-800',
-                    name === value ? 'accent-text font-medium' : 'text-ink-800 dark:text-ink-100',
+                    value === '' ? 'accent-text font-medium' : 'text-ink-800 dark:text-ink-100',
                   )}
-                  onClick={() => pick(name)}
+                  onClick={() => pick('')}
                 >
-                  {name}
+                  All organisations
                 </button>
               </li>
-            ))}
-            {filtered.length === 0 && (
+            )}
+            {filtered.length === 0 ? (
               <p className="px-3 py-3 text-center text-sm text-ink-500">No matches.</p>
+            ) : (
+              filtered.map((name) => (
+                <li key={name}>
+                  <button
+                    type="button"
+                    className={clsx(
+                      'w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-ink-100 dark:hover:bg-ink-800',
+                      name === value ? 'accent-text font-medium' : 'text-ink-800 dark:text-ink-100',
+                    )}
+                    onClick={() => pick(name)}
+                  >
+                    {name}
+                  </button>
+                </li>
+              ))
             )}
           </ul>
         </div>
