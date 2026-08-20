@@ -33,6 +33,13 @@ from app.services.bulk_import import BulkRowError, parse_csv
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+def _display_role(role: UserRole) -> str:
+    """Human-readable role label for invitation emails, e.g. UserRole.EMPLOYEE
+    (value "employee") -> "Employee". Centralised here so the single-invite
+    and bulk-invite paths below can't drift out of sync with each other."""
+    return role.value.replace("_", " ").title()
+
+
 @router.get("", response_model=Page[UserDetail])
 async def list_users(
     session: DbSession,
@@ -387,6 +394,12 @@ async def invite_user(
         invite_url=invite_url,
         branding=branding,
         subject_template=OrgSettings.load(org.settings).email.invitation_subject,
+        # This is a regular org-member invite (Admin/Manager/Employee, per
+        # the role picked on this form) — not a Client Admin onboarding, so
+        # it gets the role-aware "user" copy instead of the fixed "as an
+        # Admin" one that orgs.py's Client Admin flows use.
+        kind="user",
+        role=_display_role(payload.role),
     )
 
     return InviteResult(
@@ -563,6 +576,11 @@ async def bulk_invite_users(
             invite_url=invite_url,
             branding=branding,
             subject_template=invitation_subject,
+            # Same reasoning as the single-invite path above: a bulk row can
+            # be Admin, Manager, or Employee, so it needs the role-aware
+            # "user" copy rather than the fixed Client Admin wording.
+            kind="user",
+            role=_display_role(role),
         )
         invited.append(email)
 

@@ -653,7 +653,28 @@ async def send_invitation(
     branding: Branding,
     subject_template: str | None = None,
     kind: str = "invitation",
+    role: str | None = None,
 ) -> bool:
+    """
+    `kind` selects which invitation this is:
+
+      - "invitation" (default): a Client Admin account being created —
+        Super Admin provisioning a tenant, adding a Client Admin to an
+        existing org, or approving one via the non-"approval" path. Always
+        "as an Admin", because these three callers only ever create Client
+        Admins.
+
+      - "approval": the self-registration "Request access" flow being
+        approved. Distinct copy acknowledging a request was reviewed, not
+        just that access was handed out.
+
+      - "user": a regular org member being invited from Users → Create (or
+        bulk import), where the role picked in that form can be Admin,
+        Manager, or Employee. `role` is a human-readable label (e.g.
+        "Admin", "Manager", "Employee") and the sentence is built around it
+        rather than assuming Admin — this is what fixes an Employee or
+        Manager invite wrongly reading "as an Admin".
+    """
     first_name = full_name.split()[0] if full_name.strip() else "there"
 
     if kind == "approval":
@@ -686,7 +707,44 @@ async def send_invitation(
             cta=("Activate Your Account", invite_url),
         )
 
-    # Default: "invitation" — admin-created account, recipient did not
+    if kind == "user":
+        # role is optional in the signature for backward-compatibility, but
+        # every real "user" call site should supply one — "User" is only a
+        # fallback so a missing role degrades gracefully instead of raising.
+        display_role = role or "User"
+        article = "an" if display_role[:1].upper() in "AEIOU" else "a"
+        subject = f"You Have Been Added to {org_name}"
+        if subject_template:
+            try:
+                subject = subject_template.format(org_name=org_name)
+            except (KeyError, IndexError):
+                pass
+        return await send(
+            to=to,
+            subject=subject,
+            heading=f"Dear {first_name}",
+            body_html=(
+                f"You have been added to <b>{escape(org_name)}</b> on "
+                f"{escape(settings.product_name)} as {article} "
+                f"{escape(display_role)}.<br><br>"
+                f"Set a password to activate your account and get "
+                f"started.<br><br>"
+                f"This link can be used once and expires in "
+                f"{settings.invite_token_ttl_hours} hours."
+            ),
+            body_text=(
+                f"You have been added to {org_name} on "
+                f"{settings.product_name} as {article} {display_role}.\n\n"
+                f"Set a password to activate your account and get "
+                f"started.\n\n"
+                f"This link can be used once and expires in "
+                f"{settings.invite_token_ttl_hours} hours."
+            ),
+            branding=branding,
+            cta=("Set Your Password", invite_url),
+        )
+
+    # Default: "invitation" — Client Admin account, recipient did not
     # initiate the request.
     subject = f"You have been invited to {org_name}"
     if subject_template:
