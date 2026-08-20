@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -173,12 +174,20 @@ async def list_categories_for_management(
     here — that is the whole point of a management view — unlike
     `/categories`, which only ever shows what a template author can pick from.
     """
-    scope_org_id = actor.org_id  # None for a Super Admin -> global rows
+    scope_org_id = actor.org_id  # None for a Super Admin -> global rows only
     categories = (
         (
             await session.execute(
                 select(Category)
-                .where(Category.org_id.is_(scope_org_id) if scope_org_id is None else Category.org_id == scope_org_id)
+                .where(
+                    Category.org_id.is_(None)
+                    if scope_org_id is None
+                    # A Client Admin needs to see the global categories
+                    # too, not just their own — this used to be an exact
+                    # match on their org, which silently dropped every
+                    # global row from their view entirely.
+                    else (Category.org_id.is_(None) | (Category.org_id == scope_org_id))
+                )
                 .order_by(Category.sort_order, Category.name)
             )
         )
@@ -204,6 +213,41 @@ async def list_categories_for_management(
     ]
 
 
+def _slugify_category_key(name: str) -> str:
+    """Turns a category name into a key-shaped string — lowercase,
+    underscores, matching the same pattern CategoryCreateRequest.key
+    already enforces for an explicitly-supplied one."""
+    slug = re.sub(r"[^a-z0-9]+", "_", name.strip().lower()).strip("_")
+    return slug or "category"
+
+
+async def _unique_category_key(
+    session: DbSession, org_id: uuid.UUID | None, base: str
+) -> str:
+    """Makes a name-derived slug actually free within the caller's scope,
+    appending _2, _3, ... on a clash — this only runs for an
+    auto-generated key, where nobody is typing one and could adjust it by
+    hand, so a collision has to resolve itself rather than error out.
+    """
+    candidate = base
+    suffix = 2
+    while True:
+        clash = (
+            await session.execute(
+                select(func.count())
+                .select_from(Category)
+                .where(
+                    Category.key == candidate,
+                    Category.org_id.is_(None) if org_id is None else Category.org_id == org_id,
+                )
+            )
+        ).scalar_one()
+        if not clash:
+            return candidate
+        candidate = f"{base}_{suffix}"
+        suffix += 1
+
+
 @router.post("/categories", status_code=201)
 async def create_category(
     payload: CategoryCreateRequest,
@@ -218,22 +262,17 @@ async def create_category(
     organization. There is no way to create a category for someone else's
     org through this endpoint — `org_id` is never taken from the request.
     """
-    clash = (
-        await session.execute(
-            select(func.count())
-            .select_from(Category)
-            .where(
-                Category.key == payload.key,
-                Category.org_id.is_(None) if actor.org_id is None else Category.org_id == actor.org_id,
-            )
-        )
-    ).scalar_one()
-    if clash:
-        raise Conflict("A category with that key already exists.")
+    # No key comes from the request anymore — always derive one from the
+    # name and make sure it's actually free, appending _2/_3/... on a
+    # clash rather than erroring, since there's no field left for a
+    # person to fix a collision in by hand.
+    key = await _unique_category_key(
+        session, actor.org_id, _slugify_category_key(payload.name)
+    )
 
     category = Category(
         org_id=actor.org_id,
-        key=payload.key,
+        key=key,
         name=payload.name,
         description=payload.description,
         icon=payload.icon,

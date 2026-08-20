@@ -1253,6 +1253,7 @@ export function People() {
                   <th>Manager</th>
                   {isPlatform && <th>Organization</th>}
                   <th>Department</th>
+                  <th>Phone Number</th>
                   <th>Status</th>
                   <th>Feedback</th>
                   {canManage && <th className="text-right">Actions</th>}
@@ -1287,7 +1288,7 @@ export function People() {
                       </span>
                       <span className="block text-2xs text-ink-400">
                         {person.email}
-                        {person.phone ? ` · ${person.phone}` : ''}
+                        
                       </span>
                     </td>
                     <td>
@@ -1303,6 +1304,9 @@ export function People() {
                     )}
                     <td className="text-ink-600 dark:text-ink-300">
                       {person.department ?? '—'}
+                    </td>
+                    <td className="text-ink-600 dark:text-ink-300">
+                      {person.phone ?? '—'}
                     </td>
                     <td>
                       <Chip value={person.status} />

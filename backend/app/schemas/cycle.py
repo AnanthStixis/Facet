@@ -93,9 +93,12 @@ class DeclineRequest(BaseModel):
 
 
 class CategoryCreateRequest(BaseModel):
-    key: str = Field(min_length=2, max_length=60, pattern=r"^[a-z0-9][a-z0-9_]*$")
+    # No `key` field — the endpoint always derives one from `name` and
+    # resolves any collision itself (see _unique_category_key in
+    # catalog.py), since there's no field left for a person to type or fix
+    # a clash in by hand.
     name: str = Field(min_length=2, max_length=150)
-    description: str | None = Field(default=None, max_length=500)
+    description: str = Field(min_length=1, max_length=500)
     icon: str | None = Field(default=None, max_length=40)
     sort_order: int = Field(default=100, ge=0, le=10_000)
     applies_to: list[TargetType] = Field(default_factory=list)

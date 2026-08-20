@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
+import { useAuth } from '../store/auth'
 
 interface CategoryMeta {
   id: string
@@ -38,15 +39,16 @@ const FEEDBACK_TYPES = Object.keys(FEEDBACK_TYPE_LABEL)
  * TemplateModal / Organizations.tsx's OrgFormModal: no inline Card-based
  * form, no helper-text paragraph under the title or fields.
  *
- * `key` is only editable on create — the backend has no endpoint to change
- * a category's key later, and clashes are scoped per the caller (global for
- * a Super Admin, org-scoped for a Client Admin), which is enforced
- * server-side, not here.
+ * `key` is not a field here at all — the backend derives it from `name` on
+ * create and resolves any clash itself, so there's nothing for a person to
+ * type or fix. It's still stored and returned by the API (CategoryMeta.key),
+ * just not shown anywhere in this UI — no create field, no table column —
+ * and still has no endpoint to change it later.
  *
  * Icon and sort order are deliberately not fields here — the client asked
- * for the create/edit popup to hold only name, key, description and
- * enabled state. The backend columns (icon, sort_order) stay untouched and
- * keep their server-side defaults; this is a UI simplification only.
+ * for the create/edit popup to hold only name, description and enabled
+ * state. The backend columns (icon, sort_order) stay untouched and keep
+ * their server-side defaults; this is a UI simplification only.
  */
 function CategoryModal({
   category,
@@ -58,7 +60,6 @@ function CategoryModal({
   onSaved: (message: string, item: CategoryMeta) => void
 }) {
   const isEdit = !!category
-  const [key, setKey] = useState(category?.key ?? '')
   const [name, setName] = useState(category?.name ?? '')
   const [description, setDescription] = useState(category?.description ?? '')
   const [appliesTo, setAppliesTo] = useState<string[]>(category?.applies_to ?? [])
@@ -87,16 +88,19 @@ function CategoryModal({
         })
       } else {
         const created = await api.post<{ id: string; name: string }>('/catalog/categories', {
-          key,
           name,
-          description: description || null,
+          description,
           applies_to: appliesTo,
         })
         saved = {
           id: created.id,
-          key,
+          // The server derives the key from the name now — not sent or
+          // known here, and irrelevant to this row's own toast either
+          // way; the caller's reload() right after this fetches the real
+          // one along with everything else.
+          key: '',
           name: created.name,
-          description: description || null,
+          description,
           icon: null,
           sort_order: 100,
           applies_to: appliesTo,
@@ -137,18 +141,11 @@ function CategoryModal({
             autoFocus
           />
           <Field
-            label="Key"
-            value={key}
-            onChange={(event) => setKey(event.target.value.toLowerCase())}
-            error={fieldErrors.key}
-            required
-            disabled={isEdit}
-            placeholder="e.g. client_experience"
-          />
-          <Field
-            label="Description (optional)"
+            label="Description"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
+            error={fieldErrors.description}
+            required
             className="sm:col-span-2"
           />
         </div>
@@ -196,6 +193,8 @@ function formatDate(value: string) {
 
 export function Categories() {
   const toast = useToast()
+  const { user } = useAuth()
+  const isPlatform = user?.role === 'super_admin'
   const [categories, setCategories] = useState<CategoryMeta[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [modalCategory, setModalCategory] = useState<CategoryMeta | null | 'new'>(null)
@@ -293,7 +292,6 @@ export function Categories() {
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Key</th>
                   <th>Scope</th>
                   <th>Description</th>
                   <th>Applies to</th>
@@ -304,10 +302,19 @@ export function Categories() {
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((category) => (
+                {pageItems.map((category) => {
+                  // A Client Admin now sees global categories alongside
+                  // their own (see list_categories_for_management), but
+                  // update_category still only lets the owning scope
+                  // touch a row — a Super Admin can edit a global one, a
+                  // Client Admin can edit their own org's, and neither
+                  // can reach into the other's. Disabling here matches
+                  // that boundary instead of letting a click land on a
+                  // 404 from a row that's clearly right there on screen.
+                  const editable = isPlatform ? category.is_global : !category.is_global
+                  return (
                   <tr key={category.id}>
                     <td className="font-medium text-ink-900 dark:text-ink-50">{category.name}</td>
-                    <td className="text-ink-600 dark:text-ink-300">{category.key}</td>
                     <td className="text-ink-600 dark:text-ink-300">
                       {category.is_global ? 'Global' : 'This organization'}
                     </td>
@@ -326,7 +333,7 @@ export function Categories() {
                       <div className="flex items-center justify-end gap-3">
                         <Switch
                           checked={category.is_enabled}
-                          disabled={togglingId === category.id}
+                          disabled={togglingId === category.id || !editable}
                           ariaLabel={category.is_enabled ? `Disable ${category.name}` : `Enable ${category.name}`}
                           onChange={() => toggle(category)}
                         />
@@ -334,7 +341,8 @@ export function Categories() {
                           type="button"
                           className="btn-secondary p-1.5"
                           aria-label={`Edit ${category.name}`}
-                          title="Edit"
+                          title={editable ? 'Edit' : 'Only its owning organization can edit this category'}
+                          disabled={!editable}
                           onClick={() => setModalCategory(category)}
                         >
                           <IconEdit width={15} height={15} />
@@ -342,7 +350,8 @@ export function Categories() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

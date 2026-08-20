@@ -490,7 +490,7 @@ interface DepartmentOption {
 }
 
 /** Plain dropdown over the Department master — filters the person picker
- * below it in "Who's involved" rather than opening its own popup, since
+ * below it in "Review Participants" rather than opening its own popup, since
  * this list is usually short and a single dropdown reads faster than a
  * search panel for "pick one department". */
 function DepartmentSelect({ value, onChange }: { value: string; onChange: (name: string) => void }) {
@@ -784,8 +784,9 @@ const AUDIENCE_OPTIONS: AudienceOption[] = [
 /** Same trigger-button-plus-floating-panel look as MasterSelectPicker above,
  * minus the search box and "+" — there are only ever two audiences to pick
  * from, so nothing to search and nothing to add. Kept as its own component
- * rather than a native <select> so it matches the rest of "Who's involved"
- * visually instead of falling back to the browser's own dropdown chrome. */
+ * rather than a native <select> so it matches the rest of "Review
+ * Participants" visually instead of falling back to the browser's own
+ * dropdown chrome. */
 function AudienceSelect({
   value,
   onChange,
@@ -1453,8 +1454,19 @@ export function CreateFeedback() {
             </div>
           </Card>
 
-          <Card title="Who's involved">
-            <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+          {(() => {
+            // For Employee/Management Review, "Reviewed by" is structurally
+            // dependent on "Reviewed to" — the Manager checklist and
+            // Employees (direct reports) list both stay empty placeholders
+            // until someone is picked on the "Reviewed to" side first.
+            // Filling that side first and reading it first are already the
+            // same order for these two kinds, so the columns swap sides to
+            // match — read left to right, fill left to right. The other
+            // kinds have no such dependency between the two sides, so they
+            // keep the original order.
+            const swapped = kind === 'employee' || kind === 'management'
+
+            const reviewedByColumn = (
               <div className="space-y-5">
                 <p className="label-caps">Reviewed by</p>
 
@@ -1625,7 +1637,9 @@ export function CreateFeedback() {
                   </div>
                 )}
               </div>
+            )
 
+            const reviewedToColumn = (
               <div className="space-y-5">
                 <p className="label-caps">Reviewed to</p>
 
@@ -1687,8 +1701,26 @@ export function CreateFeedback() {
                   />
                 )}
               </div>
-            </div>
-          </Card>
+            )
+
+            return (
+              <Card title="Review Participants">
+                <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+                  {swapped ? (
+                    <>
+                      {reviewedToColumn}
+                      {reviewedByColumn}
+                    </>
+                  ) : (
+                    <>
+                      {reviewedByColumn}
+                      {reviewedToColumn}
+                    </>
+                  )}
+                </div>
+              </Card>
+            )
+          })()}
 
           <Card padded={false}>
             <div className="flex items-center gap-2 px-5 py-4">
