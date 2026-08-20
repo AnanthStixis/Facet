@@ -295,17 +295,19 @@ export function AssignmentFeedback() {
               </section>
             ))}
 
-            <section className="rounded-xl border border-ink-200 bg-white p-6 dark:border-ink-800 dark:bg-ink-900">
-              <h2 className="mb-3 text-lg font-semibold text-ink-900 dark:text-ink-50">
-                {form.closing.comment_prompt}
-              </h2>
-              <textarea
-                className="field min-h-28 resize-y"
-                value={comment}
-                onChange={(event) => setComment(event.target.value)}
-                placeholder="Optional, but the most useful part."
-              />
-            </section>
+                        {form.closing.comment_prompt && (
+              <section className="rounded-xl border border-ink-200 bg-white p-6 dark:border-ink-800 dark:bg-ink-900">
+                <h2 className="mb-3 text-lg font-semibold text-ink-900 dark:text-ink-50">
+                  {form.closing.comment_prompt}
+                </h2>
+                <textarea
+                  className="field min-h-28 resize-y"
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  placeholder="Optional, but the most useful part."
+                />
+              </section>
+            )}
           </div>
 
           <div className="sticky bottom-0 mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-ink-200 bg-ink-50/95 py-4 backdrop-blur dark:border-ink-800 dark:bg-ink-950/95">

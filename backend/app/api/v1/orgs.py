@@ -249,7 +249,10 @@ async def list_organizations(
     page_size: int = 25,
 ) -> Page[OrgDetail]:
     counts = (
-        select(User.org_id, func.count().label("n")).group_by(User.org_id).subquery()
+        select(User.org_id, func.count().label("n"))
+        .where(User.status != UserStatus.DELETED)
+        .group_by(User.org_id)
+        .subquery()
     )
     stmt = (
         select(Organization, func.coalesce(counts.c.n, 0))
@@ -378,7 +381,9 @@ async def get_organization(
     count = int(
         (
             await session.execute(
-                select(func.count()).select_from(User).where(User.org_id == org_id)
+                                select(func.count()).select_from(User).where(
+                    User.org_id == org_id, User.status != UserStatus.DELETED
+                )
             )
         ).scalar_one()
     )

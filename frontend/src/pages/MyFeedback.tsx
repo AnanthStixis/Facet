@@ -278,24 +278,26 @@ function FeedbackFormView({
           </Card>
         ))}
 
-        <Card title="Closing comment">
-          <textarea
-            className={clsx(
-              'field min-h-28 resize-y',
-              fieldErrors.closing_comment && 'border-critical',
+                {form.closing.comment_prompt && (
+          <Card title="Closing comment">
+            <textarea
+              className={clsx(
+                'field min-h-28 resize-y',
+                fieldErrors.closing_comment && 'border-critical',
+              )}
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              placeholder={form.closing.comment_prompt}
+            />
+            {fieldErrors.closing_comment ? (
+              <p className="mt-1.5 text-xs text-critical">{fieldErrors.closing_comment}</p>
+            ) : (
+              <p className="mt-1.5 text-xs text-ink-400">
+                Specific examples are far more useful than general praise.
+              </p>
             )}
-            value={comment}
-            onChange={(event) => setComment(event.target.value)}
-            placeholder={form.closing.comment_prompt}
-          />
-          {fieldErrors.closing_comment ? (
-            <p className="mt-1.5 text-xs text-critical">{fieldErrors.closing_comment}</p>
-          ) : (
-            <p className="mt-1.5 text-xs text-ink-400">
-              Specific examples are far more useful than general praise.
-            </p>
-          )}
-        </Card>
+          </Card>
+        )}
       </div>
 
       {/* Sticky footer: on a long form the submit button should never be

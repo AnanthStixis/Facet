@@ -44,7 +44,9 @@ async def dashboard(session: DbSession, actor: CurrentUser) -> dict[str, Any]:
     async def scalar(stmt) -> int:
         return int((await session.execute(stmt)).scalar_one() or 0)
 
-    total_users = await scalar(select(func.count()).select_from(User))
+    total_users = await scalar(
+        select(func.count()).select_from(User).where(User.status != UserStatus.DELETED)
+    )
     active_users = await scalar(
         select(func.count()).select_from(User).where(User.status == UserStatus.ACTIVE)
     )
