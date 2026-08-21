@@ -372,50 +372,48 @@ function CreateCampaign({ onCreated }: { onCreated: (campaign: Campaign) => void
                 </p>
               ) : (
                 <ul className="divide-y divide-ink-200 dark:divide-ink-800">
-                  {contacts.map((contact) => {
-                    const out = contact.unsubscribed_at !== null
-                    const checked = selected.includes(contact.id)
-                    return (
-                      <li key={contact.id}>
-                        <label
-                          className={clsx(
-                            'flex items-center gap-3 px-3.5 py-2',
-                            out
-                              ? 'opacity-50'
-                              : 'cursor-pointer hover:bg-ink-50 dark:hover:bg-ink-800/60',
-                          )}
-                        >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 accent-[color:var(--accent)]"
-                            disabled={out}
-                            checked={checked}
-                            onChange={() =>
-                              setSelected((current) =>
-                                checked
-                                  ? current.filter((id) => id !== contact.id)
-                                  : [...current, contact.id],
-                              )
-                            }
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm text-ink-800 dark:text-ink-100">
-                              {contact.full_name}
-                            </span>
-                            <span className="block truncate text-2xs text-ink-400">
-                              {contact.email}
-                              {contact.company ? ` · ${contact.company}` : ''}
-                            </span>
-                          </span>
-                          {out && (
-                            <span className="chip bg-ink-200 text-ink-500 dark:bg-ink-800 dark:text-ink-400">
-                              Unsubscribed
-                            </span>
-                          )}
-                        </label>
-                      </li>
-                    )
-                  })}
+              {contacts.map((contact) => {
+              const out = contact.unsubscribed_at !== null
+              const checked = selected.includes(contact.id)
+              return (
+                <li key={contact.id}>
+                  <label
+                    className={clsx(
+                      'flex items-center gap-3 px-3.5 py-2',
+                      out ? 'opacity-50' : 'cursor-pointer hover:bg-ink-50 dark:hover:bg-ink-800/60',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-[color:var(--accent)]"
+                      disabled={out}
+                      checked={checked}
+                      onChange={() =>
+                        setSelected((current) =>
+                          checked
+                            ? current.filter((id) => id !== contact.id)
+                            : [...current, contact.id],
+                        )
+                      }
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-ink-800 dark:text-ink-100">
+                        {contact.full_name}
+                      </span>
+                      <span className="block truncate text-2xs text-ink-400">
+                        {contact.email}
+                        {contact.company ? ` · ${contact.company}` : ''}
+                      </span>
+                    </span>
+                    {out && (
+                      <span className="chip bg-ink-200 text-ink-500 dark:bg-ink-800 dark:text-ink-400">
+                        Unsubscribed
+                      </span>
+                    )}
+                  </label>
+                </li>
+              )
+            })}
                 </ul>
               )}
             </div>
@@ -459,6 +457,7 @@ function RecipientPicker({
 }) {
   const toast = useToast()
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [existingEmails, setExistingEmails] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(false)
@@ -476,6 +475,20 @@ function RecipientPicker({
   }
 
   useEffect(load, [search])
+
+  // Anyone already on this campaign is shown, not hidden — but without a
+  // checkbox, so there is no way to re-select them and queue a second
+  // invitation to someone who already has a valid one-time link. Fetched
+  // once per campaign, not tied to `search`, since who's already a
+  // recipient doesn't change as the picker's own search box is typed into.
+  useEffect(() => {
+    api
+      .get<Recipient[]>(`/campaigns/${campaign.id}/recipients`)
+      .then((recipients) =>
+        setExistingEmails(new Set(recipients.map((r) => r.contact_email.toLowerCase()))),
+      )
+      .catch(() => setExistingEmails(new Set()))
+  }, [campaign.id])
 
   return (
     <div className="mt-4 rounded-lg border border-ink-200 bg-ink-50 p-4 dark:border-ink-700 dark:bg-ink-900/60">
@@ -585,7 +598,7 @@ function RecipientPicker({
         </form>
       )}
 
-      <div className="max-h-64 overflow-y-auto rounded-md border border-ink-200 bg-white dark:border-ink-700 dark:bg-ink-900">
+            <div className="max-h-64 overflow-y-auto rounded-md border border-ink-200 bg-white dark:border-ink-700 dark:bg-ink-900">
         {contacts.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-ink-500">
             No contacts yet. Add one above.
@@ -594,28 +607,40 @@ function RecipientPicker({
           <ul className="divide-y divide-ink-200 dark:divide-ink-800">
             {contacts.map((contact) => {
               const out = contact.unsubscribed_at !== null
+              const alreadySent = existingEmails.has(contact.email.toLowerCase())
               const checked = selected.includes(contact.id)
               return (
                 <li key={contact.id}>
                   <label
                     className={clsx(
                       'flex items-center gap-3 px-3.5 py-2',
-                      out ? 'opacity-50' : 'cursor-pointer hover:bg-ink-50 dark:hover:bg-ink-800/60',
+                      alreadySent || out
+                        ? 'opacity-50'
+                        : 'cursor-pointer hover:bg-ink-50 dark:hover:bg-ink-800/60',
                     )}
                   >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-[color:var(--accent)]"
-                      disabled={out}
-                      checked={checked}
-                      onChange={() =>
-                        setSelected((current) =>
-                          checked
-                            ? current.filter((id) => id !== contact.id)
-                            : [...current, contact.id],
-                        )
-                      }
-                    />
+                    {alreadySent ? (
+                      <span
+                        className="flex h-4 w-4 shrink-0 items-center justify-center text-ink-400"
+                        title="Already sent"
+                      >
+                        <IconCheck width={13} height={13} />
+                      </span>
+                    ) : (
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[color:var(--accent)]"
+                        disabled={out}
+                        checked={checked}
+                        onChange={() =>
+                          setSelected((current) =>
+                            checked
+                              ? current.filter((id) => id !== contact.id)
+                              : [...current, contact.id],
+                          )
+                        }
+                      />
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-ink-800 dark:text-ink-100">
                         {contact.full_name}
@@ -627,10 +652,16 @@ function RecipientPicker({
                     </span>
                     {/* An unsubscribe is honoured at the point of selection,
                         not silently dropped later at send time. */}
-                    {out && (
+                    {alreadySent ? (
                       <span className="chip bg-ink-200 text-ink-500 dark:bg-ink-800 dark:text-ink-400">
-                        Unsubscribed
+                        Already sent
                       </span>
+                    ) : (
+                      out && (
+                        <span className="chip bg-ink-200 text-ink-500 dark:bg-ink-800 dark:text-ink-400">
+                          Unsubscribed
+                        </span>
+                      )
                     )}
                   </label>
                 </li>
@@ -923,10 +954,10 @@ export function Campaigns() {
   return (
     <>
       <PageHeader
-        title="Client campaigns"
+        title="Client Review Cycles"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Ask clients, customers and prospects for feedback by email. Each person gets a personal one-time link — no account, no password."
+       
         actions={
           <CreateCampaign
             onCreated={(campaign) => {
@@ -1137,7 +1168,7 @@ export function Campaigns() {
                           title="Re-sending issues a fresh link and invalidates the previous one"
                         >
                           {sending === campaign.id && <Spinner />}
-                          Chase non-responders
+                          Resend to Non-responders
                         </button>
                       )}
                       <button
