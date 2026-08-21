@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { SearchBox } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { IconBriefcase, IconEdit, IconTrash } from '../components/icons'
@@ -367,6 +368,8 @@ const PAGE_SIZE = 10
 
 export function Clients() {
   const toast = useToast()
+  const location = useLocation()
+  const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
   const [contacts, setContacts] = useState<ContactMeta[] | null>(null)
   const [total, setTotal] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -409,7 +412,11 @@ export function Clients() {
 
   return (
     <>
-      <PageHeader title="Clients" />
+      <PageHeader
+        title="Clients"
+        backTo={cameFromDashboard ? '/' : undefined}
+        backLabel="Dashboard"
+      />
 
       <Card padded={false}>
         <div className="flex flex-wrap items-center gap-3 border-b border-ink-200 px-5 py-3 dark:border-ink-800">

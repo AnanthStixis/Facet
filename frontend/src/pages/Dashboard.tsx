@@ -154,7 +154,7 @@ export function Dashboard() {
               tone={data.metrics.users_pending > 0 ? 'caution' : 'neutral'}
               sub="Not yet activated"
               icon={<IconInbox width={17} height={17} />}
-              to="/people"
+              to="/people?status=invited"
               state={{ from: 'dashboard' }}
             />
             <StatTile
@@ -162,7 +162,7 @@ export function Dashboard() {
               value={data.metrics.contacts}
               sub="Clients and prospects"
               icon={<IconSend width={17} height={17} />}
-              to="/results"
+              to="/clients"
               state={{ from: 'dashboard' }}
             />
           </>
@@ -281,7 +281,7 @@ export function Dashboard() {
             <Card title="Needs attention" hint="Open work across your workspace.">
               <div className="grid grid-cols-2 gap-3">
                 <StatTile
-                  label="Open review cycles"
+                  label="Open internal review cycles"
                   value={data.attention.open_cycles ?? 0}
                   tone={data.attention.open_cycles ? 'accent' : 'neutral'}
                   icon={<IconClock width={16} height={16} />}
@@ -289,7 +289,7 @@ export function Dashboard() {
                   state={{ from: 'dashboard' }}
                 />
                 <StatTile
-                  label=" Open Client-Facing Review Cycles"
+                  label=" Open Client Review Cycles"
                   value={data.attention.open_campaigns ?? 0}
                   tone={data.attention.open_campaigns ? 'accent' : 'neutral'}
                   icon={<IconSend width={16} height={16} />}
@@ -407,8 +407,8 @@ export function Dashboard() {
         <Card className="mt-5" title="Quick links">
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { title: 'Review cycles', to: '/cycles', icon: IconClock },
-              { title: 'Client campaigns', to: '/campaigns', icon: IconSend },
+              { title: 'Internal Review Cycles', to: '/cycles', icon: IconClock },
+              { title: 'Client Review Cycles', to: '/campaigns', icon: IconSend },
             ].map((item) => (
               <Link
                 key={item.title}
