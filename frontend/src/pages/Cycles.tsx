@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { LookupFilter } from '../components/filters'
 import { Pagination } from '../components/DataTable'
 import { IconClock, IconLayers, IconLock } from '../components/icons'
@@ -359,6 +359,8 @@ export function Cycles() {
   const toast = useToast()
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
+  const [params] = useSearchParams()
+  const closingWithinDays = params.get('closing_within_days')
   const [cycles, setCycles] = useState<Cycle[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -369,15 +371,16 @@ export function Cycles() {
   const [page, setPage] = useState(1)
 
   const load = () => {
+    const query = closingWithinDays ? `?closing_within_days=${closingWithinDays}` : ''
     api
-      .get<Cycle[]>('/cycles')
+      .get<Cycle[]>(`/cycles${query}`)
       .then(setCycles)
       .catch((caught) =>
         setError(caught instanceof ApiError ? caught.message : 'Could not load cycles.'),
       )
   }
 
-  useEffect(load, [])
+  useEffect(load, [closingWithinDays])
   useRefetchOnFocus(load)
 
   // Instant-patch-from-response — see Templates.tsx/Categories.tsx/

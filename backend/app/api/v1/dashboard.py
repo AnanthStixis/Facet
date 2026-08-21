@@ -148,6 +148,7 @@ async def dashboard(session: DbSession, actor: CurrentUser) -> dict[str, Any]:
             .select_from(ReviewCycle)
             .where(
                 ReviewCycle.status == CycleStatus.OPEN,
+                ReviewCycle.audience != CycleAudience.EXTERNAL,
                 ReviewCycle.closes_at.isnot(None),
                 ReviewCycle.closes_at <= soon,
                 *owner_clause,

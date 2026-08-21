@@ -20,7 +20,7 @@ from app.core.errors import NotFound, ValidationFailed
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import Contact, FeedbackTarget, FeedbackTemplate, FeedbackTemplateVersion
 from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
-from app.models.enums import AuditAction, CycleAudience, TargetType, UserRole
+from app.models.enums import AuditAction, CycleAudience, CycleStatus, TargetType, UserRole
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.common import Page
@@ -223,6 +223,7 @@ async def _build_feedback_items(
     q: str | None,
     date_floor: datetime | None,
     date_ceiling: datetime | None,
+    closing_within_days: int | None = None,
 ) -> list[FeedbackListItem]:
     """Every feedback round, internal and external together, newest first.
 
@@ -273,6 +274,19 @@ async def _build_feedback_items(
         stmt = stmt.where(ReviewCycle.status == status)
     if cycle_name:
         stmt = stmt.where(ReviewCycle.name.ilike(f"%{cycle_name}%"))
+    if closing_within_days is not None:
+        # Same three conditions the Dashboard's own "Closing within 7 days"
+        # tile counts by (dashboard.py) and the internal-only /cycles list
+        # filter uses (api/v1/cycles.py) — kept in lockstep across all
+        # three. Unlike the /cycles version, this one deliberately does not
+        # exclude external rounds: Results is the one screen built to show
+        # both kinds together, so a count meant to route here should too.
+        deadline = datetime.now(UTC) + timedelta(days=closing_within_days)
+        stmt = stmt.where(
+            ReviewCycle.status == CycleStatus.OPEN,
+            ReviewCycle.closes_at.is_not(None),
+            ReviewCycle.closes_at <= deadline,
+        )
     cycles = (
         (await session.execute(stmt.order_by(ReviewCycle.created_at.desc())))
         .scalars()
@@ -494,6 +508,7 @@ async def list_feedback(
     date_preset: DateFilterPreset = "all",
     date_start: date | None = None,
     date_end: date | None = None,
+    closing_within_days: int | None = None,
     page: int = 1,
     page_size: int = 15,
 ) -> Page[FeedbackListItem]:
@@ -513,6 +528,7 @@ async def list_feedback(
         q=q_term,
         date_floor=date_floor,
         date_ceiling=date_ceiling,
+        closing_within_days=closing_within_days,
     )
 
     total_matching = len(items)

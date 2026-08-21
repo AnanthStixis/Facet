@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     # fractional-day value). Takes precedence over refresh_token_ttl_days
     # when set. Leave unset in any real deployment.
     refresh_token_ttl_minutes_override: float | None = None
-    invite_token_ttl_hours: int = 72
+    invite_token_ttl_hours: int = 1
     feedback_link_ttl_days: int = 30
     password_min_length: int = 6
     login_max_attempts: int = 8

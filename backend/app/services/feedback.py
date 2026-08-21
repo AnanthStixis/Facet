@@ -286,7 +286,7 @@ async def create_and_send(
 
         if kind == "employee":
             plan = cycle_service.GenerationPlan(
-                include_self=True,
+                include_self=False,
                 include_manager=True,
                 include_upward=False,
                 include_peers=True,

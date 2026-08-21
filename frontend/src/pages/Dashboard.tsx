@@ -192,7 +192,7 @@ export function Dashboard() {
               tone={data.attention?.closing_soon ? 'caution' : 'neutral'}
               sub="Across your cycles"
               icon={<IconAlert width={17} height={17} />}
-              to="/cycles"
+              to="/cycles?closing_within_days=7"
               state={{ from: 'dashboard' }}
             />
             <StatTile
@@ -301,7 +301,7 @@ export function Dashboard() {
                   value={data.attention.closing_soon ?? 0}
                   tone={data.attention.closing_soon ? 'caution' : 'neutral'}
                   icon={<IconAlert width={16} height={16} />}
-                  to="/cycles"
+                  to="/cycles?closing_within_days=7"
                   state={{ from: 'dashboard' }}
                 />
               </div>

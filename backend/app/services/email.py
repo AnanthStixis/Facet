@@ -83,12 +83,20 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
     Corporate mail clients remain the least capable rendering targets in
     software, so this deliberately avoids flexbox, grid, and web fonts.
     """
-    logo_block = (
+        # No text fallback when there's no uploaded logo image — a bare org
+    # name in bold at the top of every email was the only thing occupying
+    # that row, and removing it should mean the row itself disappears
+    # rather than leaving an empty coloured bar with nothing in it.
+        # The bordered row itself is the visual divider — the accent-coloured
+    # line under it, not the org name that used to sit above it. A real
+    # uploaded logo image still shows here when one exists; when it
+    # doesn't, the row stays (so the divider line is never missing) but
+    # renders empty rather than falling back to bare org-name text.
+    logo_content = (
         f'<img src="{escape(branding.logo_url)}" alt="{escape(branding.org_name)}" '
         f'height="34" style="max-height:34px;border:0;display:block">'
         if branding.logo_url
-        else f'<span style="font:600 17px Helvetica,Arial,sans-serif;color:#12161C">'
-        f"{escape(branding.org_name)}</span>"
+        else "&nbsp;"
     )
     cta_block = ""
     if cta:
@@ -111,10 +119,11 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
  <tr><td align="center">
   <table role="presentation" width="560" cellpadding="0" cellspacing="0"
          style="background:#fff;border:1px solid #DDE1E6;border-radius:10px;padding:30px">
-    <tr><td style="padding-bottom:20px;border-bottom:2px solid {branding.accent_color}">
-        {logo_block}</td></tr>
+            <tr><td style="padding-bottom:20px;border-bottom:2px solid {branding.accent_color}">
+        {logo_content}</td></tr>
     <tr><td style="font:600 20px Helvetica,Arial,sans-serif;color:#12161C;padding:24px 0 8px">
         {escape(heading)}</td></tr>
+        
     <tr><td style="font:400 14px/1.6 Helvetica,Arial,sans-serif;color:#39414D">
         {body_html}</td></tr>
     {cta_block}
@@ -252,7 +261,7 @@ def render_preview(
                 )
             except (KeyError, IndexError):
                 pass
-        heading = "Share Your Feedback"
+        heading = "Please Share Your Feedback"
         body_html = (
             f"{escape(branding.org_name)} values your feedback on "
             f"<b>{escape(subject_label)}</b> and would appreciate a few minutes "
@@ -316,7 +325,7 @@ async def send_feedback_request(
             f"{noun}, <b>{escape(subject_label)}</b>. Your input helps build "
             f"a clear, well-rounded picture of how things are going and "
             f"where there is room to grow.<br><br>"
-            f"This is a personal, single-use link and will expire on "
+            f"This link can be used once and will expire on "
             f"{escape(deadline)}."
         )
         body_text = (
@@ -325,7 +334,7 @@ async def send_feedback_request(
             f"{subject_label}. Your input helps build a clear, well-rounded "
             f"picture of how things are going and where there is room to "
             f"grow.\n\n"
-            f"This is a personal, single-use link and will expire on "
+            f"This link can be used once and will expire on "
             f"{deadline}."
         )
     else:
@@ -335,7 +344,7 @@ async def send_feedback_request(
                 subject = subject_template.format(org_name=org_name, subject_label=subject_label)
             except (KeyError, IndexError):
                 pass
-        heading = "Share Your Feedback"
+        heading = "Please Share Your Feedback"
         body_html = (
             f"Dear {escape(first_name)},<br><br>"
             f"{escape(org_name)} values your feedback on "
@@ -343,7 +352,7 @@ async def send_feedback_request(
             f"of your time to share your experience. Your responses help us "
             f"understand what is working well and where we can "
             f"improve.<br><br>"
-            f"This is a personal, single-use link and will expire on "
+            f"This link can be used once  and will expire on "
             f"{escape(deadline)}."
         )
         body_text = (
@@ -352,7 +361,7 @@ async def send_feedback_request(
             f"appreciate a few minutes of your time to share your experience. "
             f"Your responses help us understand what is working well and "
             f"where we can improve.\n\n"
-            f"This is a personal, single-use link and will expire on "
+            f"This link can be used once and will expire on "
             f"{deadline}."
         )
 
@@ -409,7 +418,7 @@ async def send_assignment_notice(
         "It only takes a couple of minutes — the link below will sign you "
         "in automatically."
         if external
-        else "It only takes a couple of minutes. Sign in to get started."
+        else "This link can be used once."
     )
     closing_text = "It only takes a couple of minutes."
 
@@ -856,8 +865,8 @@ async def send_thank_you(
         heading=f"Thank you, {first_name}",
         body_html=(
             f"Your feedback on <b>{escape(subject_label)}</b> has been received. "
-            f"We appreciate you taking the time to share it with "
-            f"{escape(org_name)}."
+            f"We appreciate you taking the time to share it with us "
+           
         ),
         body_text=(
             f"Your feedback on {subject_label} has been received. We appreciate "

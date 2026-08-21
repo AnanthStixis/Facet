@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -102,7 +102,11 @@ async def _detail(session: DbSession, cycle: ReviewCycle) -> CycleDetail:
 # --- Cycle lifecycle --------------------------------------------------------
 
 @router.get("", response_model=list[CycleDetail])
-async def list_cycles(session: DbSession, actor: ManagerUser) -> list[CycleDetail]:
+async def list_cycles(
+    session: DbSession,
+    actor: ManagerUser,
+    closing_within_days: int | None = None,
+) -> list[CycleDetail]:
     # External rounds are campaigns and live on their own screen. Mixing them
     # in here would show an admin two lists' worth of things with different
     # controls under one heading.
@@ -113,6 +117,17 @@ async def list_cycles(session: DbSession, actor: ManagerUser) -> list[CycleDetai
     # another manager's cycle by guessing its id (see assert_owns below).
     if not actor.user.role.at_least(UserRole.CLIENT_ADMIN):
         stmt = stmt.where(ReviewCycle.created_by_id == actor.id)
+    if closing_within_days is not None:
+        # Same three conditions the Dashboard's own "Closing within 7 days"
+        # tile counts by (see dashboard.py) — kept in lockstep so the number
+        # shown there and what actually shows up after clicking it never
+        # disagree.
+        deadline = datetime.now(UTC) + timedelta(days=closing_within_days)
+        stmt = stmt.where(
+            ReviewCycle.status == CycleStatus.OPEN,
+            ReviewCycle.closes_at.is_not(None),
+            ReviewCycle.closes_at <= deadline,
+        )
     cycles = (
         (await session.execute(stmt.order_by(ReviewCycle.created_at.desc())))
         .scalars()
