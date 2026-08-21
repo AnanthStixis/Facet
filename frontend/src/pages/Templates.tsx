@@ -59,6 +59,7 @@ const QUESTION_TYPES: { value: string; label: string }[] = [
   { value: 'boolean', label: 'Yes / no' },
   { value: 'text', label: 'Free text' },
 ]
+const FIVE_POINT_PLACEHOLDERS = ['Poor', 'Fair', 'Average', 'Good', 'Excellent']
 
 interface QuestionDef {
   key: string
@@ -96,6 +97,12 @@ interface TemplateDetail {
   question_count: number
   latest: { id: string; version: number; status: string; definition: DefinitionDoc } | null
 }
+
+const STATUS_TABS: { value: string; label: string }[] = [
+  { value: '', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'disabled', label: 'Inactive' },
+]
 
 let keyCounter = 0
 const nextKey = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${keyCounter++}`
@@ -296,21 +303,40 @@ function ScaleLabelsEditor({
   onChange: (labels: Record<string, string>) => void
 }) {
   const points = Array.from({ length: scale.max - scale.min + 1 }, (_, i) => scale.min + i)
+
+  // A brand-new template's scale starts with no labels at all, and an
+  // existing one can end up the same way if every box was cleared. Rather
+  // than leave five blank inputs for the author to type by hand, the
+  // standard Poor-through-Excellent set fills in once, as real editable
+  // text — not just placeholder — the moment this editor first sees an
+  // entirely blank set. Only fires when every box is blank, so clearing
+  // one label on purpose later is never silently refilled.
+  useEffect(() => {
+    const allBlank = points.every((point) => !scale.labels[String(point)]?.trim())
+    if (!allBlank) return
+    const next: Record<string, string> = {}
+    points.forEach((point, index) => {
+      if (FIVE_POINT_PLACEHOLDERS[index]) next[String(point)] = FIVE_POINT_PLACEHOLDERS[index]
+    })
+    onChange(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div className="mt-3">
       <span className="mb-1.5 flex items-center text-sm font-medium text-ink-700 dark:text-ink-200">
         Rating scale labels (optional)
-        <InfoTooltip text="Shown under each number on every rating-scale question in this template — e.g. 1 = Poor, 5 = Excellent. Leave any blank to show just the number." />
+        <InfoTooltip text="Shown under each number on every rating-scale question in this template — e.g. 1 = Poor, 5 = Excellent. Pre-filled with a standard set — edit any box or clear it to show just the number." />
       </span>
       <div className="grid grid-cols-5 gap-2">
-        {points.map((point) => (
+        {points.map((point, index) => (
           <label key={point} className="block">
             <span className="mb-1 block text-2xs tabular text-ink-400">{point}</span>
-            <input
+              <input
               className="field text-sm"
               value={scale.labels[String(point)] ?? ''}
               onChange={(event) => onChange({ ...scale.labels, [String(point)]: event.target.value })}
-              placeholder={`e.g. ${point === scale.min ? 'Poor' : point === scale.max ? 'Excellent' : 'Average'}`}
+              placeholder={`e.g. ${FIVE_POINT_PLACEHOLDERS[index] ?? 'Average'}`}
             />
           </label>
         ))}
@@ -903,48 +929,56 @@ export function Templates() {
         <EmptyState icon={<IconLayers width={19} height={19} />} title="No templates yet" body="Create your first template to get started." />
       ) : (
         <Card padded={false}>
-          <div className="flex flex-wrap items-center gap-3 border-b border-ink-200 px-5 py-3 dark:border-ink-800">
-            <div className="max-w-xs flex-1">
-              <SearchBox
-                value={search}
-                onChange={(value) => {
-                  setSearch(value)
-                  setPage(1)
-                }}
-                placeholder="Search templates"
-              />
+          
+          <div className="border-b border-ink-200 px-5 py-3 dark:border-ink-800">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="max-w-xs flex-1">
+                <SearchBox
+                  value={search}
+                  onChange={(value) => {
+                    setSearch(value)
+                    setPage(1)
+                  }}
+                  placeholder="Search templates"
+                />
+              </div>
+              <label className="block">
+                <select
+                  className="field"
+                  value={domainFilter}
+                  onChange={(event) => {
+                    setDomainFilter(event.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="">All categories</option>
+                  {domains.map((domain) => (
+                    <option key={domain} value={domain}>
+                      {DOMAIN_LABEL[domain] ?? domain}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-            <label className="block">
-              <select
-                className="field"
-                value={domainFilter}
-                onChange={(event) => {
-                  setDomainFilter(event.target.value)
-                  setPage(1)
-                }}
-              >
-                <option value="">All categories</option>
-                {domains.map((domain) => (
-                  <option key={domain} value={domain}>
-                    {DOMAIN_LABEL[domain] ?? domain}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <select
-                className="field"
-                value={statusFilter}
-                onChange={(event) => {
-                  setStatusFilter(event.target.value)
-                  setPage(1)
-                }}
-              >
-                <option value="">Any status</option>
-                <option value="active">Active</option>
-                <option value="disabled">Disabled</option>
-              </select>
-            </label>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {STATUS_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(tab.value)
+                    setPage(1)
+                  }}
+                  className={
+                    statusFilter === tab.value
+                      ? 'rounded-md accent-soft-bg px-3.5 py-1.5 text-sm font-medium accent-text'
+                      : 'rounded-md px-3.5 py-1.5 text-sm text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800'
+                  }
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="max-h-[42rem] overflow-y-auto overflow-x-auto">
             {pageItems.length === 0 ? (

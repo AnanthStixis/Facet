@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import smtplib
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -61,6 +62,12 @@ def _person_review_noun(target_type: str | TargetType | None) -> str | None:
         return None
     return _PERSON_REVIEW_NOUNS[resolved]
 
+def _hours_label(hours: int) -> str:
+    """'1 hour' when the invite TTL is exactly one hour, '72 hours'
+    otherwise — every invitation-family email quotes this duration, and a
+    literal ' hours' suffix reads as a grammar bug the moment the setting
+    is ever configured to 1 (as it currently is for local testing)."""
+    return f"{hours} hour" if hours == 1 else f"{hours} hours"
 
 @dataclass(slots=True)
 class Branding:
@@ -114,7 +121,7 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
     <tr><td style="padding-top:26px;border-top:1px solid #DDE1E6;
         font:400 11px/1.5 Helvetica,Arial,sans-serif;color:#8A93A0">
         {footer}{'<br>' if footer else ''}
-        Sent by {escape(branding.org_name)} via {escape(settings.product_name)}.
+        Powered by Stixis AI Solutions © Copyright 2026-2027
     </td></tr>
   </table>
  </td></tr>
@@ -164,18 +171,44 @@ async def send(
         return True
 
     if backend == "smtp":
+        # A single email in a round going out over its own fresh SMTP
+        # connection means one transient hiccup — a timeout, a dropped
+        # connection, a momentary rejection — permanently fails that one
+        # recipient even though a second attempt a moment later would very
+        # likely succeed. A short, bounded retry catches exactly that case
+        # without meaningfully slowing down a genuinely broken send (a bad
+        # address, bad auth) — it just fails a few seconds later instead of
+        # immediately.
+        max_attempts = 3
+        retry_delay_seconds = 1.5
+
         def _send_sync() -> bool:
-            try:
-                with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as client:
-                    if settings.smtp_tls:
-                        client.starttls()
-                    if settings.smtp_user:
-                        client.login(settings.smtp_user, settings.smtp_password)
-                    client.send_message(message)
-                return True
-            except Exception as exc:  # noqa: BLE001
-                log.error("email_send_failed", to=to, error=str(exc))
-                return False
+            last_error: Exception | None = None
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as client:
+                        if settings.smtp_tls:
+                            client.starttls()
+                        if settings.smtp_user:
+                            client.login(settings.smtp_user, settings.smtp_password)
+                        client.send_message(message)
+                    return True
+                except Exception as exc:  # noqa: BLE001
+                    last_error = exc
+                    if attempt < max_attempts:
+                        delay = retry_delay_seconds * attempt
+                        log.warning(
+                            "email_send_retry",
+                            to=to,
+                            attempt=attempt,
+                            error=str(exc),
+                            retry_in_seconds=delay,
+                        )
+                        time.sleep(delay)
+            log.error(
+                "email_send_failed", to=to, error=str(last_error), attempts=max_attempts
+            )
+            return False
 
         return await asyncio.to_thread(_send_sync)
 
@@ -203,10 +236,10 @@ def render_preview(
         body_html = (
             f"Welcome to {escape(branding.org_name)}! We're excited to have you "
             f"on board.<br><br>"
-            f"You have been given access to <b>{escape(branding.org_name)}</b> on "
-            f"{escape(settings.product_name)} as an Admin. Set a password to "
+            f"You have been given access to <b>{escape(branding.org_name)}</b> as "
+            f"an Admin. Set a password to "
             f"activate your account. This link can be used once and expires in "
-            f"{settings.invite_token_ttl_hours} hours."
+            f"{_hours_label(settings.invite_token_ttl_hours)}."
         )
         cta = ("Set your password", "https://example.com/accept-invite?token=sample")
     else:
@@ -588,8 +621,8 @@ async def send_org_suspended(
         heading=f"Dear {first_name}",
         body_html=(
             f"We would like to inform you that access to "
-            f"{escape(settings.product_name)} for <b>{escape(org_name)}</b> has "
-            f"been temporarily suspended.<br><br>"
+            f"{settings.product_name} for {org_name} has been temporarily "
+            f"suspended.\n\n"
             f"Reason: {escape(suspension_reason)}<br><br>"
             f"As part of this action, all active sessions associated with "
             f"your organization have been signed out. Access will remain "
@@ -628,15 +661,14 @@ async def send_organization_reactivated(
         subject=f"Your {org_name} Account Has Been Reactivated",
         heading=f"Dear {first_name}",
         body_html=(
-            f"We would like to inform you that access to "
-            f"{escape(settings.product_name)} for <b>{escape(org_name)}</b> has "
-            f"been reactivated.<br><br>"
+            f"We would like to inform you that access "
+            f"for {org_name} has been reactivated.\n\n"
             f"You and your team can now sign in and continue using the "
             f"platform."
         ),
         body_text=(
-            f"We would like to inform you that access to "
-            f"{settings.product_name} for {org_name} has been reactivated.\n\n"
+            f"We would like to inform you that access "
+            f"for {org_name} has been reactivated.\n\n"
             f"You and your team can now sign in and continue using the "
             f"platform."
         ),
@@ -678,7 +710,7 @@ async def send_invitation(
     first_name = full_name.split()[0] if full_name.strip() else "there"
 
     if kind == "approval":
-        subject = f"Your Organization Has Been Approved — Welcome to {settings.product_name}"
+        subject = "Your Organization Has Been Approved"
         if subject_template:
             try:
                 subject = subject_template.format(org_name=org_name)
@@ -690,18 +722,18 @@ async def send_invitation(
             heading=f"Dear {first_name}",
             body_html=(
                 f"We are pleased to inform you that your request to register "
-                f"<b>{escape(org_name)}</b> on {escape(settings.product_name)} "
+                f"<b>{escape(org_name)}</b> "
                 f"has been approved. You may now activate your admin account "
                 f"using the link below.<br><br>"
                 f"This link is valid for a single use and will expire in "
-                f"{settings.invite_token_ttl_hours} hours."
+                f"{_hours_label(settings.invite_token_ttl_hours)}."
             ),
             body_text=(
                 f"We are pleased to inform you that your request to register "
-                f"{org_name} on {settings.product_name} has been approved. You "
+                f"{org_name} has been approved. You "
                 f"may now activate your admin account using the link below.\n\n"
                 f"This link is valid for a single use and will expire in "
-                f"{settings.invite_token_ttl_hours} hours."
+                f"{_hours_label(settings.invite_token_ttl_hours)}."
             ),
             branding=branding,
             cta=("Activate Your Account", invite_url),
@@ -724,21 +756,19 @@ async def send_invitation(
             subject=subject,
             heading=f"Dear {first_name}",
             body_html=(
-                f"You have been added to <b>{escape(org_name)}</b> on "
-                f"{escape(settings.product_name)} as {article} "
+                f"You have been added to <b>{escape(org_name)}</b> as {article} "
                 f"{escape(display_role)}.<br><br>"
                 f"Set a password to activate your account and get "
                 f"started.<br><br>"
                 f"This link can be used once and expires in "
-                f"{settings.invite_token_ttl_hours} hours."
+                f"{_hours_label(settings.invite_token_ttl_hours)}."
             ),
             body_text=(
-                f"You have been added to {org_name} on "
-                f"{settings.product_name} as {article} {display_role}.\n\n"
+                f"You have been added to {org_name} as {article} {display_role}.\n\n"
                 f"Set a password to activate your account and get "
                 f"started.\n\n"
                 f"This link can be used once and expires in "
-                f"{settings.invite_token_ttl_hours} hours."
+                f"{_hours_label(settings.invite_token_ttl_hours)}."
             ),
             branding=branding,
             cta=("Set Your Password", invite_url),
@@ -762,17 +792,17 @@ async def send_invitation(
         body_html=(
             f"Welcome to {escape(org_name)}! We're excited to have you on "
             f"board.<br><br>"
-            f"You have been given access to <b>{escape(org_name)}</b> on "
-            f"{escape(settings.product_name)} as an Admin. Set a password to "
+            f"You have been given access to <b>{escape(org_name)}</b> as "
+            f"an Admin. Set a password to "
             f"activate your account. This link can be used once and expires "
-            f"in {settings.invite_token_ttl_hours} hours."
+            f"in {_hours_label(settings.invite_token_ttl_hours)}."
         ),
         body_text=(
             f"Welcome to {org_name}! We're excited to have you on board.\n\n"
-            f"You have been given access to {org_name} on "
-            f"{settings.product_name} as an Admin. Set a password to activate "
+            f"You have been given access to {org_name} as "
+            f"an Admin. Set a password to activate "
             f"your account. This link is single use and expires in "
-            f"{settings.invite_token_ttl_hours} hours."
+            f"{_hours_label(settings.invite_token_ttl_hours)}."
         ),
         branding=branding,
         cta=("Set your password", invite_url),
@@ -802,8 +832,8 @@ async def send_password_reset(
         ),
         body_text=(
             f"An administrator at {org_name} requested a password reset for your "
-            f"account. This link is single use and expires in "
-            f"{expires_in_hours} hours. If you did not expect this, you can "
+            f"account. This link can only be used once and will expire in "
+            f"{_hours_label(expires_in_hours)}. If you did not expect this, you can "
             f"ignore it."
         ),
         branding=branding,

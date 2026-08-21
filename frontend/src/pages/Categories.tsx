@@ -67,6 +67,18 @@ function CategoryModal({
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  const validateField = (field: 'name' | 'description', value: string) => {
+    setFieldErrors((current) => {
+      const next = { ...current }
+      if (!value.trim()) {
+        next[field] = field === 'name' ? 'Name is required.' : 'Description is required.'
+      } else {
+        delete next[field]
+      }
+      return next
+    })
+  }
+
   const toggleType = (type: string) => {
     setAppliesTo((current) =>
       current.includes(type) ? current.filter((t) => t !== type) : [...current, type],
@@ -132,10 +144,14 @@ function CategoryModal({
           </Banner>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field
+                    <Field
             label="Name"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => {
+              setName(event.target.value)
+              if (fieldErrors.name) validateField('name', event.target.value)
+            }}
+            onBlur={(event) => validateField('name', event.target.value)}
             error={fieldErrors.name}
             required
             autoFocus
@@ -143,7 +159,11 @@ function CategoryModal({
           <Field
             label="Description"
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={(event) => {
+              setDescription(event.target.value)
+              if (fieldErrors.description) validateField('description', event.target.value)
+            }}
+            onBlur={(event) => validateField('description', event.target.value)}
             error={fieldErrors.description}
             required
             className="sm:col-span-2"

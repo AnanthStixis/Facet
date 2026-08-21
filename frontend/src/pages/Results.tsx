@@ -821,7 +821,7 @@ export function Results() {
           </label>
 
           {datePreset === 'custom' && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 lg:col-span-2">
               <Field
                 label="From"
                 type="date"

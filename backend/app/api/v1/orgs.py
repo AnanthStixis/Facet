@@ -470,7 +470,7 @@ async def approve_organization(
     ).scalar_one_or_none()
     if org is None:
         raise NotFound("That organization does not exist.")
-    if org.status != OrgStatus.PENDING:
+    if org.status not in {OrgStatus.PENDING, OrgStatus.REJECTED}:
         raise Conflict(f"This organization is already {org.status}.")
 
     org.status = OrgStatus.ACTIVE

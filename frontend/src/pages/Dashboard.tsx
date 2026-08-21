@@ -289,7 +289,7 @@ export function Dashboard() {
                   state={{ from: 'dashboard' }}
                 />
                 <StatTile
-                  label="Open campaigns"
+                  label=" Open Client-Facing Review Cycles"
                   value={data.attention.open_campaigns ?? 0}
                   tone={data.attention.open_campaigns ? 'accent' : 'neutral'}
                   icon={<IconSend width={16} height={16} />}

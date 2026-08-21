@@ -872,7 +872,7 @@ export function Organizations() {
 
                   {/* Inline confirm and cancel rather than a modal. */}
                   <div className="flex shrink-0 flex-wrap items-center gap-3">
-                    {org.status === 'pending' && (
+                                        {(org.status === 'pending' || org.status === 'rejected') && (
                       <>
                         <button
                           type="button"
@@ -881,13 +881,15 @@ export function Organizations() {
                         >
                           Approve
                         </button>
-                        <button
-                          type="button"
-                          className="btn-secondary px-3 py-1.5 text-sm"
-                          onClick={() => setPending({ id: org.id, action: 'reject' })}
-                        >
-                          Reject
-                        </button>
+                        {org.status === 'pending' && (
+                          <button
+                            type="button"
+                            className="btn-secondary px-3 py-1.5 text-sm"
+                            onClick={() => setPending({ id: org.id, action: 'reject' })}
+                          >
+                            Reject
+                          </button>
+                        )}
                       </>
                     )}
                     {(org.status === 'active' || org.status === 'suspended') && (
