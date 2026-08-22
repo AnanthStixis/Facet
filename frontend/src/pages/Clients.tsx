@@ -107,14 +107,18 @@ function ContactModal({
             required
           />
           <Field
-            label="Company (optional)"
+            label={isEdit ? 'Company (optional)' : 'Company'}
             value={company}
             onChange={(event) => setCompany(event.target.value)}
+            error={fieldErrors.company}
+            required={!isEdit}
           />
           <Field
-            label="Job title (optional)"
+            label={isEdit ? 'Job title (optional)' : 'Job title'}
             value={jobTitle}
             onChange={(event) => setJobTitle(event.target.value)}
+            error={fieldErrors.job_title}
+            required={!isEdit}
           />
           <Field
             label="Phone (optional)"

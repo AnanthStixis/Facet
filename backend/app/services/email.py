@@ -180,14 +180,6 @@ async def send(
         return True
 
     if backend == "smtp":
-        # A single email in a round going out over its own fresh SMTP
-        # connection means one transient hiccup — a timeout, a dropped
-        # connection, a momentary rejection — permanently fails that one
-        # recipient even though a second attempt a moment later would very
-        # likely succeed. A short, bounded retry catches exactly that case
-        # without meaningfully slowing down a genuinely broken send (a bad
-        # address, bad auth) — it just fails a few seconds later instead of
-        # immediately.
         max_attempts = 3
         retry_delay_seconds = 1.5
 
@@ -734,14 +726,14 @@ async def send_invitation(
                 f"<b>{escape(org_name)}</b> "
                 f"has been approved. You may now activate your admin account "
                 f"using the link below.<br><br>"
-                f"This link is valid for a single use and will expire in "
+                f"This link will expire in "
                 f"{_hours_label(settings.invite_token_ttl_hours)}."
             ),
             body_text=(
                 f"We are pleased to inform you that your request to register "
                 f"{org_name} has been approved. You "
                 f"may now activate your admin account using the link below.\n\n"
-                f"This link is valid for a single use and will expire in "
+                f"This link will expire in "
                 f"{_hours_label(settings.invite_token_ttl_hours)}."
             ),
             branding=branding,
@@ -785,30 +777,27 @@ async def send_invitation(
 
     # Default: "invitation" — Client Admin account, recipient did not
     # initiate the request.
-    subject = f"You have been invited to {org_name}"
+    subject = "You have been invited"
     if subject_template:
         try:
             subject = subject_template.format(org_name=org_name)
         except (KeyError, IndexError):
-            # An unsubstitutable placeholder (a typo, or a `{` the customer
-            # did not mean as one) should never break the send — fall back
-            # to the default rather than raising mid-invite.
             pass
     return await send(
         to=to,
         subject=subject,
-        heading=f"Dear, {first_name}",
+        heading=f"Welcome, {first_name}!",
         body_html=(
-            f"Welcome to {escape(org_name)}! We're excited to have you on "
+            f"We're excited to have you on "
             f"board.<br><br>"
-            f"You have been given access to <b>{escape(org_name)}</b> as "
+            f"You have been given access as "
             f"an Admin. Set a password to "
             f"activate your account. This link can be used once and expires "
             f"in {_hours_label(settings.invite_token_ttl_hours)}."
         ),
         body_text=(
-            f"Welcome to {org_name}! We're excited to have you on board.\n\n"
-            f"You have been given access to {org_name} as "
+            f"We're excited to have you on board.\n\n"
+            f"You have been given access as "
             f"an Admin. Set a password to activate "
             f"your account. This link is single use and expires in "
             f"{_hours_label(settings.invite_token_ttl_hours)}."

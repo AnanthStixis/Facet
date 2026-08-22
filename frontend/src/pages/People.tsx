@@ -132,13 +132,6 @@ function FeedbackHistoryModal({
 }
 
 
-/** "Manager" column cell — a compact count badge, same visual pattern as
- * the Feedback column's pill in this same table (accent when non-zero,
- * muted grey at zero), rather than the names themselves inline. Names in
- * the cell made every row's width depend on how many managers that one
- * person happened to have, which is exactly what made the column
- * inconsistent and overly wide; a fixed-width badge doesn't. Clicking opens
- * a small popup with the full list. */
 /** "Manager" column cell — plain comma-joined names up to 3; beyond that,
  * the first 3 plus a "+N more" trigger opens a small, numbered popup
  * listing every manager (smaller than the app's default modal width, since
@@ -174,7 +167,7 @@ function ManagerCell({ managers }: { managers: LookupItem[] }) {
         </button>
       </span>
       {open && (
-        <Modal title="Managers" onClose={() => setOpen(false)} className="max-w-[26rem]" centered>
+        <Modal title="Managers" onClose={() => setOpen(false)} className="max-w-[26rem]">
           <ol className="space-y-1.5">
             {managers.map((manager, index) => (
               <li key={manager.id} className="flex gap-2 text-sm text-ink-800 dark:text-ink-100">
@@ -513,9 +506,15 @@ const ROLES: { value: Role; label: string; hint: string }[] = [
 const ROLE_TABS = [{ value: '', label: 'All' }, ...ROLES.map(({ value, label }) => ({ value, label }))]
 
 
-function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void }) {
-  const toast = useToast()
-  const [open, setOpen] = useState(false)
+function InvitePanel({
+  open,
+  onOpenChange,
+  onInvited,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onInvited: (result: InviteResult) => void
+}) {
   const [form, setForm] = useState({
     full_name: '',
     email: '',
@@ -527,19 +526,17 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
   })
   const [busy, setBusy] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [error, setError] = useState<string | null>(null)
 
   if (!open) {
-    return (
-      <button type="button" className="btn-primary px-3 py-1.5" onClick={() => setOpen(true)}>
-        Create
-      </button>
-    )
+    return null
   }
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
     setFieldErrors({})
+    setError(null)
     try {
       const isOrgChartRole = form.role === 'employee' || form.role === 'manager'
       const result = await api.post<InviteResult>('/users', {
@@ -550,7 +547,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
         phone: form.phone || null,
       })
       onInvited(result)
-      setOpen(false)
+      onOpenChange(false)
       setForm({
         full_name: '',
         email: '',
@@ -562,10 +559,10 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
       })
     } catch (caught) {
       if (caught instanceof ApiError) {
-        toast.show('critical', 'Invitation failed', caught.message)
+        setError(caught.message)
         setFieldErrors(caught.fieldErrors())
       } else {
-        toast.show('critical', 'Invitation failed', 'The invitation could not be sent.')
+        setError('The invitation could not be sent.')
       }
     } finally {
       setBusy(false)
@@ -634,6 +631,7 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
             <div>
               <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
                 Manager(s)
+                {form.role === 'employee' && <span className="ml-1 text-critical">*</span>}
               </span>
               <LookupFilter
                 entity="users"
@@ -649,18 +647,27 @@ function InvitePanel({ onInvited }: { onInvited: (result: InviteResult) => void 
         </div>
 
         <div className="mt-4 flex gap-2">
-          <button type="submit" className="btn-primary px-3 py-1.5" disabled={busy}>
+          <button
+            type="submit"
+            className="btn-primary px-3 py-1.5"
+            disabled={busy || (form.role === 'employee' && form.manager_ids.length === 0)}
+          >
             {busy && <Spinner />}
             Submit
           </button>
           <button
             type="button"
             className="btn-secondary px-3 py-1.5"
-            onClick={() => setOpen(false)}
+            onClick={() => onOpenChange(false)}
           >
             Cancel
           </button>
         </div>
+        {error && (
+          <Banner tone="error" className="mt-3" onDismiss={() => setError(null)}>
+            {error}
+          </Banner>
+        )}
       </form>
     </Card>
   )
@@ -808,6 +815,7 @@ function EditUserForm({
               <div>
                 <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
                   Manager(s)
+                  {form.role === 'employee' && <span className="ml-1 text-critical">*</span>}
                 </span>
                 <LookupFilter
                   entity="users"
@@ -822,7 +830,11 @@ function EditUserForm({
             )}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>
+            <button
+              type="submit"
+              className="btn-primary px-3 py-1.5 text-sm"
+              disabled={busy || (form.role === 'employee' && form.manager_ids.length === 0)}
+            >
               {busy && <Spinner />}
               Save changes
             </button>
@@ -869,9 +881,16 @@ function countCsvRows(text: string): number {
     .filter((line) => line.trim().length > 0).length
 }
 
-function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
+function BulkInvitePanel({
+  open,
+  onOpenChange,
+  onDone,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onDone: (result: BulkResult) => void
+}) {
   const toast = useToast()
-  const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState<{ file: File; rowCount: number } | null>(null)
 
@@ -880,7 +899,7 @@ function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
     try {
       const result = await uploadFile<BulkResult>('/users/bulk', file)
       onDone(result)
-      setOpen(false)
+      onOpenChange(false)
       setPending(null)
     } catch (caught) {
       toast.show(
@@ -895,15 +914,7 @@ function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
   }
 
   if (!open) {
-    return (
-      <button
-        type="button"
-        className="btn-secondary accent-soft-bg accent-text px-3 py-1.5"
-        onClick={() => setOpen(true)}
-      >
-        Bulk invite
-      </button>
-    )
+    return null
   }
 
   return (
@@ -980,7 +991,7 @@ function BulkInvitePanel({ onDone }: { onDone: (result: BulkResult) => void }) {
           <button
             type="button"
             className="btn-ghost px-3 py-1.5 text-sm"
-            onClick={() => setOpen(false)}
+            onClick={() => onOpenChange(false)}
           >
             Cancel
           </button>
@@ -1014,6 +1025,8 @@ export function People() {
   const [showSendPanel, setShowSendPanel] = useState(false)
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -1079,45 +1092,80 @@ export function People() {
         actions={
           canCreateUsers && (
             <span className="flex flex-wrap items-start gap-2">
-              <InvitePanel
-                onInvited={(result) => {
-                  toast.show(
-                    'success',
-                    'Invitation sent',
-                    result.email_sent
-                      ? `Invitation sent to ${result.user.email}.`
-                      : `${result.user.email} was created, but the invitation email could not be sent.`,
-                  )
-                  load()
-                }}
-              />
-              <BulkInvitePanel
-                onDone={(result) => {
-                  const duplicates = result.skipped.filter(
-                    (row) => row.reason === 'Already exists' || row.reason === 'Duplicate in this file',
-                  )
-                  const otherSkipped = result.skipped.filter((row) => !duplicates.includes(row))
-                  let message = `${result.invited} of ${result.total_rows} invited.`
-                  if (duplicates.length) {
-                    message += ` ${duplicates.length} duplicate email${duplicates.length === 1 ? '' : 's'} skipped: ${duplicates
-                      .map((row) => row.email)
-                      .filter(Boolean)
-                      .join(', ')}.`
-                  }
-                  if (otherSkipped.length) {
-                    message += ` ${otherSkipped.length} other row${otherSkipped.length === 1 ? '' : 's'} skipped: ${otherSkipped
-                      .slice(0, 5)
-                      .map((row) => `row ${row.row} (${row.reason})`)
-                      .join(', ')}${otherSkipped.length > 5 ? ', ...' : ''}`
-                  }
-                  toast.show('success', 'Bulk invite complete', message)
-                  load()
-                }}
-              />
+              {!inviteOpen && (
+                <button
+                  type="button"
+                  className="btn-primary px-3 py-1.5"
+                  onClick={() => setInviteOpen(true)}
+                >
+                  Create
+                </button>
+              )}
+              {!bulkOpen && (
+                <button
+                  type="button"
+                  className="btn-secondary accent-soft-bg accent-text px-3 py-1.5"
+                  onClick={() => setBulkOpen(true)}
+                >
+                  Bulk invite
+                </button>
+              )}
             </span>
           )
         }
       />
+
+      {/* Deliberately rendered here, in normal page flow, rather than as
+          PageHeader's `actions` — that slot shares one flex row with the
+          page title, and this expanded form's own width/height changes
+          with which role is selected (Admin has one fewer field row than
+          Employee/Manager), which was destabilizing that row's wrap
+          behaviour every time the role changed. Only the small trigger
+          buttons above live in the header now; the full form lives down
+          here, where its size can't affect the title at all. */}
+      {canCreateUsers && (
+        <>
+          <InvitePanel
+            open={inviteOpen}
+            onOpenChange={setInviteOpen}
+            onInvited={(result) => {
+              toast.show(
+                'success',
+                'Invitation sent',
+                result.email_sent
+                  ? `Invitation sent to ${result.user.email}.`
+                  : `${result.user.email} was created, but the invitation email could not be sent.`,
+              )
+              load()
+            }}
+          />
+          <BulkInvitePanel
+            open={bulkOpen}
+            onOpenChange={setBulkOpen}
+            onDone={(result) => {
+              const duplicates = result.skipped.filter(
+                (row) => row.reason === 'Already exists' || row.reason === 'Duplicate in this file',
+              )
+              const otherSkipped = result.skipped.filter((row) => !duplicates.includes(row))
+              let message = `${result.invited} of ${result.total_rows} invited.`
+              if (duplicates.length) {
+                message += ` ${duplicates.length} duplicate email${duplicates.length === 1 ? '' : 's'} skipped: ${duplicates
+                  .map((row) => row.email)
+                  .filter(Boolean)
+                  .join(', ')}.`
+              }
+              if (otherSkipped.length) {
+                message += ` ${otherSkipped.length} other row${otherSkipped.length === 1 ? '' : 's'} skipped: ${otherSkipped
+                  .slice(0, 5)
+                  .map((row) => `row ${row.row} (${row.reason})`)
+                  .join(', ')}${otherSkipped.length > 5 ? ', ...' : ''}`
+              }
+              toast.show('success', 'Bulk invite complete', message)
+              load()
+            }}
+          />
+        </>
+      )}
 
       {orgId && (
         <div className="mb-4 flex items-center gap-2 text-sm text-ink-600 dark:text-ink-300">
@@ -1268,7 +1316,7 @@ export function People() {
                   <th>Manager</th>
                   {isPlatform && <th>Organization</th>}
                   <th>Department</th>
-                  <th>Phone Number</th>
+                  <th>Phone</th>
                   <th>Status</th>
                   <th>Feedback</th>
                   {canManage && <th className="text-right">Actions</th>}
@@ -1303,7 +1351,6 @@ export function People() {
                       </span>
                       <span className="block text-2xs text-ink-400">
                         {person.email}
-                        
                       </span>
                     </td>
                     <td>
@@ -1387,7 +1434,7 @@ export function People() {
                             title="Edit"
                             onClick={() => setEditingId(editingId === person.id ? null : person.id)}
                           >
-                                                        <IconEdit width={15} height={15} />
+                            <IconEdit width={15} height={15} />
                           </button>
                           {person.id !== user?.id && (
                             <button

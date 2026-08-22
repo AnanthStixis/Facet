@@ -9,7 +9,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.models.enums import UserRole
-from app.schemas.common import LookupItem, ORMModel
+from app.schemas.common import ORMModel
 
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$")
 _HEX_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
@@ -188,7 +188,6 @@ class UserDetail(ORMModel):
     role: str
     status: str
     manager_ids: list[uuid.UUID] = Field(default_factory=list)
-    managers: list[LookupItem] = Field(default_factory=list)
     last_login_at: datetime | None
     created_at: datetime
     feedback_count: int = 0

@@ -49,7 +49,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     targetType: 'employee',
     audience: 'internal',
     blurb: 'A 360 round about one employee — self, manager, and peers all weigh in.',
-    revieweeLabel: 'Who is this about',
+    revieweeLabel: 'Reviewee',
   },
   {
     kind: 'management',
@@ -58,7 +58,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     targetType: 'manager',
     audience: 'internal',
     blurb: 'Upward feedback on a manager, gathered from their direct reports.',
-    revieweeLabel: 'Which managers',
+    revieweeLabel: 'Manager',
   },
   {
     kind: 'product',
@@ -516,7 +516,7 @@ function DepartmentSelect({ value, onChange }: { value: string; onChange: (name:
           </option>
         ))}
       </select>
-      
+      <span className="mt-1.5 block text-xs text-ink-400">Narrows the person picker below to this department.</span>
     </div>
   )
 }
@@ -558,7 +558,7 @@ function ClientOrganizationSelect({
       <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
         Client Organisation
       </span>
-      <div className="relative" ref={triggerRef}>
+      <div className="relative max-w-xs" ref={triggerRef}>
         <button
           ref={buttonRef}
           type="button"
@@ -692,7 +692,7 @@ function MasterSelectPicker({
   return (
     <div>
       <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">{label}</span>
-      <div className="relative flex items-center gap-2" ref={triggerRef}>
+      <div className="relative flex max-w-xs items-center gap-2" ref={triggerRef}>
         <button
           ref={buttonRef}
           type="button"
@@ -701,7 +701,7 @@ function MasterSelectPicker({
             setOpen((state) => !state)
           }}
           className={clsx(
-            'field flex flex-1 items-center justify-between text-left',
+            'field flex min-w-0 flex-1 items-center justify-between text-left',
             value && 'accent-border accent-text',
           )}
         >
@@ -800,7 +800,7 @@ function AudienceSelect({
   const current = AUDIENCE_OPTIONS.find((option) => option.value === value)
 
   return (
-    <div className="relative" ref={triggerRef}>
+    <div className="relative max-w-xs" ref={triggerRef}>
       <button
         ref={buttonRef}
         type="button"
@@ -1295,7 +1295,7 @@ export function CreateFeedback() {
     if (closesAtInvalid) return false
     if (kind === 'employee') return revieweeUsers.length > 0
     if (kind === 'management') return managerUsers.length > 0
-    if (kind === 'client') return (aboutUsers.length > 0 || targetLabel.trim()) && contactIds.length > 0
+    if (kind === 'client') return aboutUsers.length > 0 && contactIds.length > 0
     if (audienceTogglesFor && recipientAudience === 'internal') {
       return Boolean(targetLabel.trim()) && internalRecipients.length > 0
     }
@@ -1427,8 +1427,8 @@ export function CreateFeedback() {
                 )}
               </label>
 
-                            {kind !== 'proposal' && (
-                <div>
+              {kind !== 'proposal' && (
+                <div className="max-w-[260px]">
                   <MasterSelectPicker
                     path="/masters/cycle-names"
                     label="Feedback Cycle Name"
@@ -1441,7 +1441,7 @@ export function CreateFeedback() {
                 </div>
               )}
 
-              <div>
+              <div className="min-w-0 max-w-[180px]">
                 <Field
                   label="Closes on (optional)"
                   type="date"
@@ -1600,10 +1600,10 @@ export function CreateFeedback() {
                 )}
 
                 {audienceTogglesFor && recipientAudience === 'internal' && (
-                <div>
-                  <DepartmentSelect value={department} onChange={setDepartment} />
-                </div>
-              )}
+                  <div className="max-w-xs">
+                    <DepartmentSelect value={department} onChange={setDepartment} />
+                  </div>
+                )}
 
                 {effectiveAudience === 'external' && (
                   <ClientOrganizationSelect
@@ -1618,7 +1618,7 @@ export function CreateFeedback() {
                 {audienceTogglesFor && recipientAudience === 'internal' && (
                   <div>
                     <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                      Recipients
+                      Reviewer
                     </span>
                     <UserPicker
                       selected={internalRecipients}
@@ -1631,7 +1631,7 @@ export function CreateFeedback() {
                 {effectiveAudience === 'external' && (
                   <div>
                     <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                      Recipients
+                      Reviewer
                     </span>
                     <ContactPicker selected={contactIds} onChange={setContactIds} company={clientOrg} />
                   </div>
@@ -1650,7 +1650,7 @@ export function CreateFeedback() {
                 {kind === 'client' && (
                   <div>
                     <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                      About (optional)
+                      Reviewee
                     </span>
                     <UserPicker selected={aboutUsers} onChange={setAboutUsers} department={department} />
                   </div>
