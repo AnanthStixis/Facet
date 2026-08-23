@@ -692,7 +692,7 @@ function MasterSelectPicker({
   return (
     <div>
       <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">{label}</span>
-      <div className="relative flex max-w-xs items-center gap-2" ref={triggerRef}>
+      <div className="relative flex items-center gap-2" ref={triggerRef}>
         <button
           ref={buttonRef}
           type="button"
@@ -1428,20 +1428,18 @@ export function CreateFeedback() {
               </label>
 
               {kind !== 'proposal' && (
-                <div className="max-w-[260px]">
-                  <MasterSelectPicker
-                    path="/masters/cycle-names"
-                    label="Feedback Cycle Name"
-                    value={name}
-                    onChange={(value) => {
-                      setNameTouched(true)
-                      setName(value)
-                    }}
-                  />
-                </div>
+                <MasterSelectPicker
+                  path="/masters/cycle-names"
+                  label="Feedback Cycle Name"
+                  value={name}
+                  onChange={(value) => {
+                    setNameTouched(true)
+                    setName(value)
+                  }}
+                />
               )}
 
-              <div className="min-w-0 max-w-[180px]">
+              <div className="min-w-0">
                 <Field
                   label="Closes on (optional)"
                   type="date"

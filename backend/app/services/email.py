@@ -83,20 +83,17 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
     Corporate mail clients remain the least capable rendering targets in
     software, so this deliberately avoids flexbox, grid, and web fonts.
     """
-        # No text fallback when there's no uploaded logo image — a bare org
-    # name in bold at the top of every email was the only thing occupying
-    # that row, and removing it should mean the row itself disappears
-    # rather than leaving an empty coloured bar with nothing in it.
-        # The bordered row itself is the visual divider — the accent-coloured
-    # line under it, not the org name that used to sit above it. A real
-    # uploaded logo image still shows here when one exists; when it
-    # doesn't, the row stays (so the divider line is never missing) but
-    # renders empty rather than falling back to bare org-name text.
-    logo_content = (
+    logo_block = (
         f'<img src="{escape(branding.logo_url)}" alt="{escape(branding.org_name)}" '
         f'height="34" style="max-height:34px;border:0;display:block">'
         if branding.logo_url
         else "&nbsp;"
+    )
+    heading_block = (
+        f'<tr><td style="font:600 20px Helvetica,Arial,sans-serif;color:#12161C;padding:24px 0 8px">'
+        f'{escape(heading)}</td></tr>'
+        if heading
+        else ""
     )
     cta_block = ""
     if cta:
@@ -119,11 +116,9 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
  <tr><td align="center">
   <table role="presentation" width="560" cellpadding="0" cellspacing="0"
          style="background:#fff;border:1px solid #DDE1E6;border-radius:10px;padding:30px">
-            <tr><td style="padding-bottom:20px;border-bottom:2px solid {branding.accent_color}">
-        {logo_content}</td></tr>
-    <tr><td style="font:600 20px Helvetica,Arial,sans-serif;color:#12161C;padding:24px 0 8px">
-        {escape(heading)}</td></tr>
-        
+    <tr><td style="padding-bottom:20px;border-bottom:2px solid {branding.accent_color}">
+        {logo_block}</td></tr>
+    {heading_block}
     <tr><td style="font:400 14px/1.6 Helvetica,Arial,sans-serif;color:#39414D">
         {body_html}</td></tr>
     {cta_block}
@@ -138,7 +133,7 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
 
 
 def _plain(heading: str, body_text: str, cta: tuple[str, str] | None) -> str:
-    parts = [heading, "", body_text]
+    parts = [heading, "", body_text] if heading else [body_text]
     if cta:
         parts += ["", f"{cta[0]}: {cta[1]}"]
     return "\n".join(parts)
@@ -304,39 +299,39 @@ async def send_feedback_request(
     noun = _person_review_noun(target_type)
 
     if noun is not None:
-        subject = f"Feedback Request: {subject_label}"
+        subject = "Feedback Request"
         if subject_template:
             try:
                 subject = subject_template.format(org_name=org_name, subject_label=subject_label)
             except (KeyError, IndexError):
                 pass
-        heading = f"Share feedback on {subject_label}"
+        heading = f"Share your feedback on {subject_label}"
         body_html = (
             f"Dear {escape(first_name)},<br><br>"
-            f"{escape(org_name)} has asked you to share feedback on your "
+            f"You have been asked to share feedback on your "
             f"{noun}, <b>{escape(subject_label)}</b>. Your input helps build "
             f"a clear, well-rounded picture of how things are going and "
             f"where there is room to grow.<br><br>"
-            f"This link can be used once and will expire on "
+            f"This link will expire on "
             f"{escape(deadline)}."
         )
         body_text = (
             f"Dear {first_name},\n\n"
-            f"{org_name} has asked you to share feedback on your {noun}, "
+            f"You have been asked to share feedback on your {noun}, "
             f"{subject_label}. Your input helps build a clear, well-rounded "
             f"picture of how things are going and where there is room to "
             f"grow.\n\n"
-            f"This link can be used once and will expire on "
+            f"This link will expire on "
             f"{deadline}."
         )
     else:
-        subject = f"Your Feedback on {subject_label}"
+        subject = "Please Share Your Feedback"
         if subject_template:
             try:
                 subject = subject_template.format(org_name=org_name, subject_label=subject_label)
             except (KeyError, IndexError):
                 pass
-        heading = "Please Share Your Feedback"
+        heading = ""
         body_html = (
             f"Dear {escape(first_name)},<br><br>"
             f"{escape(org_name)} values your feedback on "
@@ -344,7 +339,7 @@ async def send_feedback_request(
             f"of your time to share your experience. Your responses help us "
             f"understand what is working well and where we can "
             f"improve.<br><br>"
-            f"This link can be used once  and will expire on "
+            f"This link will expire on "
             f"{escape(deadline)}."
         )
         body_text = (
@@ -353,7 +348,7 @@ async def send_feedback_request(
             f"appreciate a few minutes of your time to share your experience. "
             f"Your responses help us understand what is working well and "
             f"where we can improve.\n\n"
-            f"This link can be used once and will expire on "
+            f"This link will expire on "
             f"{deadline}."
         )
 
@@ -398,26 +393,25 @@ async def send_assignment_notice(
     else:
         opening_html = (
             f"You have been asked to share your feedback on "
-            f"<b>{escape(subject_label)}</b> as part of "
-            f"{escape(cycle_name)}.{escape(when)}"
+            f"<b>{escape(subject_label)}</b>.{escape(when)}"
         )
         opening_text = (
-            f"You have been asked to share your feedback on {subject_label} "
-            f"as part of {cycle_name}.{when}"
+            f"You have been asked to share your feedback on {subject_label}."
+            f"{when}"
         )
 
     closing_html = (
         "It only takes a couple of minutes — the link below will sign you "
         "in automatically."
         if external
-        else "This link can be used once."
+        else "It only takes a couple of minutes."
     )
     closing_text = "It only takes a couple of minutes."
 
     return await send(
         to=to,
-        subject=f"Feedback Request: {subject_label}",
-        heading="Your feedback has been requested",
+        subject="Feedback Request",
+        heading="",
         body_html=(
             f"Dear {escape(first_name)},<br><br>{opening_html}<br><br>{closing_html}"
         ),
@@ -580,7 +574,7 @@ async def send_org_rejected(
         subject=f"Your Registration for {org_name} Was Not Approved",
         heading=f"Dear {first_name}",
         body_html=(
-            f"Thank you for your interest in {escape(settings.product_name)}.<br><br>"
+            f"Thank you for your interest.<br><br>"
             f"We have reviewed your registration request for "
             f"<b>{escape(org_name)}</b> and regret to inform you that we are "
             f"unable to approve it at this time.<br><br>"
@@ -589,7 +583,7 @@ async def send_org_rejected(
             f"best in your future endeavors."
         ),
         body_text=(
-            f"Thank you for your interest in {settings.product_name}.\n\n"
+            f"Thank you for your interest.\n\n"
             f"We have reviewed your registration request for {org_name} and "
             f"regret to inform you that we are unable to approve it at this "
             f"time.\n\n"
@@ -820,16 +814,16 @@ async def send_password_reset(
     return await send(
         to=to,
         subject=f"Reset your {org_name} password",
-        heading=f"{first_name}, reset your password",
+        heading=f"Hi {first_name}, reset your password",
         body_html=(
-            f"An administrator at <b>{escape(org_name)}</b> requested a password "
+            f"An administrator requested a password "
             f"reset for your account. This link can be used once and expires in "
             f"{expires_in_hours} hours. If you did not expect this, you can "
             f"ignore it — your password will not change unless you follow the "
             f"link and set a new one."
         ),
         body_text=(
-            f"An administrator at {org_name} requested a password reset for your "
+            f"An administrator requested a password reset for your "
             f"account. This link can only be used once and will expire in "
             f"{_hours_label(expires_in_hours)}. If you did not expect this, you can "
             f"ignore it."
@@ -854,8 +848,8 @@ async def send_thank_you(
         heading=f"Thank you, {first_name}",
         body_html=(
             f"Your feedback on <b>{escape(subject_label)}</b> has been received. "
-            f"We appreciate you taking the time to share it with us "
-           
+            f"We appreciate you taking the time to share it with "
+            f"{escape(org_name)}."
         ),
         body_text=(
             f"Your feedback on {subject_label} has been received. We appreciate "

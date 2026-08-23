@@ -703,11 +703,7 @@ function EditUserForm({
       const result = await api.post<{ message: string; reset_url: string | null }>(
         `/users/${person.id}/reset-password`,
       )
-      toast.show(
-        'success',
-        'Password reset',
-        result.reset_url ? `${result.message} ${result.reset_url}` : result.message,
-      )
+      toast.show('success', 'Password reset', result.message)
     } catch (caught) {
       toast.show(
         'critical',
@@ -1010,7 +1006,6 @@ export function People() {
   const { user, organization } = useAuth()
   const [params, setParams] = useSearchParams()
   const role = params.get('role') ?? ''
-  const status = params.get('status') ?? ''
   const orgId = params.get('org_id') ?? ''
   const orgName = (location.state as { orgName?: string } | null)?.orgName
   const [search, setSearch] = useState('')
@@ -1033,7 +1028,6 @@ export function People() {
     const query = new URLSearchParams({ page_size: String(PAGE_SIZE), page: String(page) })
     if (search) query.set('search', search)
     if (role) query.set('role', role)
-    if (status) query.set('status', status)
     if (orgId) query.set('org_id', orgId)
     api
       .get<Paged<User>>(`/users?${query}`)
@@ -1047,7 +1041,7 @@ export function People() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [search, role, status, orgId, page])
+  useEffect(load, [search, role, orgId, page])
   useRefetchOnFocus(load)
 
   // Same pattern as patchOrg (Organizations.tsx), patchTemplate (Templates.tsx)
