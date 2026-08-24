@@ -516,7 +516,7 @@ function DepartmentSelect({ value, onChange }: { value: string; onChange: (name:
           </option>
         ))}
       </select>
-      <span className="mt-1.5 block text-xs text-ink-400">Narrows the person picker below to this department.</span>
+      
     </div>
   )
 }
@@ -558,7 +558,7 @@ function ClientOrganizationSelect({
       <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
         Client Organisation
       </span>
-      <div className="relative max-w-xs" ref={triggerRef}>
+      <div className="relative" ref={triggerRef}>
         <button
           ref={buttonRef}
           type="button"
@@ -800,7 +800,7 @@ function AudienceSelect({
   const current = AUDIENCE_OPTIONS.find((option) => option.value === value)
 
   return (
-    <div className="relative max-w-xs" ref={triggerRef}>
+    <div className="relative" ref={triggerRef}>
       <button
         ref={buttonRef}
         type="button"
@@ -1598,11 +1598,8 @@ export function CreateFeedback() {
                 )}
 
                 {audienceTogglesFor && recipientAudience === 'internal' && (
-                  <div className="max-w-xs">
-                    <DepartmentSelect value={department} onChange={setDepartment} />
-                  </div>
+                  <DepartmentSelect value={department} onChange={setDepartment} />
                 )}
-
                 {effectiveAudience === 'external' && (
                   <ClientOrganizationSelect
                     value={clientOrg}

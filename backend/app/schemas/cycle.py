@@ -24,7 +24,7 @@ class CycleCreateRequest(BaseModel):
 
 class AssignmentPlanRequest(BaseModel):
     reviewee_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
-    include_self: bool = True
+    include_self: bool = False
     include_manager: bool = True
     include_upward: bool = True
     include_peers: bool = True
