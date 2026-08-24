@@ -345,6 +345,35 @@ function ScaleLabelsEditor({
   )
 }
 
+/** The closing comment box shown at the very end of a real feedback form —
+ * separate from the section/question list above, since it isn't a scored
+ * question at all, just one optional free-text field. Blank prompt means no
+ * box at all (see forms.py's `if form.comment_prompt:` guard) — this is the
+ * one place that text can actually be seen, set, or cleared; until now
+ * nothing rendered it, so every template silently carried whatever
+ * blankDefinition() happened to set at creation time with no way to change
+ * or remove it. */
+function ClosingCommentField({
+  closing,
+  onChange,
+}: {
+  closing: { comment_prompt: string; comment_required: boolean }
+  onChange: (closing: { comment_prompt: string; comment_required: boolean }) => void
+}) {
+  return (
+    <div className="mt-3">
+      <Field
+        label="Closing comment prompt (optional)"
+        value={closing.comment_prompt}
+        onChange={(event) => onChange({ ...closing, comment_prompt: event.target.value })}
+        hint="Shown as one extra optional text box at the end of the form. Leave blank to skip it entirely — no box will appear."
+      />
+    </div>
+  )
+}
+
+
+
 function QuestionEditor({
   question,
   onChange,
@@ -711,7 +740,12 @@ export function TemplateModal({
               />
             )}
 
-            <SectionsEditor sections={definition.sections} onChange={(sections) => setDefinition({ ...definition, sections })} />
+                        <SectionsEditor sections={definition.sections} onChange={(sections) => setDefinition({ ...definition, sections })} />
+
+            <ClosingCommentField
+              closing={definition.closing}
+              onChange={(closing) => setDefinition({ ...definition, closing })}
+            />
           </>
         )}
 
@@ -796,7 +830,12 @@ function ViewCloneModal({ template, onClose, onCloned }: { template: TemplateMet
           </div>
           <AnonymityField isAnonymous={isAnonymous} onAnonymousChange={setIsAnonymous} />
 
-          <SectionsEditor sections={definition.sections} onChange={(sections) => setDefinition({ ...definition, sections })} />
+                    <SectionsEditor sections={definition.sections} onChange={(sections) => setDefinition({ ...definition, sections })} />
+
+          <ClosingCommentField
+            closing={definition.closing}
+            onChange={(closing) => setDefinition({ ...definition, closing })}
+          />
 
           <div className="mt-5 flex gap-2 border-t border-ink-200 pt-4 dark:border-ink-700">
             <button type="button" className="btn-primary px-3 py-1.5" disabled={busy || !name.trim()} onClick={cloneWithChanges}>

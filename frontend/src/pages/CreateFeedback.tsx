@@ -48,7 +48,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#3B82F6',
     targetType: 'employee',
     audience: 'internal',
-    blurb: 'A 360 round about one employee — self, manager, and peers all weigh in.',
+    blurb: 'A 360 round about one employee — manager and peers all weigh in.',
     revieweeLabel: 'Reviewee',
   },
   {

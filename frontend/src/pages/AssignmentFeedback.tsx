@@ -83,6 +83,67 @@ function ScaleRow({
             )
           })}
         </div>
+            )}
+
+      {question.type === 'text' && (
+        <textarea
+          className="field min-h-24 resize-y"
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
+
+      {question.type === 'boolean' && (
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: 'Yes', val: true },
+            { label: 'No', val: false },
+          ].map((option) => {
+            const active = value === option.val
+            return (
+              <button
+                key={option.label}
+                type="button"
+                onClick={() => onChange(option.val)}
+                aria-pressed={active}
+                className={clsx(
+                  'rounded-lg border px-4 py-2 text-sm font-medium transition-all',
+                  active
+                    ? 'border-transparent text-white shadow-sm'
+                    : 'border-ink-200 text-ink-600 hover:border-ink-400 dark:border-ink-700 dark:text-ink-300',
+                )}
+                style={active ? { background: accent } : undefined}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {question.type === 'choice' && (
+        <div className="flex flex-wrap gap-2">
+          {question.options.map((option) => {
+            const active = value === option
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onChange(option)}
+                aria-pressed={active}
+                className={clsx(
+                  'rounded-lg border px-3.5 py-2 text-sm font-medium transition-all',
+                  active
+                    ? 'border-transparent text-white shadow-sm'
+                    : 'border-ink-200 text-ink-600 hover:border-ink-400 dark:border-ink-700 dark:text-ink-300',
+                )}
+                style={active ? { background: accent } : undefined}
+              >
+                {option}
+              </button>
+            )
+          })}
+        </div>
       )}
     </div>
   )
