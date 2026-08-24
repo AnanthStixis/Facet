@@ -546,13 +546,27 @@ export function Results() {
   // Contact.company list the Client Organisation picker on the
   // create-feedback form already uses, not a Results-specific list. Visible
   // to everyone, unlike the Super-Admin-only "Client" (tenant) filter above.
+    // Scoped to the selected Organisation — leaving it unset shows every
+  // company across every tenant, same as before; picking an Organisation
+  // narrows this down to just that tenant's own client companies.
   const [clientNameOptions, setClientNameOptions] = useState<string[]>([])
   useEffect(() => {
+    const query = new URLSearchParams()
+    if (orgFilter) query.set('org_id', orgFilter)
+    const qs = query.toString()
     api
-      .get<string[]>('/contacts/companies')
+      .get<string[]>(`/contacts/companies${qs ? `?${qs}` : ''}`)
       .then(setClientNameOptions)
       .catch(() => setClientNameOptions([]))
-  }, [])
+  }, [orgFilter])
+
+  // A Client picked under one Organisation may not exist under a
+  // different one — clear it whenever the Organisation changes, rather
+  // than leave a stale selection filtering against a company that no
+  // longer applies.
+  useEffect(() => {
+    setClientNameFilter('')
+  }, [orgFilter])
 
   // Every distinct cycle name the person can filter to, for the "Cycle
   // name" dropdown. Re-fetched whenever Organisation Name changes (and, for
@@ -703,10 +717,11 @@ export function Results() {
               Organisation Name
             </span>
             <OrganisationNameFilter
-              options={clientNameOptions}
-              value={clientNameFilter}
+              options={orgs.map((org) => org.name)}
+              value={orgs.find((org) => org.id === orgFilter)?.name ?? ''}
               onChange={(next) => {
-                setClientNameFilter(next)
+                const match = orgs.find((org) => org.name === next)
+                setOrgFilter(match ? match.id : '')
                 setPage(1)
               }}
             />
@@ -763,16 +778,16 @@ export function Results() {
               </span>
               <select
                 className="field"
-                value={orgFilter}
+                value={clientNameFilter}
                 onChange={(event) => {
-                  setOrgFilter(event.target.value)
+                  setClientNameFilter(event.target.value)
                   setPage(1)
                 }}
               >
                 <option value="">All clients</option>
-                {orgs.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
+                {clientNameOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
                   </option>
                 ))}
               </select>

@@ -609,7 +609,9 @@ async def list_contacts(
 
 
 @contacts_router.get("/companies", response_model=list[str])
-async def list_contact_companies(session: DbSession, actor: ManagerUser) -> list[str]:
+async def list_contact_companies(
+    session: DbSession, actor: ManagerUser, org_id: uuid.UUID | None = None
+) -> list[str]:
     """Distinct `Contact.company` values, for the Client Organisation dropdown.
 
     Deliberately not a master list like Department/Product/Service — there is
@@ -618,14 +620,14 @@ async def list_contact_companies(session: DbSession, actor: ManagerUser) -> list
     something the data already answers. This reads the company names that
     already exist on contacts, so the dropdown always matches what's
     actually filterable — nothing to keep in sync, nothing to migrate.
-    RLS on `contacts` already scopes this to the caller's org.
+    RLS on `contacts` already scopes this to the caller's org, so `org_id`
+    is a real narrowing only for a Super Admin's cross-org session — for
+    anyone else it is a harmless no-op, same as elsewhere in this app.
     """
-    stmt = (
-        select(Contact.company)
-        .where(Contact.company.isnot(None), Contact.company != "")
-        .distinct()
-        .order_by(Contact.company)
-    )
+    stmt = select(Contact.company).where(Contact.company.isnot(None), Contact.company != "")
+    if org_id is not None:
+        stmt = stmt.where(Contact.org_id == org_id)
+    stmt = stmt.distinct().order_by(Contact.company)
     return list((await session.execute(stmt)).scalars().all())
 
 

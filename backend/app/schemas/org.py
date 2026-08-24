@@ -9,7 +9,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.models.enums import UserRole
-from app.schemas.common import ORMModel
+from app.schemas.common import LookupItem, ORMModel
 
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$")
 _HEX_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
@@ -188,6 +188,12 @@ class UserDetail(ORMModel):
     role: str
     status: str
     manager_ids: list[uuid.UUID] = Field(default_factory=list)
+    # Display-ready form of manager_ids above — actual names/job titles for
+    # the People-page table's Manager column, which needs something to show
+    # on screen rather than bare ids. manager_ids stays for what already
+    # consumes it (EditUserForm's manager picker, which only needs ids to
+    # pre-check boxes); this is additive, not a replacement.
+    managers: list[LookupItem] = Field(default_factory=list)
     last_login_at: datetime | None
     created_at: datetime
     feedback_count: int = 0

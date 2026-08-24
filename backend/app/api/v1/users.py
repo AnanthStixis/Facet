@@ -130,9 +130,27 @@ async def list_users(
         )
         feedback_counts = dict(rows.all())
 
-    # Same batching reasoning as feedback_counts — one grouped query for
+        # Same batching reasoning as feedback_counts — one grouped query for
     # every row's managers instead of one query per row.
     manager_ids_by_user = await managers_service.get_manager_ids_map(session, user_ids)
+
+    # The table's Manager column needs actual names to render, not just
+    # ids — manager_ids_by_user above is what EditUserForm's manager
+    # picker pre-checks against, but the table cell reads `managers`
+    # (LookupItem, with a real label) specifically. One batched query for
+    # every manager referenced by anyone on this page, same N+1-avoidance
+    # reasoning as feedback_counts/org_names above, rather than a
+    # per-user query for each row's own managers.
+    all_manager_ids = {mid for ids in manager_ids_by_user.values() for mid in ids}
+    manager_lookup: dict[uuid.UUID, LookupItem] = {}
+    if all_manager_ids:
+        rows = await session.execute(
+            select(User.id, User.full_name, User.job_title).where(User.id.in_(all_manager_ids))
+        )
+        manager_lookup = {
+            row.id: LookupItem(id=row.id, label=row.full_name, sublabel=row.job_title)
+            for row in rows.all()
+        }
 
     items = []
     for user in users:
@@ -140,6 +158,9 @@ async def list_users(
         detail.org_name = org_names.get(user.org_id) if user.org_id else None
         detail.feedback_count = feedback_counts.get(user.id, 0)
         detail.manager_ids = manager_ids_by_user.get(user.id, [])
+        detail.managers = [
+            manager_lookup[mid] for mid in detail.manager_ids if mid in manager_lookup
+        ]
         items.append(detail)
 
     return Page[UserDetail](items=items, total=total, page=page, page_size=page_size)
