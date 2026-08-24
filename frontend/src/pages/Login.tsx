@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FacetMark } from '../components/Logo'
+import { BrandLogo } from '../components/Logo'
 import { IconLock } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -187,12 +187,7 @@ export function Login() {
         />
 
         <div className="relative z-10 flex items-center gap-2.5 px-12 pt-11">
-          <span className="accent-bg flex h-9 w-9 items-center justify-center rounded-lg text-white">
-            <FacetMark size={20} />
-          </span>
-          <span className="text-xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-            Facet
-          </span>
+          <BrandLogo height={32} />
         </div>
 
         <div className="relative z-10 flex flex-1 items-center justify-center px-12">
@@ -228,9 +223,7 @@ export function Login() {
       <div className="flex items-center justify-center bg-white px-6 py-12 dark:bg-ink-950 sm:px-12">
         <div className="w-full max-w-sm animate-fade-up">
           <div className="mb-8 lg:hidden">
-            <span className="accent-text">
-              <FacetMark size={30} />
-            </span>
+            <BrandLogo height={32} />
           </div>
 
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">

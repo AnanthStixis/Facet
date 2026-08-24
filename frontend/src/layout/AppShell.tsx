@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { FacetMark } from '../components/Logo'
+import { BrandLogo } from '../components/Logo'
 import { Chip } from '../components/ui'
 import {
   IconArrowLeft,
@@ -27,8 +27,6 @@ import {
 import { triggerManualRefresh } from '../hooks/useRefetchOnFocus'
 import { ROLE_LABEL } from '../lib/types'
 import { useAuth } from '../store/auth'
-
-const PRODUCT = 'Facet'
 
 // Temporary kill switch — flip back to true to bring the Insights nav item
 // back. The page and its API routes are untouched; this only hides the entry
@@ -249,11 +247,8 @@ export function AppShell() {
         )}
       >
         <div className="flex h-14 items-center gap-2.5 border-b border-ink-200 px-4 dark:border-ink-800">
-          <span className="accent-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white">
-            <FacetMark size={18} />
-          </span>
-          <span className="flex-1 text-base font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-            {PRODUCT}
+          <span className="flex-1">
+            <BrandLogo height={22} />
           </span>
           <button
             type="button"

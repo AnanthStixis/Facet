@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { FacetMark } from '../components/Logo'
+import { BrandLogo } from '../components/Logo'
 import { IconCheck, IconShield } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -20,13 +20,8 @@ function PublicFrame({
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink-50 px-4 py-12 dark:bg-ink-950">
       <div className="w-full max-w-lg animate-fade-up">
-        <Link to="/login" className="mb-7 flex items-center gap-2.5">
-          <span className="accent-text">
-            <FacetMark size={26} />
-          </span>
-          <span className="text-lg font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-            Facet
-          </span>
+        <Link to="/login" className="mb-7 flex items-center">
+          <BrandLogo height={28} />
         </Link>
         <div className="surface p-7">
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">

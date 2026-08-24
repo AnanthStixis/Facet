@@ -1,3 +1,16 @@
+import logoUrl from '../assets/logo_1.png'
+
+export function BrandLogo({ height = 28, className }: { height?: number; className?: string }) {
+  return (
+    <img
+      src={logoUrl}
+      alt="Facet360"
+      style={{ height, width: 'auto' }}
+      className={className}
+    />
+  )
+}
+
 /**
  * The Facet mark: three planes of a cut gem meeting at a point.
  *
