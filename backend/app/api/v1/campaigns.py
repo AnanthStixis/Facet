@@ -638,13 +638,21 @@ async def create_contact(
     if actor.org_id is None:
         raise ValidationFailed("A Super Admin must act within an organization.")
     email = payload.email.lower()
-    if (
+    existing = (
         await session.execute(
-            select(Contact.id).where(
+            select(Contact).where(
                 Contact.org_id == actor.org_id, Contact.email == email
             )
         )
-    ).first() is not None:
+    ).scalar_one_or_none()
+    if existing is not None:
+        if existing.unsubscribed_at is not None:
+            raise Conflict(
+                f"{existing.full_name} is already a client registered "
+                f"with this email, but unsubscribed. Re-subscribe them "
+                f"instead of adding again."
+            )
+        raise Conflict(f"{existing.full_name} is already a client with this email.")
         raise Conflict("That contact already exists.")
 
     contact = Contact(

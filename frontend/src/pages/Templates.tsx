@@ -107,6 +107,38 @@ const STATUS_TABS: { value: string; label: string }[] = [
 let keyCounter = 0
 const nextKey = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${keyCounter++}`
 
+/** Older templates were created before `scale.labels` and `closing`
+ * existed on this schema — their stored definition JSON simply doesn't
+ * have those keys at all, not even as empty ones. Reading `scale.labels[x]`
+ * on a `labels` that is `undefined` throws (not just renders empty), which
+ * is what was silently keeping ScaleLabelsEditor off screen for any
+ * template saved before those fields were added. Every place a fetched
+ * definition is loaded into state routes through here instead of using
+ * the raw response directly, so every consumer (ScaleLabelsEditor,
+ * ClosingCommentField) can assume both are always present. */
+function normalizeDefinition(raw: DefinitionDoc | null | undefined): DefinitionDoc {
+  const base = raw ?? blankDefinition()
+  return {
+    ...base,
+    scale: {
+      min: base.scale?.min ?? 1,
+      max: base.scale?.max ?? 5,
+      labels: base.scale?.labels ?? {},
+    },
+    closing: base.closing ?? { comment_prompt: '', comment_required: false },
+    sections: (base.sections ?? []).map((section) => ({
+      ...section,
+      questions: (section.questions ?? []).map((question) => ({
+        ...question,
+        type: question.type ?? 'scale',
+        required: question.required ?? true,
+        options: question.options ?? [],
+      })),
+    })),
+  }
+}
+
+
 const blankDefinition = (): DefinitionDoc => ({
   intro: '',
   scale: { min: 1, max: 5, labels: {} },
@@ -589,7 +621,7 @@ export function TemplateModal({
         setName(result.name)
         setDescription(result.description ?? '')
         setIsAnonymous(result.is_anonymous)
-        setDefinition(result.latest?.definition ?? blankDefinition())
+        setDefinition(normalizeDefinition(result.latest?.definition))
       })
       .catch((caught) => setError(caught instanceof ApiError ? caught.message : 'Could not load this template.'))
       .finally(() => setLoadingDetail(false))
@@ -785,7 +817,7 @@ function ViewCloneModal({ template, onClose, onCloned }: { template: TemplateMet
         setDetail(result)
         setDescription(result.description ?? '')
         setIsAnonymous(result.is_anonymous)
-        setDefinition(result.latest?.definition ?? blankDefinition())
+        setDefinition(normalizeDefinition(result.latest?.definition))
       })
       .catch((caught) => setError(caught instanceof ApiError ? caught.message : 'Could not load the template.'))
   }, [template.id])

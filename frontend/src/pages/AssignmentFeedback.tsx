@@ -386,7 +386,11 @@ export function AssignmentFeedback() {
               Send feedback
             </button>
           </div>
-        </form>
+                </form>
+
+        <p className="mt-8 text-center text-2xs text-ink-400">
+          Powered by Stixis AI Solutions © Copyright 2026-2027
+        </p>
       </main>
     </div>
   )

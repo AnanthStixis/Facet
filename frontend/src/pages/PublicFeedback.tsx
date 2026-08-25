@@ -51,33 +51,37 @@ function ScaleRow({
         {question.required && <span className="ml-1 text-critical">*</span>}
       </p>
 
-                  {question.type === 'scale' && (
-        <div className="flex flex-wrap gap-3">
+                        {question.type === 'scale' && (
+        <div className="flex flex-wrap gap-2">
           {points.map((point) => {
             const active = value === point
             const label = form.scale.labels[String(point)]
             return (
-              <div key={point} className="flex flex-col items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => onChange(point)}
-                  aria-pressed={active}
-                  className={clsx(
-                    'h-11 min-w-11 rounded-lg border text-base font-medium transition-all',
-                    active
-                      ? 'border-transparent text-white shadow-sm'
-                      : 'border-ink-200 text-ink-600 hover:border-ink-400 dark:border-ink-700 dark:text-ink-300',
-                  )}
-                  style={active ? { background: accent } : undefined}
-                >
-                  {point}
-                </button>
+              <button
+                key={point}
+                type="button"
+                onClick={() => onChange(point)}
+                aria-pressed={active}
+                className={clsx(
+                  'flex min-w-11 flex-col items-center gap-0.5 rounded-lg border px-2.5 py-2 transition-all',
+                  active
+                    ? 'border-transparent text-white shadow-sm'
+                    : 'border-ink-200 text-ink-600 hover:border-ink-400 dark:border-ink-700 dark:text-ink-300',
+                )}
+                style={active ? { background: accent } : undefined}
+              >
+                <span className="text-base font-medium">{point}</span>
                 {label && (
-                  <span className="max-w-16 truncate text-2xs leading-none text-ink-400">
+                  <span
+                    className={clsx(
+                      'max-w-16 truncate text-2xs leading-none',
+                      active ? 'text-white/85' : 'text-ink-400',
+                    )}
+                  >
                     {label}
                   </span>
                 )}
-              </div>
+              </button>
             )
           })}
         </div>
@@ -395,7 +399,7 @@ export function PublicFeedback() {
         </form>
 
         <p className="mt-8 text-center text-2xs text-ink-400">
-          This link is personal to you and can be used once.
+          Powered by Stixis AI Solutions © Copyright 2026-2027
         </p>
       </main>
     </div>
