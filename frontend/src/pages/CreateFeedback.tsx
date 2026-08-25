@@ -1691,7 +1691,8 @@ export function CreateFeedback() {
 
                 {(kind === 'client' || kind === 'proposal') && (
                   <Field
-                    label={kind === 'client' ? 'Description' : "What's this about(Mandatory)"}
+                    label={kind === 'client' ? 'Description' : "What's this about"}
+                    required
                     value={targetLabel}
                     onChange={(event) => setTargetLabel(event.target.value)}
                     placeholder={
