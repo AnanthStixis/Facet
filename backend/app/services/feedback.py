@@ -289,7 +289,7 @@ async def create_and_send(
                 include_self=False,
                 include_manager=True,
                 include_upward=False,
-                include_peers=True,
+                include_peers=False,
             )
         else:  # management
             plan = cycle_service.GenerationPlan(

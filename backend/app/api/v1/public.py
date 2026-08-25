@@ -44,6 +44,7 @@ from app.models.catalog import Contact, FeedbackTarget, FeedbackTemplateVersion
 from app.models.cycle import FeedbackResponse, ReviewCycle
 from app.models.enums import AuditAction, CycleStatus, RecipientStatus, Relationship
 from app.models.organization import Organization
+from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.cycle import SubmitResponseRequest
 from app.services import audit
@@ -51,7 +52,7 @@ from app.services import email as email_service
 from app.services.campaigns import maybe_auto_close
 from app.services.forms import form_payload, validate_answers, validate_definition
 from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
-from app.models.enums import AssignmentStatus, Relationship
+from app.models.enums import AssignmentStatus, Relationship, TargetType
 from app.services import cycles as cycle_service
 from app.services.forms import form_payload, validate_answers, validate_definition
 from app.services import cycles as cycle_service
@@ -562,6 +563,11 @@ async def submit_assignment_link(
     cycle = (
         await session.execute(select(ReviewCycle).where(ReviewCycle.id == link.cycle_id))
     ).scalar_one()
+    target = (
+        await session.execute(
+            select(FeedbackTarget).where(FeedbackTarget.id == link.target_id)
+        )
+    ).scalar_one()
     version = (
         await session.execute(
             select(FeedbackTemplateVersion).where(
@@ -616,7 +622,53 @@ async def submit_assignment_link(
         context={"anonymous": anonymous, "relationship": str(assignment.relationship_type)},
         request=request,
     )
+    # These reads must happen before commit: `bind_tenant` sets the tenant
+    # GUC with `SET LOCAL`, which only lives for the current transaction.
+    # Reading User/Organization (both RLS-protected) after `commit()` would
+    # run in a new, unbound transaction and silently return nothing —
+    # same bug the external submit_link path above already had to avoid.
+    reviewer = None
+    org = None
+    if target.target_type in {TargetType.EMPLOYEE, TargetType.MANAGER}:
+        reviewer = (
+            await session.execute(
+                select(User).where(User.id == link.reviewer_user_id)
+            )
+        ).scalar_one_or_none()
+        org = (
+            await session.execute(
+                select(Organization).where(Organization.id == link.org_id)
+            )
+        ).scalar_one()
+
     await session.commit()
+
+    # Best-effort, same contract as submit_link above: the response is
+    # already committed, so a mail failure here must never surface as an
+    # error to the reviewer -- they already got the "thank you" screen.
+    # Only Employee and Manager targets get this email; Team and
+    # Department reviews are unchanged.
+    if reviewer is not None and org is not None:
+        try:
+            await email_service.send_thank_you(
+                to=reviewer.email,
+                full_name=reviewer.full_name,
+                org_name=org.name,
+                subject_label=target.label,
+                branding=email_service.Branding(
+                    org_name=org.name,
+                    accent_color=org.branding.accent_color if org.branding else "#B4633A",
+                    logo_url=(
+                        f"{settings.public_api_url}/api/v1/orgs/{org.id}/logo"
+                        if org.branding and org.branding.logo_path
+                        else None
+                    ),
+                    footer_note=org.branding.email_footer_note if org.branding else None,
+                ),
+                target_type=target.target_type,
+            )
+        except Exception:  # noqa: BLE001 -- never let a mail failure look like a broken submission
+            log.warning("post_submit_email_failed", cycle_id=str(cycle.id))
 
     return MessageResponse(
         message=(

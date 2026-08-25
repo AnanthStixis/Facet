@@ -277,7 +277,7 @@ export function Dashboard() {
           {/* Counts that route straight to what resolves them, rather than a
               14-day bar chart that tells you activity happened without saying
               whether any of it needs you. */}
-          {!isPlatform && isAdminPlus && data.attention && (
+          {/* {!isPlatform && isAdminPlus && data.attention && (
             <Card title="Needs attention" hint="Open work across your workspace.">
               <div className="grid grid-cols-2 gap-3">
                 <StatTile
@@ -306,7 +306,7 @@ export function Dashboard() {
                 />
               </div>
             </Card>
-          )}
+          )} */}
 
           {isAdminPlus ? (
             <Card
@@ -402,7 +402,7 @@ export function Dashboard() {
           )}
         </div>
       </div>
-
+{/* 
       {!isPlatform && isAdminPlus && (
         <Card className="mt-5" title="Quick links">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -424,7 +424,7 @@ export function Dashboard() {
             ))}
           </div>
         </Card>
-      )}
+      )} */}
     </>
   )
 }

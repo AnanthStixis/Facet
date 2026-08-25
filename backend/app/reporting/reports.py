@@ -671,11 +671,10 @@ RESULTS_OVERVIEW_COLUMNS = [
     Column("cycle_name", "Cycle Name", width=26),
     Column("client_name", "Client Name", width=22),
     Column("kind", "Type", width=14, kind="badge"),
-    Column("reviewed_by", "Reviewed by", width=30, detail_only=True),
+    Column("reviewed_by", "Reviewed by", width=30),
     Column("reviewed_to", "Reviewed to", width=24),
     Column("sent_on", "Sent on", width=14, kind="datetime"),
-    Column("responded", "Responded", width=10, kind="number"),
-    Column("total", "Total", width=8, kind="number"),
+    Column("progress", "Progress", width=12),
     Column("status", "Status", width=11, kind="badge"),
 ]
 
@@ -725,8 +724,7 @@ async def _query_results_overview(
             "reviewed_by": ", ".join(item.recipients) if item.recipients else None,
             "reviewed_to": item.target_label,
             "sent_on": item.sent_at,
-            "responded": item.responded,
-            "total": item.total,
+            "progress": f"{item.responded}/{item.total}",
             "status": item.status,
         }
         for item in page

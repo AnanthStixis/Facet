@@ -15,9 +15,12 @@ from app.api.deps import (
     ManagerUser,
     rebind_tenant,
 )
+from app.core.config import settings
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
+from app.core.logging import get_logger
 from app.models.catalog import FeedbackTarget, FeedbackTemplate, FeedbackTemplateVersion
 from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
+from app.models.organization import Organization
 from app.models.user import User
 from app.models.enums import (
     AssignmentStatus,
@@ -25,6 +28,7 @@ from app.models.enums import (
     CycleAudience,
     CycleStatus,
     Relationship,
+    TargetType,
     TemplateStatus,
     UserRole,
 )
@@ -40,7 +44,10 @@ from app.schemas.cycle import (
     SubmitResponseRequest,
 )
 from app.services import audit, cycles as cycle_service, results as results_service
+from app.services import email as email_service
 from app.services.forms import form_payload, validate_answers, validate_definition
+
+log = get_logger("facet.cycles")
 
 router = APIRouter(prefix="/cycles", tags=["cycles"])
 
@@ -502,19 +509,20 @@ async def submit_response(
 ) -> MessageResponse:
     row = (
         await session.execute(
-            select(FeedbackAssignment, ReviewCycle, FeedbackTemplateVersion)
+            select(FeedbackAssignment, ReviewCycle, FeedbackTemplateVersion, FeedbackTarget)
             .join(ReviewCycle, ReviewCycle.id == FeedbackAssignment.cycle_id)
             .join(
                 FeedbackTemplateVersion,
                 FeedbackTemplateVersion.id == ReviewCycle.template_version_id,
             )
+            .join(FeedbackTarget, FeedbackTarget.id == FeedbackAssignment.target_id)
             .where(FeedbackAssignment.id == assignment_id)
         )
     ).first()
     if row is None:
         raise NotFound("That assignment does not exist.")
 
-    assignment, cycle, version = row
+    assignment, cycle, version, target = row
     if assignment.reviewer_user_id != actor.id:
         raise PermissionDenied("This assignment belongs to someone else.")
     if assignment.status == AssignmentStatus.SUBMITTED:
@@ -570,7 +578,49 @@ async def submit_response(
         context={"anonymous": anonymous, "relationship": str(assignment.relationship_type)},
         request=request,
     )
+
+    # This read must happen before commit: the tenant context is bound with
+    # `SET LOCAL` (see app/db/tenancy.py), which only lives for the current
+    # transaction. Reading Organization (RLS-protected) after `commit()`
+    # would run in a new, unbound transaction and silently return nothing
+    # -- same bug the public submission paths already have to avoid, see
+    # the matching comment in public.py's submit_link/submit_assignment_link.
+    org = None
+    if target.target_type in {TargetType.EMPLOYEE, TargetType.MANAGER}:
+        org = (
+            await session.execute(
+                select(Organization).where(Organization.id == cycle.org_id)
+            )
+        ).scalar_one()
+
     await session.commit()
+
+    # Best-effort from here, same contract as the public submission paths:
+    # the response is already committed, so a mail failure here must never
+    # surface as an error to the reviewer -- they already got the "thank
+    # you" screen. Only Employee and Manager targets get this email; Team
+    # and Department reviews are unchanged.
+    if org is not None:
+        try:
+            await email_service.send_thank_you(
+                to=actor.user.email,
+                full_name=actor.user.full_name,
+                org_name=org.name,
+                subject_label=target.label,
+                branding=email_service.Branding(
+                    org_name=org.name,
+                    accent_color=org.branding.accent_color if org.branding else "#B4633A",
+                    logo_url=(
+                        f"{settings.public_api_url}/api/v1/orgs/{org.id}/logo"
+                        if org.branding and org.branding.logo_path
+                        else None
+                    ),
+                    footer_note=org.branding.email_footer_note if org.branding else None,
+                ),
+                target_type=target.target_type,
+            )
+        except Exception:  # noqa: BLE001 -- never let a mail failure look like a broken submission
+            log.warning("post_submit_email_failed", cycle_id=str(cycle.id))
 
     return MessageResponse(
         message=(

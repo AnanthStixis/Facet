@@ -48,7 +48,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#3B82F6',
     targetType: 'employee',
     audience: 'internal',
-    blurb: 'A 360 round about one employee — manager and peers all weigh in.',
+    blurb: "A review of one employee, sent to whichever of their managers you choose.",
     revieweeLabel: 'Reviewee',
   },
   {
@@ -856,7 +856,7 @@ function ContactPicker({
   const [contacts, setContacts] = useState<Contact[]>([])
   const [search, setSearch] = useState('')
   const [adding, setAdding] = useState(false)
-  const [newContact, setNewContact] = useState({ full_name: '', email: '', company: '' })
+  const [newContact, setNewContact] = useState({ full_name: '', email: '', company: '', job_title: '' })
   const [chosen, setChosen] = useState<Record<string, Contact>>({})
   const { triggerRef, panelRef } = useDismiss(open, () => setOpen(false))
   // The panel anchors to the trigger button itself, not the wrapping div —
@@ -994,6 +994,11 @@ function ContactPicker({
               value={newContact.company}
               onChange={(event) => setNewContact({ ...newContact, company: event.target.value })}
             />
+              <Field
+              label="Job title"
+              value={newContact.job_title}
+              onChange={(event) => setNewContact({ ...newContact, job_title: event.target.value })}
+            />
             <button
               type="button"
               className="btn-primary w-full px-3 py-1.5 text-sm"
@@ -1004,8 +1009,9 @@ function ContactPicker({
                     full_name: newContact.full_name,
                     email: newContact.email,
                     company: newContact.company || null,
+                    job_title: newContact.job_title,
                   })
-                  setNewContact({ full_name: '', email: '', company: '' })
+                  setNewContact({ full_name: '', email: '', company: '', job_title: ''  })
                   setAdding(false)
                   load()
                   setChosen((state) => ({ ...state, [created.id]: created }))
@@ -1685,7 +1691,7 @@ export function CreateFeedback() {
 
                 {(kind === 'client' || kind === 'proposal') && (
                   <Field
-                    label={kind === 'client' ? 'Description' : "What's this about"}
+                    label={kind === 'client' ? 'Description' : "What's this about(Mandatory)"}
                     value={targetLabel}
                     onChange={(event) => setTargetLabel(event.target.value)}
                     placeholder={

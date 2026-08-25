@@ -43,6 +43,12 @@ from app.services import audit, email as email_service, storage
 
 router = APIRouter(prefix="/orgs", tags=["organizations"])
 
+# Platform-side emails (org provisioned/approved/rejected/suspended/
+# reactivated, or a Client Admin invited to an existing org) carry Facet360's
+# own logo, not the recipient organization's — a brand-new org has no logo of
+# its own yet, and Branding.logo_url would otherwise render blank.
+FACET_LOGO_URL = f"{settings.public_app_url}/facet360-logo.png"
+
 
 @router.get("/check-email")
 async def check_email(email: str, session: DbSession, actor: SuperAdmin) -> dict[str, bool]:
@@ -358,7 +364,7 @@ async def provision_organization(
         full_name=admin.full_name,
         org_name=org.name,
         invite_url=invite_url,
-        branding=email_service.Branding(org_name=org.name),
+        branding=email_service.Branding(org_name=org.name, logo_url=FACET_LOGO_URL),
     )
     # Never returned to the caller, in any environment: whoever is
     # provisioning this org must not be able to activate the new admin's
@@ -514,7 +520,7 @@ async def approve_organization(
         full_name=admin.full_name,
         org_name=org.name,
         invite_url=invite_url,
-        branding=email_service.Branding(org_name=org.name),
+        branding=email_service.Branding(org_name=org.name, logo_url=FACET_LOGO_URL),
         kind="approval",
     )
     # Never returned to the caller, in any environment — see the matching
@@ -563,7 +569,7 @@ async def reject_organization(
         org_name=org.name,
         contact_name=org.contact_name,
         rejection_reason=payload.reason,
-        branding=email_service.Branding(org_name=org.name),
+        branding=email_service.Branding(org_name=org.name, logo_url=FACET_LOGO_URL),
     )
     return _detail(org)
 
@@ -621,7 +627,7 @@ async def suspend_organization(
         org_name=org.name,
         contact_name=org.contact_name,
         suspension_reason=payload.reason,
-        branding=email_service.Branding(org_name=org.name),
+        branding=email_service.Branding(org_name=org.name, logo_url=FACET_LOGO_URL),
     )
     return _detail(org)
 
@@ -667,7 +673,7 @@ async def reactivate_organization(
         to=org.contact_email,
         org_name=org.name,
         contact_name=org.contact_name,
-        branding=email_service.Branding(org_name=org.name),
+        branding=email_service.Branding(org_name=org.name, logo_url=FACET_LOGO_URL),
     )
     return _detail(org)
 
@@ -731,7 +737,7 @@ async def invite_org_admin(
         full_name=admin.full_name,
         org_name=org.name,
         invite_url=invite_url,
-        branding=email_service.Branding(org_name=org.name),
+        branding=email_service.Branding(org_name=org.name, logo_url=FACET_LOGO_URL),
     )
 
     count = int(
