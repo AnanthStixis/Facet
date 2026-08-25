@@ -844,36 +844,24 @@ async def send_thank_you(
 ) -> bool:
     """Confirm a submitted response was received.
 
-    `target_type` picks the copy, same split as `send_feedback_request` /
-    `send_assignment_notice` / `send_reminder` above: a person/group being
-    reviewed (employee, manager, team, department) reads as "your feedback
-    on your <noun>, X", not "your feedback on X" as if X were a thing the
-    respondent has an experience with.
+    Unlike `send_feedback_request` / `send_assignment_notice` /
+    `send_reminder` above, this one doesn't split copy by `target_type` —
+    it always reads "your feedback on X", regardless of whether X is a
+    person/group being reviewed (employee, manager, team, department) or a
+    client/product/service. `target_type` is accepted for signature
+    parity with the other send_* functions but is currently unused here.
     """
     first_name = full_name.split()[0] if full_name.strip() else "there"
-    noun = _person_review_noun(target_type)
 
-    if noun is not None:
-        body_html = (
-            f"Your feedback on your {noun}, <b>{escape(subject_label)}</b>, has "
-            f"been received. We appreciate you taking the time to share it "
-            f"with {escape(org_name)}."
-        )
-        body_text = (
-            f"Your feedback on your {noun}, {subject_label}, has been "
-            f"received. We appreciate you taking the time to share it with "
-            f"{org_name}."
-        )
-    else:
-        body_html = (
-            f"Your feedback on <b>{escape(subject_label)}</b> has been received. "
-            f"We appreciate you taking the time to share it with "
-            f"{escape(org_name)}."
-        )
-        body_text = (
-            f"Your feedback on {subject_label} has been received. We appreciate "
-            f"you taking the time to share it with {org_name}."
-        )
+    body_html = (
+        f"Your feedback on <b>{escape(subject_label)}</b> has been received. "
+        f"We appreciate you taking the time to share it with "
+        f"{escape(org_name)}."
+    )
+    body_text = (
+        f"Your feedback on {subject_label} has been received. We appreciate "
+        f"you taking the time to share it with {org_name}."
+    )
 
     return await send(
         to=to,
