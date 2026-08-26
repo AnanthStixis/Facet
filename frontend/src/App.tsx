@@ -157,7 +157,9 @@ export default function App() {
         <Route
           path="create-feedback"
           element={
-            <RequireRole roles={['super_admin', 'client_admin', 'manager']}>
+            // Manager access commented out per request — was
+            // roles={['super_admin', 'client_admin', 'manager']}
+            <RequireRole roles={['super_admin', 'client_admin']}>
               <CreateFeedback />
             </RequireRole>
           }
@@ -223,7 +225,9 @@ export default function App() {
         <Route
           path="clients"
           element={
-            <RequireRole roles={['client_admin', 'manager']}>
+            // Manager access commented out per request — was
+            // roles={['client_admin', 'manager']}
+            <RequireRole roles={['client_admin']}>
               <Clients />
             </RequireRole>
           }

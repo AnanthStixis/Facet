@@ -68,7 +68,9 @@ const NAV: { section: string; items: NavItem[] }[] = [
               to: '/insights',
               label: 'Insights',
               icon: IconSpark,
-              roles: ['super_admin', 'client_admin', 'manager'],
+              // Manager access commented out per request — was
+              // roles: ['super_admin', 'client_admin', 'manager']
+              roles: ['super_admin', 'client_admin'],
             },
           ]
         : []),
@@ -100,7 +102,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
       to: `/create-feedback?kind=${t.kind}`,
       label: t.label,
       dotColor: t.color,
-      roles: ['super_admin', 'client_admin', 'manager'],
+      roles: ['super_admin', 'client_admin'],
     })),
   },
   {
@@ -110,7 +112,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
         to: '/results',
         label: 'Results',
         icon: IconFile,
-        roles: ['super_admin', 'client_admin', 'manager'],
+        roles: ['super_admin', 'client_admin'],
       },
       {
         to: '/categories',
@@ -129,13 +131,13 @@ const NAV: { section: string; items: NavItem[] }[] = [
         to: '/clients',
         label: 'Clients',
         icon: IconBriefcase,
-        roles: ['client_admin', 'manager'],
+        roles: ['client_admin'],
       },
       {
         to: '/masters',
         label: 'Master Data',
         icon: IconTag,
-        roles: ['client_admin', 'manager'],
+        roles: ['client_admin'],
       },
     ],
   },

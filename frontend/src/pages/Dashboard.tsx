@@ -67,7 +67,7 @@ export function Dashboard() {
   // what the backend now scopes `attention` to for this role. Employee gets
   // the narrowest view, built from "My feedback" / "My results".
   const isAdminPlus = user?.role === 'super_admin' || user?.role === 'client_admin'
-  const isManager = user?.role === 'manager'
+  // const isManager = user?.role === 'manager'
   const firstName = user?.full_name.split(' ')[0] ?? ''
 
   return (
@@ -166,45 +166,50 @@ export function Dashboard() {
               state={{ from: 'dashboard' }}
             />
           </>
-        ) : isManager ? (
-          <>
-            <StatTile
-              label="My open cycles"
-              value={data.attention?.open_cycles ?? 0}
-              tone={data.attention?.open_cycles ? 'accent' : 'neutral'}
-              sub="Review cycles you're running"
-              icon={<IconClock width={17} height={17} />}
-              to="/cycles"
-              state={{ from: 'dashboard' }}
-            />
-            <StatTile
-              label="My open campaigns"
-              value={data.attention?.open_campaigns ?? 0}
-              tone={data.attention?.open_campaigns ? 'accent' : 'neutral'}
-              sub="Campaigns you're running"
-              icon={<IconSend width={17} height={17} />}
-              to="/campaigns"
-              state={{ from: 'dashboard' }}
-            />
-            <StatTile
-              label="Closing within 7 days"
-              value={data.attention?.closing_soon ?? 0}
-              tone={data.attention?.closing_soon ? 'caution' : 'neutral'}
-              sub="Across your cycles"
-              icon={<IconAlert width={17} height={17} />}
-              to="/cycles?closing_within_days=7"
-              state={{ from: 'dashboard' }}
-            />
-            <StatTile
-              label="My results"
-              value={data.metrics.my_results}
-              sub="Responses received about you"
-              icon={<IconSpark width={17} height={17} />}
-              to="/my-results"
-              state={{ from: 'dashboard' }}
-            />
-          </>
         ) : (
+          // Manager previously had its own tiles here (open cycles, open
+          // campaigns, closing soon, results) — commented out per request,
+          // so manager now falls through to exactly the same tiles
+          // Employee sees below. Was:
+          // isManager ? (
+          //   <>
+          //     <StatTile
+          //       label="My open cycles"
+          //       value={data.attention?.open_cycles ?? 0}
+          //       tone={data.attention?.open_cycles ? 'accent' : 'neutral'}
+          //       sub="Review cycles you're running"
+          //       icon={<IconClock width={17} height={17} />}
+          //       to="/cycles"
+          //       state={{ from: 'dashboard' }}
+          //     />
+          //     <StatTile
+          //       label="My open campaigns"
+          //       value={data.attention?.open_campaigns ?? 0}
+          //       tone={data.attention?.open_campaigns ? 'accent' : 'neutral'}
+          //       sub="Campaigns you're running"
+          //       icon={<IconSend width={17} height={17} />}
+          //       to="/campaigns"
+          //       state={{ from: 'dashboard' }}
+          //     />
+          //     <StatTile
+          //       label="Closing within 7 days"
+          //       value={data.attention?.closing_soon ?? 0}
+          //       tone={data.attention?.closing_soon ? 'caution' : 'neutral'}
+          //       sub="Across your cycles"
+          //       icon={<IconAlert width={17} height={17} />}
+          //       to="/cycles?closing_within_days=7"
+          //       state={{ from: 'dashboard' }}
+          //     />
+          //     <StatTile
+          //       label="My results"
+          //       value={data.metrics.my_results}
+          //       sub="Responses received about you"
+          //       icon={<IconSpark width={17} height={17} />}
+          //       to="/my-results"
+          //       state={{ from: 'dashboard' }}
+          //     />
+          //   </>
+          // ) : (
           <>
             <StatTile
               label="My feedback"
@@ -224,6 +229,7 @@ export function Dashboard() {
               state={{ from: 'dashboard' }}
             />
           </>
+          // )
         )}
       </div>
 
@@ -349,32 +355,37 @@ export function Dashboard() {
                 </ul>
               )}
             </Card>
-          ) : isManager ? (
-            <Card title="Quick links" hint="Run your own cycles and campaigns.">
-              <div className="grid gap-3">
-                <Link
-                  to="/cycles"
-                  state={{ from: 'dashboard' }}
-                  className="flex items-center gap-3 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
-                >
-                  <span className="accent-soft-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
-                    <IconClock width={16} height={16} className="accent-text" />
-                  </span>
-                  Your review cycles
-                </Link>
-                <Link
-                  to="/campaigns"
-                  state={{ from: 'dashboard' }}
-                  className="flex items-center gap-3 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
-                >
-                  <span className="accent-soft-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
-                    <IconSend width={16} height={16} className="accent-text" />
-                  </span>
-                  Your campaigns
-                </Link>
-              </div>
-            </Card>
-          ) : (
+                    ) : (
+            // Manager previously had its own "Quick links" card here (Your
+            // review cycles / Your campaigns) — commented out per request,
+            // so manager now falls through to the same "Get started" card
+            // Employee sees. Was:
+            // isManager ? (
+            //   <Card title="Quick links" hint="Run your own cycles and campaigns.">
+            //     <div className="grid gap-3">
+            //       <Link
+            //         to="/cycles"
+            //         state={{ from: 'dashboard' }}
+            //         className="flex items-center gap-3 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
+            //       >
+            //         <span className="accent-soft-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+            //           <IconClock width={16} height={16} className="accent-text" />
+            //         </span>
+            //         Your review cycles
+            //       </Link>
+            //       <Link
+            //         to="/campaigns"
+            //         state={{ from: 'dashboard' }}
+            //         className="flex items-center gap-3 rounded-lg border border-ink-200 p-3.5 text-sm font-medium text-ink-700 transition-colors hover:border-[color:var(--accent)] hover:text-ink-900 dark:border-ink-700 dark:text-ink-200 dark:hover:text-ink-50"
+            //       >
+            //         <span className="accent-soft-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+            //           <IconSend width={16} height={16} className="accent-text" />
+            //         </span>
+            //         Your campaigns
+            //       </Link>
+            //     </div>
+            //   </Card>
+            // ) : (
             <Card title="Get started" hint="A couple of places worth a look.">
               <div className="grid gap-3">
                 <Link
@@ -399,6 +410,7 @@ export function Dashboard() {
                 </Link>
               </div>
             </Card>
+            // )
           )}
         </div>
       </div>

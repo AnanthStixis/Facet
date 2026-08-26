@@ -89,12 +89,12 @@ export function MyResults() {
                       tone="accent"
                       sub={`Out of ${result.scale?.max ?? 5}`}
                     />
-                    <StatTile
+                    {/* <StatTile
                       label="How you rate yourself"
                       value={result.self_average?.toFixed(2) ?? '—'}
                       sub={result.self_response_count ? 'Your self-assessment' : 'Not completed'}
-                    />
-                    <StatTile
+                    /> */}
+                    {/* <StatTile
                       label="Gap"
                       value={
                         result.self_awareness_gap === null ||
@@ -115,7 +115,7 @@ export function MyResults() {
                             ? 'Others rate you higher'
                             : 'Closely aligned'
                       }
-                    />
+                    /> */}
                   </div>
 
                   <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -167,12 +167,12 @@ export function MyResults() {
 
                   {/* Read-only for the subject: they see the summary about
                       them, but cannot spend the organization's AI budget. */}
-                  <div className="mt-5">
+                  {/* <div className="mt-5">
                     <AiPanel
                       cycleId={result.cycle.id}
                       targetId={result.target.id}
                     />
-                  </div>
+                  </div> */}
 
                   {(result.comments ?? []).length > 0 && (
                     <div className="mt-5">

@@ -183,7 +183,7 @@ export function Security() {
         </div>
         <div className="flex flex-col gap-5">
           <SessionsSection />
-          <Card title="How your session is protected">
+          {/* <Card title="How your session is protected">
             <ul className="space-y-2.5 text-sm text-ink-600 dark:text-ink-300">
               {[
                 'Access tokens last 15 minutes, so a stolen one has a short life.',
@@ -197,7 +197,7 @@ export function Security() {
                 </li>
               ))}
             </ul>
-          </Card>
+          </Card> */}
         </div>
       </div>
     </>

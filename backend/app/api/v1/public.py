@@ -241,6 +241,42 @@ async def branded_logo(
         },
     )
 
+@router.get("/assignment-logo/{token}")
+async def branded_assignment_logo(
+    token: str, request: Request, session: DbSession
+) -> Response:
+    """Serve the tenant logo to an internal reviewer on the assignment
+    link flow — the counterpart to branded_logo above, resolving through
+    an assignment token instead of a campaign recipient token, since the
+    two are different token spaces validated by different SQL functions
+    (facet_assignment_link vs facet_public_link).
+    """
+    link = await _resolve_assignment(session, token, request)
+    org = (
+        await session.execute(
+            select(Organization).where(Organization.id == link.org_id)
+        )
+    ).scalar_one()
+    if org.branding is None or not org.branding.logo_path:
+        raise NotFound("No logo.")
+
+    from app.services import storage
+
+    result = storage.read_logo(org.branding.logo_path)
+    if result is None:
+        raise NotFound("No logo.")
+    data, content_type = result
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "cache-control": "private, max-age=300",
+            "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
+            "x-content-type-options": "nosniff",
+            "x-robots-tag": "noindex, nofollow",
+        },
+    )
+
 
 @router.post("/feedback/{token}", response_model=MessageResponse)
 async def submit_link(

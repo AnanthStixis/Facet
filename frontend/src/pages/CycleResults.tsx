@@ -86,7 +86,7 @@ function TargetDetail({
               tone="accent"
               sub={`Out of ${data.scale?.max ?? 5}`}
             />
-            <StatTile
+            {/* <StatTile
               label="Self assessment"
               value={data.self_average?.toFixed(2) ?? '—'}
               sub={data.self_response_count ? 'Their own rating' : 'Not completed'}
@@ -104,7 +104,7 @@ function TargetDetail({
                   : 'neutral'
               }
               sub="Self minus others"
-            />
+            /> */}
             <StatTile
               label="Responses"
               value={data.response_count}
@@ -171,9 +171,13 @@ function TargetDetail({
             </Card>
           </div>
 
+          {/* AI analysis panel removed from UI per request — kept here,
+              commented out, so it can be restored without rebuilding it
+              from scratch.
           <div className="mt-5">
             <AiPanel cycleId={cycle.id} targetId={targetId} canGenerate />
           </div>
+          */}
 
           {(data.comments ?? []).length > 0 && (
             <Card

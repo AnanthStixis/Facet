@@ -329,7 +329,7 @@ function ResultsDetailModal({ row, onClose }: { row: FeedbackListItem; onClose: 
               kind alone (create_and_send() only sets include_self=True
               there; Management Review and every external kind never collect
               a self response, so these tiles would always read "—"). */}
-          {row.kind === 'employee' && (
+          {/* {row.kind === 'employee' && (
             <div className="mb-3 grid gap-3 sm:grid-cols-2">
               <StatTile
                 label="Self assessment"
@@ -346,7 +346,7 @@ function ResultsDetailModal({ row, onClose }: { row: FeedbackListItem; onClose: 
                 sub="Self minus others"
               />
             </div>
-          )}
+          )} */}
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
             <p className="label-caps">Responses</p>

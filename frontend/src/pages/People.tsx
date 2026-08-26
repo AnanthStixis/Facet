@@ -190,7 +190,7 @@ function ManagerCell({ managers }: { managers: LookupItem[] }) {
 /** Read-only, fired by the eye icon in the row actions — every field on
  * User in one place. Status appears once, in the modal's own header, same
  * pattern as Organizations.tsx's OrgDetailModal. */
-function UserDetailModal({ person, onClose }: { person: User; onClose: () => void }) {
+function UserDetailModal({ person, isPlatform, onClose }: { person: User; isPlatform: boolean; onClose: () => void }) {
   const formatDate = (value?: string | null) =>
     value
       ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
@@ -201,7 +201,11 @@ function UserDetailModal({ person, onClose }: { person: User; onClose: () => voi
     { label: 'Email', value: person.email },
     { label: 'Phone', value: person.phone || '—' },
     { label: 'Role', value: ROLE_LABEL[person.role] },
-    { label: 'Organization', value: person.org_name || '—' },
+    // Same rule as the People table's own Organization column: org_name is
+    // only ever populated for a Super Admin viewer (see list_users on the
+    // backend) — showing this field for a Client Admin always rendered a
+    // blank "—", since that value never exists for them at all.
+    ...(isPlatform ? [{ label: 'Organization', value: person.org_name || '—' }] : []),
     { label: 'Department', value: person.department || '—' },
     { label: 'Job title', value: person.job_title || '—' },
     { label: 'Feedback received', value: person.feedback_count ?? 0 },
@@ -1509,7 +1513,7 @@ export function People() {
         (() => {
           const person = data.items.find((item) => item.id === viewingId)
           if (!person) return null
-          return <UserDetailModal person={person} onClose={() => setViewingId(null)} />
+          return <UserDetailModal person={person} isPlatform={isPlatform} onClose={() => setViewingId(null)} />
         })()
       )}
 
