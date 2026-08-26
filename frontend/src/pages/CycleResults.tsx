@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
-import { AiPanel } from '../components/AiPanel'
+// import { AiPanel } from '../components/AiPanel'
 import { IconSearch } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton, StatTile } from '../components/ui'
 import { PageHeader } from '../layout/AppShell'

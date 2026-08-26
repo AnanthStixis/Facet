@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Banner, Card, Field, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
-import { IconLock } from '../components/icons'
+// import { IconLock } from '../components/icons'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
 

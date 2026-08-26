@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { AiPanel } from '../components/AiPanel'
+// import { AiPanel } from '../components/AiPanel'
 import { IconLock, IconSpark } from '../components/icons'
 import { Banner, Card, EmptyState, Skeleton, StatTile } from '../components/ui'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
