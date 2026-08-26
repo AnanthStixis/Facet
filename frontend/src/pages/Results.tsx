@@ -712,19 +712,38 @@ export function Results() {
 
       <Card className="mb-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="block">
+                    <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
               Organisation Name
             </span>
-            <OrganisationNameFilter
-              options={orgs.map((org) => org.name)}
-              value={orgs.find((org) => org.id === orgFilter)?.name ?? ''}
-              onChange={(next) => {
-                const match = orgs.find((org) => org.name === next)
-                setOrgFilter(match ? match.id : '')
-                setPage(1)
-              }}
-            />
+            {isPlatform ? (
+              <OrganisationNameFilter
+                options={orgs.map((org) => org.name)}
+                value={orgs.find((org) => org.id === orgFilter)?.name ?? ''}
+                onChange={(next) => {
+                  const match = orgs.find((org) => org.name === next)
+                  setOrgFilter(match ? match.id : '')
+                  setPage(1)
+                }}
+              />
+                        ) : (
+              // A Client Admin has no tenant list to filter by — RLS
+              // already scopes them to their own single org — but they do
+              // have multiple client companies worth filtering among, so
+              // this reuses the same search-and-scroll component (and the
+              // same clientNameFilter/clientNameOptions the Super-Admin-only
+              // "Client" filter below is built on) rather than a plain
+              // native <select>, which has no search and would turn
+              // finding one company in a long list into pure scrolling.
+              <OrganisationNameFilter
+                options={clientNameOptions}
+                value={clientNameFilter}
+                onChange={(next) => {
+                  setClientNameFilter(next)
+                  setPage(1)
+                }}
+              />
+            )}
           </label>
 
           <label className="block">
