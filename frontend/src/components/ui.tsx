@@ -11,6 +11,8 @@ export function Card({
   children,
   className,
   padded = true,
+  fill = false,
+
 }: {
   title?: ReactNode
   hint?: ReactNode
@@ -18,6 +20,8 @@ export function Card({
   children: ReactNode
   className?: string
   padded?: boolean
+  fill?: boolean
+
 }) {
   return (
     <section className={clsx('surface animate-fade-up', className)}>
@@ -36,7 +40,7 @@ export function Card({
           {action && <div className="shrink-0">{action}</div>}
         </header>
       )}
-      <div className={padded ? 'p-5' : undefined}>{children}</div>
+      <div className={clsx(padded && 'p-5', fill && 'flex flex-1 flex-col')}>{children}</div>
     </section>
   )
 }

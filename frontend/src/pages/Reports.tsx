@@ -6,7 +6,7 @@ import { Banner, Card, EmptyState, Skeleton } from '../components/ui'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
 import { emptyFilters } from '../lib/types'
-import type { ReportMeta } from '../lib/types'
+import type { ReportMeta, ReportResult } from '../lib/types'
 import { ReportView } from './ReportView'
 
 /**
@@ -19,7 +19,7 @@ import { ReportView } from './ReportView'
 export function Reports() {
   const location = useLocation()
   const cameFromDashboard = (location.state as { from?: string } | null)?.from === 'dashboard'
-  const [reports, setReports] = useState<ReportMeta[] | null>(null)
+    const [reports, setReports] = useState<ReportMeta[] | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,6 +31,25 @@ export function Reports() {
         setError(caught instanceof ApiError ? caught.message : 'Could not load reports.'),
       )
   }, [])
+
+  const [rowCounts, setRowCounts] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!reports) return
+    let cancelled = false
+    reports.forEach((report) => {
+      api
+        .post<ReportResult>(`/reports/${report.key}/query`, emptyFilters())
+        .then((result) => {
+          if (!cancelled) {
+            setRowCounts((current) => ({ ...current, [report.key]: result.total }))
+          }
+        })
+        .catch(() => {})
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [reports])
 
   if (selected) {
     return (
@@ -75,8 +94,13 @@ export function Reports() {
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {reports.map((report) => (
-            <Card key={report.key} className="flex flex-col">
+            {reports
+            // Hidden: this org doesn't use the Proposals pipeline-tracking
+            // page, so this report would always be empty. Remove this
+            // filter to bring the card back if that changes.
+            .filter((report) => report.key !== 'proposal_scorecard')
+            .map((report) => (
+            <Card key={report.key} className="flex flex-col" fill>
               <div className="flex-1">
                 <h2 className="text-lg font-semibold text-ink-900 dark:text-ink-50">
                   {report.title}
@@ -99,7 +123,11 @@ export function Reports() {
                 </button>
                 {/* Straight to a download with default filters, for the common
                     case where nobody wants to look at it first. */}
-                <ExportMenu reportKey={report.key} filters={emptyFilters()} />
+                                <ExportMenu
+                  reportKey={report.key}
+                  filters={emptyFilters()}
+                  disabled={rowCounts[report.key] === 0}
+                />
               </div>
             </Card>
           ))}

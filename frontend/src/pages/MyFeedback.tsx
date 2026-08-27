@@ -478,8 +478,8 @@ export function MyFeedback() {
       <Card className="mt-5" title="How your answers are handled">
         <ul className="space-y-2 text-sm text-ink-600 dark:text-ink-300">
           {[
-            'Anonymous responses are stored with no link to you — no reviewer id, and no connection to the request you were sent.',
-            'Results stay hidden until enough people have responded, so a single answer can never be isolated.',
+            'No one can trace an anonymous answer back to you — we dont save your name or which request was sent to you.',
+            
             'A breakdown by direction is only shown when that direction on its own clears the same threshold.',
             'Once submitted, a response cannot be edited or deleted by anyone, including an administrator.',
           ].map((line) => (

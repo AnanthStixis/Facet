@@ -77,7 +77,7 @@ export function Dashboard() {
         description={
           isPlatform
             ? 'Platform-wide view across every tenant on Facet.'
-            : `${organization?.name ?? ''} — activity, coverage, and directory health.`
+            : `${organization?.name ?? ''} — activity, coverage, and Status.`
         }
       />
 

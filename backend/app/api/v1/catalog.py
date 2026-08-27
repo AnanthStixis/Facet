@@ -14,7 +14,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import AdminUser, DbSession, ManagerUser
@@ -89,6 +89,11 @@ async def list_categories(session: DbSession, actor: ManagerUser) -> list[dict[s
     template_query = select(FeedbackTemplate).order_by(FeedbackTemplate.name)
     if actor.org_id is None:
         template_query = template_query.where(FeedbackTemplate.org_id.is_(None))
+    else:
+       
+        template_query = template_query.where(
+            or_(FeedbackTemplate.org_id == actor.org_id, FeedbackTemplate.is_active.is_(True))
+        )
     templates = (await session.execute(template_query)).scalars().all()
 
     # Latest version per template, preferring a published one over a draft.

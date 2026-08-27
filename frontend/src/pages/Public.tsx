@@ -301,16 +301,7 @@ function SetPasswordForm({
           />
         </div>
 
-        <ul className="mt-4 space-y-1.5 text-xs text-ink-500 dark:text-ink-400">
-          <li className="flex items-center gap-1.5">
-            <IconCheck width={13} height={13} className="accent-text" />
-            Stored using argon2id — never in plain text, never recoverable.
-          </li>
-          <li className="flex items-center gap-1.5">
-            <IconShield width={13} height={13} className="accent-text" />
-            Checked against known breach corpora without ever leaving this server in full.
-          </li>
-        </ul>
+        
 
         <button
           type="submit"

@@ -1,7 +1,10 @@
 import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { IconSettings, IconShield, IconUpload } from '../components/icons'
+import { IconSettings, IconUpload } from '../components/icons'
+// AI section below is commented out (not deleted) — IconShield was only
+// used there. Restore this import alongside the section if it comes back.
+// import { IconShield } from '../components/icons'
 import { Card, Field, Modal, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { PageHeader } from '../layout/AppShell'
@@ -169,7 +172,7 @@ function BrandingCard() {
   return (
     <Card
       title="Branding"
-      hint="Applied to your dashboard header, outgoing emails, and every feedback form your organization sends. Never shown to any other tenant."
+      hint="Applied to your dashboard header, outgoing emails, and every feedback form your organization sends."
     >
       <div className="flex flex-wrap items-start gap-6">
         <div>
@@ -419,7 +422,7 @@ function PolicyCard() {
           Policy
         </span>
       }
-      hint="Thresholds may be made stricter than the platform default, never looser — these are safety properties, not preferences."
+      hint="You can raise these limits above the default, but not lower them — this is a safety minimum, not to be adjusted for convenience."
     >
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
@@ -509,6 +512,11 @@ function PolicyCard() {
           </div>
         </section>
 
+                {/* AI section hidden — not used anywhere in this org's UI right now.
+            draft.ai / floor.ai_min_responses_for_summary are left wired up
+            in state and the save payload untouched, so nothing else breaks;
+            uncomment this whole block (and the IconShield import above) to
+            bring the controls back.
         <section>
           <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink-900 dark:text-ink-50">
             <IconShield width={13} height={13} />
@@ -535,6 +543,7 @@ function PolicyCard() {
             />
           </div>
         </section>
+        */}
 
         <section>
           <h3 className="mb-3 text-sm font-semibold text-ink-900 dark:text-ink-50">
@@ -552,16 +561,16 @@ function PolicyCard() {
           />
         </section>
 
-        <section>
+        <section className="lg:col-span-2">
           <h3 className="mb-3 text-sm font-semibold text-ink-900 dark:text-ink-50">
             Email subjects
           </h3>
           <div className="space-y-3">
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
+                        <div className="flex items-start gap-2">
+              <div className="max-w-md flex-1">
                 <Field
                   label="Invitation email subject (optional)"
-                  hint="Use {org_name} for your organization's name. Left blank uses the default."
+                                    hint="Use {organization} for your organization's name. Left blank uses the default."
                   value={draft.email.invitation_subject ?? ''}
                   onChange={(event) =>
                     setDraft({
@@ -569,13 +578,16 @@ function PolicyCard() {
                       email: { ...draft.email, invitation_subject: event.target.value || null },
                     })
                   }
-                  placeholder="You have been invited to {org_name}"
+                  placeholder="You have been invited to {organization}"
                   maxLength={200}
                 />
               </div>
+              {/* mt-[26px] matches the Field label's height (line height + its
+                  mb-1.5 margin) — aligns the button with the input box itself,
+                  regardless of how long the hint text below the input is. */}
               <button
                 type="button"
-                className="btn-secondary mb-0.5 shrink-0 px-2.5 py-1.5 text-sm"
+                className="btn-secondary mt-[26px] shrink-0 px-2.5 py-1.5 text-sm"
                 disabled={previewBusy === 'invitation'}
                 onClick={() => openPreview('invitation')}
               >
@@ -583,11 +595,11 @@ function PolicyCard() {
                 Preview
               </button>
             </div>
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
+                        <div className="flex items-start gap-2">
+              <div className="max-w-md flex-1">
                 <Field
                   label="Feedback request email subject (optional)"
-                  hint="Use {org_name} and {subject_label} (what the feedback is about)."
+                  hint="Use {organization} and {about} (what the feedback is about)."
                   value={draft.email.feedback_request_subject ?? ''}
                   onChange={(event) =>
                     setDraft({
@@ -604,7 +616,7 @@ function PolicyCard() {
               </div>
               <button
                 type="button"
-                className="btn-secondary mb-0.5 shrink-0 px-2.5 py-1.5 text-sm"
+                className="btn-secondary mt-[26px] shrink-0 px-2.5 py-1.5 text-sm"
                 disabled={previewBusy === 'feedback_request'}
                 onClick={() => openPreview('feedback_request')}
               >
@@ -653,7 +665,7 @@ export function Settings() {
         title="Settings"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Branding applied to everything your organization sends, and the policy thresholds that govern reminders, anonymity, AI and audit history."
+        description="Branding applied to everything your organization sends, and the policy thresholds that govern reminders, anonymity and audit history."
       />
       <div className="space-y-5">
         <BrandingCard />

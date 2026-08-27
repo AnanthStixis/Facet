@@ -120,8 +120,8 @@ AUDIT_REPORT = register(
         key="audit_trail",
         title="Audit trail",
         description=(
-            "Every recorded action, scoped to your organization. Entries are "
-            "append-only and cannot be edited or deleted by any role."
+            "Every recorded action in your organization. Entries can't be"
+            "edited or deleted by anyone, including admins."
         ),
         columns=AUDIT_COLUMNS,
         query=_query_audit,
@@ -342,7 +342,7 @@ COMPLETION_REPORT = register(
         title="Cycle completion",
         description=(
             "Who has been asked for feedback and who has responded. Contains no "
-            "answers, so it is safe to circulate while a cycle is still open."
+            "answers, so it's safe to share while a feedback cycle is still open."
         ),
         columns=COMPLETION_COLUMNS,
         query=_query_completion,
@@ -361,8 +361,7 @@ RESULT_COLUMNS = [
     Column("target_type", "Type", width=13, kind="badge"),
     Column("responses", "Responses", width=11, kind="number"),
     Column("overall_average", "Average", width=11, kind="number"),
-    Column("self_average", "Self", width=10, kind="number"),
-    Column("status", "Visibility", width=22),
+   
 ]
 
 
@@ -552,7 +551,7 @@ SCORECARD_REPORT = register(
         key="proposal_scorecard",
         title="Proposal scorecard",
         description=(
-            "Every submitted proposal with the prospect's rating beside the "
+            "Every submitted proposal .with the client's rating beside the"
             "actual outcome — so you can see whether the proposals that score "
             "well are the ones that win."
         ),
@@ -651,9 +650,9 @@ RESULTS_REPORT = register(
         key="feedback_results",
         title="Feedback results",
         description=(
-            "Aggregated scores per person or item, per cycle. Averages are "
-            "withheld until the anonymity threshold is met — in the file exactly "
-            "as on the screen."
+            "Average scores per person or item, per feedback round. Scores are "
+            "hidden until enough people have responded — the file always matches exactly what you "
+            "see on the screen."
         ),
         columns=RESULT_COLUMNS,
         query=_query_results,

@@ -69,6 +69,16 @@ def _hours_label(hours: int) -> str:
     is ever configured to 1 (as it currently is for local testing)."""
     return f"{hours} hour" if hours == 1 else f"{hours} hours"
 
+def _first_name(name: str) -> str:
+    """First word of a name, capitalized if it wasn't already — a name
+    stored all-lowercase (e.g. typed that way at signup) would otherwise
+    show up verbatim as "Dear sagar" or "Welcome, raj!". Only the first
+    letter is touched; the rest of the word is left exactly as given, so a
+    name with its own internal capitalization (e.g. "McDonald", "deWitt")
+    is never mangled. Falls back to "there" for a blank name."""
+    first = name.split()[0] if name.strip() else ""
+    return first[0].upper() + first[1:] if first else "there"
+
 @dataclass(slots=True)
 class Branding:
     org_name: str
@@ -292,7 +302,7 @@ async def send_feedback_request(
     """
     import re
 
-    first_name = full_name.split()[0] if full_name.strip() else "there"
+    first_name = _first_name(full_name)
     deadline = expires_at.strftime("%d %B %Y")
     subject_label = re.sub(r"\s*\([^)]*\)\s*$", "", subject_label).strip()
 
@@ -332,13 +342,21 @@ async def send_feedback_request(
             except (KeyError, IndexError):
                 pass
         heading = ""
+        try:
+            is_proposal = target_type is not None and TargetType(target_type) == TargetType.PROPOSAL
+        except ValueError:
+            is_proposal = False
+        experience_line = (
+            "Your responses help us understand where we can improve."
+            if is_proposal
+            else "Your responses help us understand what is working well "
+                 "and where we can improve."
+        )
         body_html = (
             f"Dear {escape(first_name)},<br><br>"
             f"{escape(org_name)} values your feedback on "
             f"<b>{escape(subject_label)}</b> and would appreciate a few minutes "
-            f"of your time to share your experience. Your responses help us "
-            f"understand what is working well and where we can "
-            f"improve.<br><br>"
+            f"of your time to share your experience. {experience_line}<br><br>"
             f"This link will expire on "
             f"{escape(deadline)}."
         )
@@ -346,8 +364,7 @@ async def send_feedback_request(
             f"Dear {first_name},\n\n"
             f"{org_name} values your feedback on {subject_label} and would "
             f"appreciate a few minutes of your time to share your experience. "
-            f"Your responses help us understand what is working well and "
-            f"where we can improve.\n\n"
+            f"{experience_line}\n\n"
             f"This link will expire on "
             f"{deadline}."
         )
@@ -376,7 +393,7 @@ async def send_assignment_notice(
     external: bool = False,
     target_type: str | TargetType | None = None,
 ) -> bool:
-    first_name = full_name.split()[0] if full_name.strip() else "there"
+    first_name = _first_name(full_name)
     when = f" It closes on {due_at.strftime('%d %B')}." if due_at else ""
     noun = _person_review_noun(target_type)
 
@@ -392,35 +409,40 @@ async def send_assignment_notice(
         )
     else:
         opening_html = (
-            f"You have been asked to share your feedback on "
+            f"We would appreciate your feedback on "
             f"<b>{escape(subject_label)}</b>.{escape(when)}"
         )
         opening_text = (
-            f"You have been asked to share your feedback on {subject_label}."
+            f"We would appreciate your feedback on {subject_label}."
             f"{when}"
         )
 
     closing_html = (
-        "It only takes a couple of minutes — the link below will sign you "
-        "in automatically."
+        "It takes just a couple of minutes to complete — the link below "
+        "will sign you in automatically."
         if external
-        else "It only takes a couple of minutes."
+        else "It takes just a couple of minutes to complete."
     )
-    closing_text = "It only takes a couple of minutes."
+    closing_text = "It takes just a couple of minutes to complete."
 
     return await send(
         to=to,
         subject="Feedback Request",
         heading="",
         body_html=(
-            f"Dear {escape(first_name)},<br><br>{opening_html}<br><br>{closing_html}"
+            f"Dear {escape(first_name)},<br><br>{opening_html} {closing_html} "
+            f"Thank you for your time."
         ),
         body_text=(
-            f"Dear {first_name},\n\n{opening_text}\n\n{closing_text}"
+            f"Dear {first_name},\n\n{opening_text} {closing_text} "
+            f"Thank you for your time."
         ),
         branding=branding,
         cta=("Give feedback", link),
     )
+
+
+
 
 
 async def send_reminder(
@@ -436,7 +458,7 @@ async def send_reminder(
     external: bool = False,
     target_type: str | TargetType | None = None,
 ) -> bool:
-    first_name = full_name.split()[0] if full_name.strip() else "there"
+    first_name = _first_name(full_name)
     when = f" It closes on {due_at.strftime('%d %B')}." if due_at else ""
     noun = _person_review_noun(target_type)
 
@@ -472,10 +494,10 @@ async def send_reminder(
         subject=f"Reminder: your feedback on {subject_label}",
         heading="A quick reminder",
         body_html=(
-            f"Dear {escape(first_name)},<br><br>{opening_html}<br><br>{closing_html}"
+            f"Dear {escape(first_name)},<br><br>{opening_html} {closing_html}"
         ),
         body_text=(
-            f"Dear {first_name},\n\n{opening_text}\n\n{closing_text}"
+            f"Dear {first_name},\n\n{opening_text} {closing_text}"
         ),
         branding=branding,
         cta=("Give feedback", link),
@@ -492,7 +514,7 @@ async def send_escalation(
     link: str,
     branding: Branding,
 ) -> bool:
-    first_name = full_name.split()[0] if full_name.strip() else "there"
+    first_name = _first_name(full_name)
     shown = outstanding[:15]
     items = "".join(f"<li>{escape(name)}</li>" for name in shown)
     more = (
@@ -531,7 +553,7 @@ async def send_proposal_feedback_request(
     link: str,
     branding: Branding,
 ) -> bool:
-    first_name = full_name.split()[0] if full_name.strip() else "there"
+    first_name = _first_name(full_name)
     return await send(
         to=to,
         subject=f"Your review on our proposal: {proposal_title}",
@@ -568,7 +590,7 @@ async def send_org_rejected(
     No CTA — there is nothing for the recipient to click through to. This is
     a closed loop, not an invitation to take further action on the platform.
     """
-    first_name = contact_name.split()[0] if contact_name.strip() else "there"
+    first_name = _first_name(contact_name)
     return await send(
         to=to,
         subject=f"Your Registration for {org_name} Was Not Approved",
@@ -609,7 +631,7 @@ async def send_org_suspended(
     No CTA — there is no link to give someone whose sessions were just
     revoked; a "sign in" button here would only invite a failed attempt.
     """
-    first_name = contact_name.split()[0] if contact_name.strip() else "there"
+    first_name = _first_name(contact_name)
     return await send(
         to=to,
         subject=f"Your {org_name} Account Has Been Suspended",
@@ -650,7 +672,7 @@ async def send_organization_reactivated(
     simply work again, so the message just needs to say sign-in is open,
     not hand the recipient another link to click.
     """
-    first_name = contact_name.split()[0] if contact_name.strip() else "there"
+    first_name = _first_name(contact_name)
     return await send(
         to=to,
         subject=f"Your {org_name} Account Has Been Reactivated",
@@ -702,7 +724,7 @@ async def send_invitation(
         rather than assuming Admin — this is what fixes an Employee or
         Manager invite wrongly reading "as an Admin".
     """
-    first_name = full_name.split()[0] if full_name.strip() else "there"
+    first_name = _first_name(full_name)
 
     if kind == "approval":
         subject = "Your Organization Has Been Approved"
@@ -753,15 +775,13 @@ async def send_invitation(
             body_html=(
                 f"You have been added to <b>{escape(org_name)}</b> as {article} "
                 f"{escape(display_role)}.<br><br>"
-                f"Set a password to activate your account and get "
-                f"started.<br><br>"
+                f"Set a password to activate your account and get started. "
                 f"This link can be used once and expires in "
                 f"{_hours_label(settings.invite_token_ttl_hours)}."
             ),
             body_text=(
                 f"You have been added to {org_name} as {article} {display_role}.\n\n"
-                f"Set a password to activate your account and get "
-                f"started.\n\n"
+                f"Set a password to activate your account and get started. "
                 f"This link can be used once and expires in "
                 f"{_hours_label(settings.invite_token_ttl_hours)}."
             ),
@@ -810,23 +830,24 @@ async def send_password_reset(
     expires_in_hours: int,
     branding: Branding,
 ) -> bool:
-    first_name = full_name.split()[0] if full_name.strip() else "there"
+    first_name = _first_name(full_name)
     return await send(
         to=to,
         subject=f"Reset your {org_name} password",
-        heading=f"Hi {first_name}, reset your password",
+        heading="Password reset request",
         body_html=(
-            f"An administrator requested a password "
-            f"reset for your account. This link can be used once and expires in "
-            f"{expires_in_hours} hours. If you did not expect this, you can "
-            f"ignore it — your password will not change unless you follow the "
-            f"link and set a new one."
+            f"Dear {escape(first_name)},<br><br>"
+            f"A password reset was requested for your account. This link "
+            f"can be used once and expires in {expires_in_hours} hours. If "
+            f"you did not expect this, you can ignore it — your password "
+            f"will not change unless you follow the link and set a new one."
         ),
         body_text=(
-            f"An administrator requested a password reset for your "
-            f"account. This link can only be used once and will expire in "
-            f"{_hours_label(expires_in_hours)}. If you did not expect this, you can "
-            f"ignore it."
+            f"Dear {first_name},\n\n"
+            f"A password reset was requested for your account. This link "
+            f"can only be used once and will expire in "
+            f"{_hours_label(expires_in_hours)}. If you did not expect this, "
+            f"you can ignore it."
         ),
         branding=branding,
         cta=("Reset your password", reset_url),
@@ -851,8 +872,7 @@ async def send_thank_you(
     client/product/service. `target_type` is accepted for signature
     parity with the other send_* functions but is currently unused here.
     """
-    first_name = full_name.split()[0] if full_name.strip() else "there"
-
+    first_name = _first_name(full_name)
     body_html = (
         f"Your feedback on <b>{escape(subject_label)}</b> has been received. "
         f"We appreciate you taking the time to share it with "
