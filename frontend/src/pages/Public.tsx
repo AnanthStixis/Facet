@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandLogo } from '../components/Logo'
-import { IconCheck, IconShield } from '../components/icons'
+// import { IconCheck, IconShield } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
