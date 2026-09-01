@@ -30,9 +30,9 @@ class Department(UUIDPrimaryKey, Timestamped, Base):
     __tablename__ = "departments"
     __tenant_scoped__ = True
 
-    org_id: Mapped[uuid.UUID] = mapped_column(
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        nullable=True, index=True,
     )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -41,8 +41,21 @@ class Department(UUIDPrimaryKey, Timestamped, Base):
     created_by: Mapped[User | None] = relationship(User, foreign_keys=[created_by_id], lazy="noload")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
 
+    # org_id IS NULL means "global" — a default department every organization
+    # can read and pick from, owned by no tenant. Global names and per-org
+    # names are separate namespaces, so an org may still create "Design" of
+    # its own even when a global "Design" exists; that is why these are two
+    # partial indexes rather than one plain unique index (which would treat
+    # every NULL org_id as distinct and permit duplicate global names).
     __table_args__ = (
-        Index("uq_departments_org_name", "org_id", "name", unique=True),
+        Index(
+            "uq_departments_global_name", "name", unique=True,
+            postgresql_where=text("org_id IS NULL"),
+        ),
+        Index(
+            "uq_departments_org_name", "org_id", "name", unique=True,
+            postgresql_where=text("org_id IS NOT NULL"),
+        ),
     )
 
 

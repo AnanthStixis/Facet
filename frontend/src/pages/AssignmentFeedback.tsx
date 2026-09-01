@@ -218,12 +218,12 @@ export function AssignmentFeedback() {
           >
             <IconCheck width={22} height={22} />
           </div>
-          <h1 className="text-xl font-semibold text-ink-900 dark:text-white">Thank you</h1>
+          <h1 className="text-xl font-semibold text-ink-900 dark:text-white">Thank you!!</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink-500 dark:text-ink-400">
             {done}
           </p>
           <p className="mt-5 text-2xs text-ink-400">
-            {data.organization.name} · This link has now been used and will not open again.
+            {data.organization.name}
           </p>
         </div>
       </div>

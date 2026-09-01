@@ -137,7 +137,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
         to: '/masters',
         label: 'Master Data',
         icon: IconTag,
-        roles: ['client_admin'],
+        roles: ['client_admin', 'super_admin'],
       },
     ],
   },

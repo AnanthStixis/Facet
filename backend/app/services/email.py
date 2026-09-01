@@ -97,7 +97,11 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
         f'<img src="{escape(branding.logo_url)}" alt="{escape(branding.org_name)}" '
         f'height="34" style="max-height:34px;border:0;display:block">'
         if branding.logo_url
-        else "&nbsp;"
+        else (
+            f'<img src="{escape(settings.public_app_url)}/facet360-logo.png" '
+            f'alt="{escape(settings.product_name)}" '
+            f'height="34" style="max-height:34px;border:0;display:block">'
+        )
     )
     heading_block = (
         f'<tr><td style="font:600 20px Helvetica,Arial,sans-serif;color:#12161C;padding:24px 0 8px">'

@@ -7,6 +7,7 @@ import { Banner, Chip, ConfirmDialog, EmptyState, Field, Modal, Skeleton, Spinne
 import { useToast } from '../components/Toast'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
+import { useAuth } from '../store/auth'
 
 const PAGE_SIZE = 15
 
@@ -16,6 +17,9 @@ interface MasterRow {
   is_active: boolean
   created_by: string | null
   created_at: string
+  // Only present for Department — the one master list with a shared,
+  // Super-Admin-authored tier alongside each org's own rows.
+  scope?: 'global' | 'org'
 }
 
 interface MasterPage {
@@ -104,6 +108,7 @@ function MasterRowModal({
 
 function MasterListPanel({ list }: { list: ListConfig }) {
   const toast = useToast()
+  const isSuperAdmin = useAuth((state) => state.user?.role === 'super_admin')
   const [data, setData] = useState<MasterPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -195,44 +200,61 @@ function MasterListPanel({ list }: { list: ListConfig }) {
               </tr>
             </thead>
             <tbody>
-              {data.items.map((row) => (
-                <tr key={row.id}>
-                  <td className="font-medium text-ink-900 dark:text-ink-50">{row.name}</td>
-                  <td>
-                    <Chip value={row.is_active ? 'active' : 'disabled'} />
-                  </td>
-                  <td className="text-ink-600 dark:text-ink-300">{row.created_by ?? '—'}</td>
-                  <td className="text-ink-600 dark:text-ink-300">{formatDate(row.created_at)}</td>
-                  <td>
-                    <span className="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
-                      <Switch
-                        checked={row.is_active}
-                        disabled={toggleBusy === row.id}
-                        ariaLabel={row.is_active ? `Disable ${row.name}` : `Enable ${row.name}`}
-                        onChange={() => toggleActive(row)}
-                      />
-                      <button
-                        type="button"
-                        className="btn-secondary p-1.5"
-                        aria-label={`Edit ${row.name}`}
-                        title="Edit"
-                        onClick={() => setEditing(row)}
-                      >
-                        <IconEdit width={15} height={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-ghost p-1.5 text-critical"
-                        aria-label={`Delete ${row.name}`}
-                        title="Delete"
-                        onClick={() => setDeleting(row)}
-                      >
-                        <IconTrash width={15} height={15} />
-                      </button>
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {data.items.map((row) => {
+                // A global row is Super-Admin-authored, shared platform
+                // data — an org Admin can see and pick it (that's the
+                // point), but can't rename, disable, or delete something
+                // every other org relies on too.
+                const isGlobal = row.scope === 'global'
+                const canManage = !isGlobal || isSuperAdmin
+                return (
+                  <tr key={row.id}>
+                    <td className="font-medium text-ink-900 dark:text-ink-50">
+                      <span className="flex items-center gap-2">
+                        {row.name}
+                        {isGlobal && <Chip value="global" />}
+                      </span>
+                    </td>
+                    <td>
+                      <Chip value={row.is_active ? 'active' : 'disabled'} />
+                    </td>
+                    <td className="text-ink-600 dark:text-ink-300">{row.created_by ?? '—'}</td>
+                    <td className="text-ink-600 dark:text-ink-300">{formatDate(row.created_at)}</td>
+                    <td>
+                      <span className="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
+                        <Switch
+                          checked={row.is_active}
+                          disabled={toggleBusy === row.id || !canManage}
+                          ariaLabel={row.is_active ? `Disable ${row.name}` : `Enable ${row.name}`}
+                          onChange={() => toggleActive(row)}
+                        />
+                        {canManage && (
+                          <>
+                            <button
+                              type="button"
+                              className="btn-secondary p-1.5"
+                              aria-label={`Edit ${row.name}`}
+                              title="Edit"
+                              onClick={() => setEditing(row)}
+                            >
+                              <IconEdit width={15} height={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-ghost p-1.5 text-critical"
+                              aria-label={`Delete ${row.name}`}
+                              title="Delete"
+                              onClick={() => setDeleting(row)}
+                            >
+                              <IconTrash width={15} height={15} />
+                            </button>
+                          </>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

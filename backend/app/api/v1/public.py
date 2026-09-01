@@ -707,9 +707,5 @@ async def submit_assignment_link(
             log.warning("post_submit_email_failed", cycle_id=str(cycle.id))
 
     return MessageResponse(
-        message=(
-            "Thank you. Your feedback was submitted anonymously and cannot be traced back to you."
-            if anonymous
-            else "Thank you. Your feedback was submitted."
-        )
+        message="Thank you. Your feedback has been received."
     )
