@@ -13,7 +13,6 @@ import type {
   FeedbackForm,
   FormQuestion,
 } from '../lib/cycleTypes'
-import { RELATIONSHIP_LABEL, RELATIONSHIP_SHORT } from '../lib/cycleTypes'
 
 type Answers = Record<string, number | string | boolean>
 
@@ -234,8 +233,7 @@ function FeedbackFormView({
             Feedback on {assignment.target_label}
           </h1>
           <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
-            {assignment.cycle_name} &middot;{' '}
-            {RELATIONSHIP_LABEL[assignment.relationship]}
+            {assignment.cycle_name}
           </p>
         </div>
       </div>
@@ -441,9 +439,6 @@ export function MyFeedback() {
                   <p className="flex flex-wrap items-center gap-2">
                     <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
                       {assignment.target_label}
-                    </span>
-                    <span className="chip bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300">
-                      {RELATIONSHIP_SHORT[assignment.relationship]}
                     </span>
                     {assignment.is_anonymous && assignment.relationship !== 'self' && (
                       <span className="chip accent-soft-bg accent-text flex items-center gap-1">

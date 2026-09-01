@@ -205,7 +205,6 @@ USER_REPORT = register(
 
 ORG_COLUMNS = [
     Column("name", "Organization", width=26),
-    Column("slug", "Slug", width=18),
     Column("status", "Status", width=12, kind="badge"),
     Column("registration_source", "Onboarded via", width=16),
     Column("contact_name", "Primary contact", width=22),
