@@ -30,26 +30,14 @@ interface UserFeedbackItem {
   comment: string | null
 }
 
-interface TemplateOption {
-  id: string
-  name: string
-  status: string | null
-  target_type: string
-  is_anonymous: boolean
-}
-
 /** Popup showing everything collected about one person, plus a way to send
  * more — the People-page counterpart to Results.tsx's per-round detail. */
 function FeedbackHistoryModal({
   person,
-  canSend,
   onClose,
-  onSend,
 }: {
   person: User
-  canSend: boolean
   onClose: () => void
-  onSend: () => void
 }) {
   const [items, setItems] = useState<UserFeedbackItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -108,24 +96,6 @@ function FeedbackHistoryModal({
         <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={onClose}>
           Close
         </button>
-        {/* An org-less Super Admin can only send feedback about a Client
-            Admin — they aren't part of any org's own reporting chart, so an
-            Employees Review against an employee/manager row wouldn't make
-            sense. A Client Admin (or anyone acting within an org) can send
-            to anyone in their own org's list — org membership is what
-            unlocks this, not a specific role. */}
-        {canSend && (
-          <button
-            type="button"
-            className="btn-primary px-3 py-1.5 text-sm"
-            onClick={() => {
-              onClose()
-              onSend()
-            }}
-          >
-            Send feedback
-          </button>
-        )}
       </div>
     </Modal>
   )
@@ -247,140 +217,6 @@ function UserDetailModal({ person, isPlatform, onClose }: { person: User; isPlat
         </button>
       </div>
     </Modal>
-  )
-}
-
-/** Inline panel (not a route change) to send one Employees Review to several
- * people at once — each selected person gets their own POST /feedback call,
- * since each gets their own ReviewCycle underneath. */
-function BulkSendPanel({
-  people,
-  onRemove,
-  onDone,
-  onCancel,
-}: {
-  people: User[]
-  onRemove: (id: string) => void
-  onDone: () => void
-  onCancel: () => void
-}) {
-  const toast = useToast()
-  const [templates, setTemplates] = useState<TemplateOption[]>([])
-  const [templateId, setTemplateId] = useState('')
-  const [name, setName] = useState('')
-  const [closesAt, setClosesAt] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    api
-      .get<{ templates: TemplateOption[] }[]>('/catalog/categories')
-      .then((categories) =>
-        setTemplates(
-          categories
-            .flatMap((category) => category.templates)
-            .filter((t) => t.status === 'published' && t.target_type === 'employee'),
-        ),
-      )
-      .catch(() => setTemplates([]))
-  }, [])
-
-  const send = async () => {
-    setBusy(true)
-    let sent = 0
-    const failed: string[] = []
-    for (const person of people) {
-      try {
-        await api.post('/feedback', {
-          kind: 'employee',
-          template_id: templateId,
-          name: name.trim() || `${person.full_name} — feedback`,
-          closes_at: closesAt ? new Date(closesAt).toISOString() : null,
-          reviewee_user_id: person.id,
-        })
-        sent += 1
-      } catch {
-        failed.push(person.full_name)
-      }
-    }
-    setBusy(false)
-    toast.show(
-      failed.length ? 'warning' : 'success',
-      'Feedback sent',
-      failed.length
-        ? `${sent} of ${people.length} sent. Failed for: ${failed.join(', ')}.`
-        : `Sent to ${sent} ${sent === 1 ? 'person' : 'people'}.`,
-    )
-    onDone()
-  }
-
-  return (
-    <Card className="mb-4" title="Send feedback to selected people">
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {people.map((person) => (
-          <span
-            key={person.id}
-            className="flex items-center gap-1.5 rounded-full bg-ink-100 py-1 pl-2.5 pr-1.5 text-xs text-ink-700 dark:bg-ink-800 dark:text-ink-200"
-          >
-            {person.full_name}
-            <button
-              type="button"
-              className="rounded-full p-0.5 hover:bg-ink-200 dark:hover:bg-ink-700"
-              onClick={() => onRemove(person.id)}
-              aria-label={`Remove ${person.full_name}`}
-            >
-              &times;
-            </button>
-          </span>
-        ))}
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-            Template
-          </span>
-          <select
-            className="field"
-            value={templateId}
-            onChange={(event) => setTemplateId(event.target.value)}
-          >
-            <option value="">Choose a template</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Field
-          label="Name (optional)"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Defaults to each person's own name"
-        />
-        <Field
-          label="Closes on (optional)"
-          type="date"
-          value={closesAt}
-          onChange={(event) => setClosesAt(event.target.value)}
-        />
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button
-          type="button"
-          className="btn-primary px-3 py-1.5 text-sm"
-          disabled={busy || people.length === 0 || !templateId}
-          onClick={send}
-        >
-          {busy && <Spinner />}
-          Send to {people.length}
-        </button>
-        <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-    </Card>
   )
 }
 
@@ -1022,7 +858,8 @@ export function People() {
   const [viewingId, setViewingId] = useState<string | null>(null)
   const [viewingFeedbackId, setViewingFeedbackId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [showSendPanel, setShowSendPanel] = useState(false)
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -1068,6 +905,53 @@ export function People() {
       current ? { ...current, items: current.items.filter((p) => p.id !== id) } : current,
     )
   }
+
+  /** Applies one action to every selected person.
+   *
+   * These are the same three endpoints the per-row Switch and trash icon
+   * already call — there is no bulk endpoint, so this loops. Each call is
+   * caught individually so one failure cannot abandon the rest: a partial
+   * result is reported honestly rather than the whole batch appearing to
+   * fail. Rows that did succeed are dropped from the selection, so a retry
+   * only re-attempts what actually needs it. */
+  const runBulk = async (action: 'enable' | 'disable' | 'delete') => {
+    const targets = (data?.items ?? []).filter((p) => selectedIds.includes(p.id))
+    if (targets.length === 0) return
+    setBulkBusy(true)
+    const succeeded: string[] = []
+    const failed: string[] = []
+    for (const person of targets) {
+      try {
+        if (action === 'delete') {
+          await api.delete(`/users/${person.id}`)
+          removePerson(person.id)
+        } else {
+          await api.post(`/users/${person.id}/${action}`)
+          patchPerson(person.id, { status: action === 'enable' ? 'active' : 'disabled' })
+        }
+        succeeded.push(person.id)
+      } catch {
+        failed.push(person.full_name)
+      }
+    }
+    setBulkBusy(false)
+    setSelectedIds((current) => current.filter((id) => !succeeded.includes(id)))
+    const verb = action === 'delete' ? 'deleted' : `${action}d`
+    if (failed.length === 0) {
+      toast.show(
+        'success',
+        `${succeeded.length} ${succeeded.length === 1 ? 'person' : 'people'} ${verb}`,
+        '',
+      )
+    } else {
+      toast.show(
+        succeeded.length ? 'warning' : 'critical',
+        `${succeeded.length} of ${targets.length} ${verb}`,
+        `Failed for: ${failed.join(', ')}.`,
+      )
+    }
+    load()
+  }
   const canManage = user?.role === 'client_admin' || user?.role === 'super_admin'
   const isPlatform = user?.role === 'super_admin'
   // A Super Admin with no org has no organization to create a user into —
@@ -1080,8 +964,22 @@ export function People() {
   // chart, so only a Client Admin relationship makes sense to them). Anyone
   // acting within an org — a Client Admin, or a Super Admin who becomes
   // linked to one — can select/send to any row in their own org's list.
-  const restrictedToClientAdmins = user?.role === 'super_admin' && !organization
-  const canSelect = (person: User) => !restrictedToClientAdmins || person.role === 'client_admin'
+  // Who may be bulk-selected. Two exclusions:
+  //
+  // 1. Yourself — the backend raises PermissionDenied on both self-disable
+  //    and self-delete, and the per-row UI already shows "You" instead of
+  //    the Switch and trash icon.
+  // 2. Admin rows. The API does allow an admin to delete another admin, and
+  //    the per-row trash icon still offers that deliberately. What's excluded
+  //    here is only the *bulk* path: select-all plus one click is how an org
+  //    loses its administrators by accident, and a deleted user cannot be
+  //    restored through the app (enable_user rejects anything that isn't
+  //    DISABLED). Removing an admin stays possible, it just has to be
+  //    one deliberate row at a time.
+  const canSelect = (person: User) =>
+    person.id !== user?.id &&
+    person.role !== 'client_admin' &&
+    person.role !== 'super_admin'
 
   return (
     <>
@@ -1192,21 +1090,42 @@ export function People() {
         </Banner>
       )}
 
-      {selectedIds.length > 0 && !showSendPanel && (
-        <div className="mb-4 flex items-center gap-3 rounded-lg border border-ink-200 bg-ink-50 px-4 py-2.5 dark:border-ink-700 dark:bg-ink-900/60">
+      {selectedIds.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-ink-200 bg-ink-50 px-4 py-2.5 dark:border-ink-700 dark:bg-ink-900/60">
           <span className="text-sm text-ink-700 dark:text-ink-200">
             {selectedIds.length} selected
           </span>
+          {/* Enable and Disable are separate buttons rather than one toggle:
+              a mixed selection has no single "current state" to flip, so an
+              explicit target state is the only unambiguous thing to offer. */}
           <button
             type="button"
-            className="btn-primary px-3 py-1.5 text-sm"
-            onClick={() => setShowSendPanel(true)}
+            className="btn-secondary px-3 py-1.5 text-sm"
+            disabled={bulkBusy}
+            onClick={() => void runBulk('enable')}
           >
-            Send feedback to {selectedIds.length}
+            Enable
+          </button>
+          <button
+            type="button"
+            className="btn-secondary px-3 py-1.5 text-sm"
+            disabled={bulkBusy}
+            onClick={() => void runBulk('disable')}
+          >
+            Disable
+          </button>
+          <button
+            type="button"
+            className="btn-danger px-3 py-1.5 text-sm"
+            disabled={bulkBusy}
+            onClick={() => setConfirmingBulkDelete(true)}
+          >
+            Delete
           </button>
           <button
             type="button"
             className="btn-ghost px-2 py-1 text-xs"
+            disabled={bulkBusy}
             onClick={() => setSelectedIds([])}
           >
             Clear
@@ -1214,16 +1133,23 @@ export function People() {
         </div>
       )}
 
-      {showSendPanel && selectedIds.length > 0 && data && (
-        <BulkSendPanel
-          people={data.items.filter((person) => selectedIds.includes(person.id))}
-          onRemove={(id) => setSelectedIds((current) => current.filter((item) => item !== id))}
-          onDone={() => {
-            setShowSendPanel(false)
-            setSelectedIds([])
-            load()
+      {confirmingBulkDelete && (
+        <ConfirmDialog
+          title={`Delete ${selectedIds.length} ${selectedIds.length === 1 ? 'person' : 'people'}?`}
+          body={
+            `${selectedIds.length === 1 ? 'This person' : 'These people'} will be removed from ` +
+            'the list and signed out immediately. Their feedback history and audit trail are ' +
+            'kept, but there is no way to restore them from within the app. To stop someone ' +
+            'signing in while keeping them on the list, use Disable instead.'
+          }
+          confirmLabel="Delete"
+          tone="critical"
+          busy={bulkBusy}
+          onConfirm={async () => {
+            await runBulk('delete')
+            setConfirmingBulkDelete(false)
           }}
-          onCancel={() => setShowSendPanel(false)}
+          onCancel={() => setConfirmingBulkDelete(false)}
         />
       )}
 
@@ -1286,9 +1212,9 @@ export function People() {
                 <tr>
                   {canManage && (
                     <th className="w-8">
-                      {/* An org-less Super Admin can only select Client
-                          Admin rows (see restrictedToClientAdmins above);
-                          anyone viewing within an org can select any row. */}
+                      {/* Select-all covers only the rows that are actually
+                          selectable (see canSelect above), so on the
+                          platform-wide list it renders nothing at all. */}
                       {(() => {
                         const selectableIds = data.items
                           .filter(canSelect)
@@ -1524,17 +1450,7 @@ export function People() {
           return (
             <FeedbackHistoryModal
               person={person}
-              canSend={canSelect(person)}
               onClose={() => setViewingFeedbackId(null)}
-              onSend={() => {
-                setSelectedIds([person.id])
-                setShowSendPanel(true)
-                // The send panel renders above the table, near the top of
-                // the page — if this was opened from a person scrolled deep
-                // into a long, paginated list, it would appear entirely off
-                // screen without this.
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
             />
           )
         })()
