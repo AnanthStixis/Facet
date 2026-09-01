@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useEffect, useRef, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { IconAlert, IconX } from './icons'
@@ -396,13 +396,55 @@ export function InfoTooltip({ text }: { text: string }) {
       >
         i
       </button>
-      <span
+            <span
         role="tooltip"
         className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-max max-w-[220px] -translate-x-1/2 rounded-md bg-ink-900 px-2.5 py-1.5 text-xs font-normal normal-case text-ink-50 opacity-0 shadow-lift transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-ink-100 dark:text-ink-900"
       >
         {text}
       </span>
     </span>
+  )
+}
+
+/**
+ * A hover tooltip that renders through a portal, for triggers that live
+ * inside a scrolling/overflow-clipped container (e.g. a table wrapped in
+ * `overflow-x-auto`) — where `InfoTooltip`'s plain CSS positioning above
+ * would get cut off by that container's own bounds. Always opens *below*
+ * the trigger and clamps horizontally so it can't run off either edge of
+ * the viewport.
+ */
+export function Tooltip({ content, children }: { content: ReactNode; children: ReactNode }) {
+  const triggerRef = useRef<HTMLSpanElement>(null)
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+
+  const show = () => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setCoords({
+      top: rect.bottom + 6,
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 328)),
+    })
+  }
+  const hide = () => setCoords(null)
+
+  return (
+    <>
+      <span ref={triggerRef} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide} tabIndex={0}>
+        {children}
+      </span>
+      {coords &&
+        createPortal(
+          <div
+            role="tooltip"
+            className="fixed z-50 max-w-xs rounded-md border border-ink-200 bg-white px-2.5 py-1.5 text-xs text-ink-700 shadow-lift"
+            style={{ top: coords.top, left: coords.left }}
+          >
+            {content}
+          </div>,
+          document.body,
+        )}
+    </>
   )
 }
 

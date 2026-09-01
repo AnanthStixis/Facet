@@ -4,7 +4,7 @@ import { FEEDBACK_TYPES } from './CreateFeedback'
 import { Pagination } from '../components/DataTable'
 import { ExportMenu, FloatingPanel, SearchBox, useDismiss } from '../components/filters'
 import { IconChevronDown, IconSearch } from '../components/icons'
-import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, StatTile } from '../components/ui'
+import { Banner, Card, Chip, EmptyState, Field, Modal, Skeleton, Spinner, StatTile, Tooltip } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
@@ -118,7 +118,7 @@ const DATE_PRESETS: { value: string; label: string }[] = [
   { value: 'custom', label: 'Custom range' },
 ]
 
-const PAGE_SIZE = 15
+const PAGE_SIZE = 25
 
 function formatDateTime(value: string | null) {
   if (!value) return '—'
@@ -918,7 +918,7 @@ export function Results() {
         </Card>
       ) : (
         <Card padded={false}>
-          <div className="overflow-x-auto">
+          <div className="max-h-[600px] overflow-x-auto overflow-y-auto">
             <table className="data-table">
               <thead>
                 <tr>
@@ -958,11 +958,14 @@ export function Results() {
                       <td className="font-medium text-ink-900 dark:text-ink-50">{row.name}</td>
                       <td className="text-ink-600 dark:text-ink-300">{row.client_name ?? '—'}</td>
                       <td>{KIND_LABEL[row.kind] ?? row.kind}</td>
-                      <td
-                        className="max-w-[220px] truncate text-ink-600 dark:text-ink-300"
-                        title={row.recipients.join(', ') || undefined}
-                      >
-                        {recipientsSummary}
+                      <td className="max-w-[220px] truncate text-ink-600 dark:text-ink-300">
+                        {row.recipients.length > 0 ? (
+                          <Tooltip content={row.recipients.join(', ')}>
+                            <span className="underline">{recipientsSummary}</span>
+                          </Tooltip>
+                        ) : (
+                          recipientsSummary
+                        )}
                       </td>
                       <td className="text-ink-600 dark:text-ink-300">
                         {row.target_label ? (

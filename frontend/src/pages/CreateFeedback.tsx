@@ -1821,7 +1821,7 @@ export function CreateFeedback() {
                     placeholder={
                       kind === 'client'
                         ? 'e.g. Northwind relationship'
-                        : 'e.g. Parata / NEXiA platform modernisation'
+                        : undefined
                     }
                   />
                 )}

@@ -276,7 +276,7 @@ export function AppShell() {
                 // A bare /create-feedback (no kind yet) is treated as the
                 // default 'employee' type, matching CreateFeedback.tsx's own
                 // fallback.
-                const active = item.to.includes('?')
+                                const active = item.to.includes('?')
                   ? `${location.pathname}${location.search}` === item.to ||
                     (location.pathname === '/create-feedback' &&
                       !location.search &&
@@ -284,7 +284,7 @@ export function AppShell() {
                   : item.to === '/'
                     ? location.pathname === '/'
                     : location.pathname.startsWith(item.to)
-                return (
+                                                return (
                   <NavLink
                     key={item.to}
                     to={item.to}
@@ -304,7 +304,11 @@ export function AppShell() {
                         aria-hidden="true"
                       />
                     )}
-                    {item.label}
+                    {item.to === '/results' ? (
+                      <span className="accent-text font-bold">{item.label}</span>
+                    ) : (
+                      item.label
+                    )}
                   </NavLink>
                 )
               })}
