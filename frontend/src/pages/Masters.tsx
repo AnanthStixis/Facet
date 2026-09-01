@@ -109,6 +109,10 @@ function MasterRowModal({
 function MasterListPanel({ list }: { list: ListConfig }) {
   const toast = useToast()
   const isSuperAdmin = useAuth((state) => state.user?.role === 'super_admin')
+  // Scope (global vs org) only exists on Department rows, and only tells an
+  // org Admin anything useful — a Super Admin's own list IS the global
+  // list, so every row would carry it and the column would be dead weight.
+  const showScopeColumn = list.key === 'departments' && !isSuperAdmin
   const [data, setData] = useState<MasterPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -210,10 +214,12 @@ function MasterListPanel({ list }: { list: ListConfig }) {
                 return (
                   <tr key={row.id}>
                     <td className="font-medium text-ink-900 dark:text-ink-50">
-                      <span className="flex items-center gap-2">
-                        {row.name}
-                        {isGlobal && <Chip value="global" />}
-                      </span>
+                      <div className="leading-tight">{row.name}</div>
+                      {showScopeColumn && isGlobal && (
+                        <span className="mt-1 inline-flex items-center rounded-full bg-ink-100 px-1.5 py-0 text-[9px] font-bold leading-[14px] uppercase tracking-[0.04em] text-ink-500 dark:bg-ink-800 dark:text-ink-400">
+                          Global
+                        </span>
+                      )}
                     </td>
                     <td>
                       <Chip value={row.is_active ? 'active' : 'disabled'} />
