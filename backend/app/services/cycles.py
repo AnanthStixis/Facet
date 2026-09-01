@@ -104,6 +104,7 @@ async def generate_assignments(
     plan: GenerationPlan,
     due_at: datetime | None = None,
     manager_ids: list[uuid.UUID] | None = None,
+    report_ids: list[uuid.UUID] | None = None,
 ) -> GenerationResult:
     """Build the reviewer set for each reviewee from the org chart.
 
@@ -118,6 +119,12 @@ async def generate_assignments(
     one. Only meaningful with a single reviewee; the bulk multi-reviewee path
     (the old Cycles.tsx flow) never passes this, so it keeps including every
     manager on record for each person, unchanged.
+
+    `report_ids` is the mirror image for an upward review
+    (`plan.include_upward`): it narrows the reviewers to just the checked
+    direct reports on the Management Review form. Left as None, every direct
+    report on record is included, which is what the bulk path passes, so that
+    flow is unchanged too.
     """
     if cycle.status not in {CycleStatus.DRAFT, CycleStatus.OPEN}:
         raise Conflict("Assignments can only be generated for a draft or open cycle.")
@@ -196,16 +203,35 @@ async def generate_assignments(
                 )
 
         if plan.include_upward:
-            direct_reports = [
-                by_id[employee_id]
+            reviewee_report_ids = [
+                employee_id
                 for employee_id in reports_by_manager.get(reviewee.id, [])
                 if employee_id in by_id
             ]
+            # Same narrowing rule as include_manager above: an explicit
+            # report_ids list keeps only the checked boxes on the Management
+            # Review form, while None means every direct report on record —
+            # which is what the bulk multi-reviewee path still passes, so its
+            # behaviour is unchanged.
+            chosen_report_ids = (
+                [r for r in report_ids if r in reviewee_report_ids]
+                if report_ids is not None
+                else reviewee_report_ids
+            )
+            direct_reports = [by_id[employee_id] for employee_id in chosen_report_ids]
             for report in direct_reports:
                 pairs.append((report, Relationship.UPWARD))
-            if not direct_reports and reviewee.role == UserRole.MANAGER:
+            if not reviewee_report_ids and reviewee.role == UserRole.MANAGER:
                 warnings.append(
                     f"{reviewee.full_name} is a manager with no direct reports recorded."
+                )
+            elif reviewee_report_ids and not direct_reports:
+                # Has reports, but every one of them was unchecked. Distinct
+                # from the "none on record" case above: nothing is missing
+                # from the org chart, the selection just excluded them all.
+                warnings.append(
+                    f"No direct reports were selected for {reviewee.full_name}, "
+                    "so no upward review was created."
                 )
 
         if plan.include_peers:

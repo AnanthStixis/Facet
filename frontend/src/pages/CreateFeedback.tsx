@@ -17,8 +17,10 @@ const CHIP_TRUNCATE_AT = 8
 
 // Same idea as CHIP_TRUNCATE_AT above, but for Management Review's "Direct
 // reports" line — a manager with a large team otherwise turns one line
-// into a wall of names before the round is even sent.
-const DIRECT_REPORTS_TRUNCATE_AT = 5
+// into a wall of names before the round is even sent. Up to this many are
+// listed inline comma-separated with their checkboxes; past it, the whole
+// team moves into the "+N more" popup so the selection stays usable.
+const DIRECT_REPORTS_TRUNCATE_AT = 4
 
 export type FeedbackKind = 'client' | 'employee' | 'management' | 'product' | 'service' | 'proposal'
 
@@ -285,12 +287,26 @@ function ChipList({
   )
 }
 
-/** One manager's direct-reports line on Management Review — up to
- * DIRECT_REPORTS_TRUNCATE_AT names shown inline, with a "+N more" trigger
- * that opens a small numbered popup of the rest. Self-contained (its own
- * open state) since several of these can be on screen at once, one per
- * selected manager. */
-function DirectReportsCell({ reports }: { reports: LookupItem[] }) {
+/** One manager's direct-reports line on Management Review — each report has
+ * its own checkbox, and only the checked ones are sent the feedback form.
+ *
+ * Up to DIRECT_REPORTS_TRUNCATE_AT reports are listed inline, comma-separated,
+ * with their checkboxes right there. Past that the line would become a wall of
+ * names, so a "+N more" trigger opens a popup holding checkboxes for the whole
+ * team (not just the hidden ones — a partial list is confusing when you are
+ * trying to see what is currently selected). Self-contained open state, since
+ * several of these can be on screen at once, one per selected manager. */
+function DirectReportsCell({
+  reports,
+  selectedIds,
+  onToggle,
+  onSelectAll,
+}: {
+  reports: LookupItem[]
+  selectedIds: string[]
+  onToggle: (reportId: string, checked: boolean) => void
+  onSelectAll: (checked: boolean) => void
+}) {
   const [open, setOpen] = useState(false)
   const { triggerRef, panelRef } = useDismiss(open, () => setOpen(false))
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -299,31 +315,79 @@ function DirectReportsCell({ reports }: { reports: LookupItem[] }) {
     return <span className="text-xs text-ink-400">no direct reports on record</span>
   }
 
-  const visible = reports.slice(0, DIRECT_REPORTS_TRUNCATE_AT)
-  const hidden = reports.slice(DIRECT_REPORTS_TRUNCATE_AT)
+  const isChecked = (id: string) => selectedIds.includes(id)
+  const selectedCount = reports.filter((report) => isChecked(report.id)).length
+  // The first few are always listed by name with their checkboxes, however
+  // large the team is — only the remainder collapses into the "+N more"
+  // popup, so the line stays readable without hiding the whole selection.
+  const inline = reports.slice(0, DIRECT_REPORTS_TRUNCATE_AT)
+  const hiddenCount = reports.length - inline.length
+  const overflowing = hiddenCount > 0
 
   return (
     <span className="relative" ref={triggerRef}>
-      <span className="text-ink-700 dark:text-ink-200">
-        {visible.map((report) => report.label).join(', ')}
-      </span>
-      {hidden.length > 0 && (
+      {/* Small team: every report inline with its own checkbox. */}
+      {inline.map((report, i) => (
+        <label
+          key={report.id}
+          className="mr-0.5 inline-flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 align-baseline hover:bg-ink-50 dark:hover:bg-ink-800/60"
+        >
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5 accent-[color:var(--accent)]"
+            checked={isChecked(report.id)}
+            onChange={(event) => onToggle(report.id, event.target.checked)}
+          />
+          <span className="text-ink-700 dark:text-ink-200">
+            {report.label}
+            {i < inline.length - 1 ? ',' : ''}
+          </span>
+        </label>
+      ))}
+
+      {/* Anyone past the first few lives in the popup, which still holds the
+          whole team so the current selection can be read in one place. */}
+      {overflowing && (
         <>
-          {' '}
           <button
             ref={buttonRef}
             type="button"
             className="accent-text text-xs font-medium underline hover:no-underline"
             onClick={() => setOpen((state) => !state)}
           >
-            +{hidden.length} more
+            +{hiddenCount} more
           </button>
-          <FloatingPanel anchorRef={buttonRef} panelRef={panelRef} open={open} className="w-64 p-2">
-            <ol className="max-h-56 list-decimal space-y-1 overflow-y-auto py-1 pl-6 pr-2 text-sm text-ink-700 dark:text-ink-200">
+          <FloatingPanel anchorRef={buttonRef} panelRef={panelRef} open={open} className="w-72 p-2">
+            <div className="flex items-center justify-between border-b border-ink-100 px-2 pb-1.5 dark:border-ink-800">
+              <span className="text-xs font-medium text-ink-500 dark:text-ink-400">
+                Choose employees
+              </span>
+              <button
+                type="button"
+                className="accent-text text-xs font-medium hover:underline"
+                onClick={() => onSelectAll(selectedCount !== reports.length)}
+              >
+                {selectedCount === reports.length ? 'Clear all' : 'Select all'}
+              </button>
+            </div>
+            {/* Sized to hold exactly 10 rows (10 x 28px + 9 x 2px gaps + 8px
+                padding); the 11th is what brings in the scrollbar, so short
+                and long teams both avoid a scroll area that isn't needed. */}
+            <ul className="max-h-[156px] space-y-0.5 overflow-y-auto py-1">
               {reports.map((report) => (
-                <li key={report.id}>{report.label}</li>
+                <li key={report.id}>
+                  <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-ink-50 dark:hover:bg-ink-800/60">
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5 accent-[color:var(--accent)]"
+                      checked={isChecked(report.id)}
+                      onChange={(event) => onToggle(report.id, event.target.checked)}
+                    />
+                    <span className="text-ink-700 dark:text-ink-200">{report.label}</span>
+                  </label>
+                </li>
               ))}
-            </ol>
+            </ul>
           </FloatingPanel>
         </>
       )}
@@ -1259,11 +1323,18 @@ export function CreateFeedback() {
   const managementIdsKey = [...managementRevieweeIds].sort().join(',')
 
   const [reportsByManager, setReportsByManager] = useState<Record<string, LookupItem[]>>({})
+  // Keyed by manager id, for the same reason selectedManagerIdsByEmployee is
+  // keyed by employee id: one person can report to two selected managers, and
+  // unchecking them under one must not silently uncheck them under the other.
+  const [selectedReportIdsByManager, setSelectedReportIdsByManager] = useState<
+    Record<string, string[]>
+  >({})
   const [managementReportsLoading, setManagementReportsLoading] = useState(false)
 
   useEffect(() => {
     if (managementRevieweeIds.length === 0) {
       setReportsByManager({})
+      setSelectedReportIdsByManager({})
       return
     }
     let cancelled = false
@@ -1274,13 +1345,24 @@ export function CreateFeedback() {
       .then((results) => {
         if (cancelled) return
         const byManager: Record<string, LookupItem[]> = {}
+        const selectedByManager: Record<string, string[]> = {}
         managementRevieweeIds.forEach((id, i) => {
           byManager[id] = results[i]
+          // Checked by default — this is exactly what happened before the
+          // checkboxes existed (the round went to every direct report), so
+          // an untouched form behaves the same as it always has. Unchecking
+          // narrows it from here. Each manager gets their own independent
+          // array so a shared report cannot be unchecked in two places at once.
+          selectedByManager[id] = results[i].map((report) => report.id)
         })
         setReportsByManager(byManager)
+        setSelectedReportIdsByManager(selectedByManager)
       })
       .catch(() => {
-        if (!cancelled) setReportsByManager({})
+        if (!cancelled) {
+          setReportsByManager({})
+          setSelectedReportIdsByManager({})
+        }
       })
       .finally(() => {
         if (!cancelled) setManagementReportsLoading(false)
@@ -1300,7 +1382,22 @@ export function CreateFeedback() {
     if (!templateId || !name.trim()) return false
     if (closesAtInvalid) return false
     if (kind === 'employee') return revieweeUsers.length > 0
-    if (kind === 'management') return managerUsers.length > 0
+    if (kind === 'management') {
+      if (managerUsers.length === 0) return false
+      // A manager with no direct reports on record is a pre-existing case the
+      // backend already reports on, so it is left alone here. What is blocked
+      // is the new one the checkboxes make possible: reports exist, but every
+      // box was unchecked, which could only ever produce a round with nobody
+      // in it. Checked against the reports actually on record, not the
+      // rendered rows, so it holds while a manager's list is still loading.
+      const anyReportsOnRecord = managerUsers.some(
+        (manager) => (reportsByManager[manager.id] ?? []).length > 0,
+      )
+      const anyReportChecked = managerUsers.some(
+        (manager) => (selectedReportIdsByManager[manager.id] ?? []).length > 0,
+      )
+      return !anyReportsOnRecord || anyReportChecked
+    }
     if (kind === 'client') return aboutUsers.length > 0 && contactIds.length > 0
     if (audienceTogglesFor && recipientAudience === 'internal') {
       return Boolean(targetLabel.trim()) && internalRecipients.length > 0
@@ -1345,6 +1442,12 @@ export function CreateFeedback() {
               kind === 'employee' || kind === 'management' ? (user?.id ?? null) : null,
             manager_ids:
               kind === 'employee' && user ? (selectedManagerIdsByEmployee[user.id] ?? []) : undefined,
+            // Mirror of manager_ids on the Employee Review side: the checked
+            // direct reports for this manager. Only these people get the form.
+            report_ids:
+              kind === 'management' && user
+                ? (selectedReportIdsByManager[user.id] ?? [])
+                : undefined,
           }),
         ),
       )
@@ -1574,7 +1677,27 @@ export function CreateFeedback() {
                                 {manager.full_name}
                               </span>
                               <span className="text-ink-400"> — </span>
-                              <DirectReportsCell reports={reports} />
+                              <DirectReportsCell
+                                reports={reports}
+                                selectedIds={selectedReportIdsByManager[manager.id] ?? []}
+                                onToggle={(reportId, checked) =>
+                                  setSelectedReportIdsByManager((current) => {
+                                    const forThisManager = current[manager.id] ?? []
+                                    return {
+                                      ...current,
+                                      [manager.id]: checked
+                                        ? [...forThisManager, reportId]
+                                        : forThisManager.filter((id) => id !== reportId),
+                                    }
+                                  })
+                                }
+                                onSelectAll={(checked) =>
+                                  setSelectedReportIdsByManager((current) => ({
+                                    ...current,
+                                    [manager.id]: checked ? reports.map((r) => r.id) : [],
+                                  }))
+                                }
+                              />
                             </li>
                           )
                         })}

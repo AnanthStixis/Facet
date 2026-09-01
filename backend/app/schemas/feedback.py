@@ -26,6 +26,12 @@ class FeedbackCreateRequest(BaseModel):
     # the same as before an employee could have more than one.
     manager_ids: list[uuid.UUID] | None = None
 
+    # management only, optional — the checked direct reports on the
+    # Management Review form. Left unset, every direct report on record for
+    # the reviewed manager is included, which is how this behaved before the
+    # checkboxes existed.
+    report_ids: list[uuid.UUID] | None = None
+
     # employee / management
     reviewee_user_id: uuid.UUID | None = None
 

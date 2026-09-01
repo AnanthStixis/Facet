@@ -411,7 +411,7 @@ export function MyFeedback() {
   return (
     <>
       <PageHeader
-        title="My feedback"
+        title="My Reviews"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
         description="Feedback you have been asked to give. Nothing here is visible to the person concerned until enough people have responded."

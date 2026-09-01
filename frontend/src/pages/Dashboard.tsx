@@ -212,7 +212,7 @@ export function Dashboard() {
           // ) : (
           <>
             <StatTile
-              label="My feedback"
+              label="My Reviews"
               value={data.metrics.my_pending_feedback}
               tone={data.metrics.my_pending_feedback > 0 ? 'accent' : 'neutral'}
               sub="Waiting for your response"

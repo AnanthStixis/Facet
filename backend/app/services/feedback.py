@@ -216,6 +216,7 @@ async def create_and_send(
     contact_ids: list[uuid.UUID] | None = None,
     target_label: str | None = None,
     manager_ids: list[uuid.UUID] | None = None,
+    report_ids: list[uuid.UUID] | None = None,
     audience: Literal["external", "internal"] = "external",
     recipient_user_ids: list[uuid.UUID] | None = None,
 ) -> CreateAndSendResult:
@@ -233,6 +234,9 @@ async def create_and_send(
     - employee with `manager_ids` set: narrows which of the reviewee's
       managers actually get an assignment to the checked subset, instead of
       every manager on record.
+    - management with `report_ids` set: the mirror of the above — narrows
+      which of the manager's direct reports get an assignment to the checked
+      subset, instead of every direct report on record.
     - product/service with `audience="internal"`: same external-typed
       target (a Product or Service), but delivered to a directly-chosen set
       of internal staff instead of external client contacts — each gets a
@@ -306,6 +310,7 @@ async def create_and_send(
             plan=plan,
             due_at=closes_at,
             manager_ids=manager_ids if kind == "employee" else None,
+            report_ids=report_ids if kind == "management" else None,
         )
         warnings.extend(result.warnings)
 

@@ -81,7 +81,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     // product for, so they sit above the administrative sections.
     section: 'For me',
     items: [
-      { to: '/my-feedback', label: 'My feedback', icon: IconInbox },
+      { to: '/my-feedback', label: 'My Reviews', icon: IconInbox },
       { to: '/my-results', label: 'My results', icon: IconSpark },
     ],
   },
