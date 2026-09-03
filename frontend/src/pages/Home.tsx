@@ -31,7 +31,7 @@ type FeedbackKindInfo = {
 }
 
 const FEEDBACK_KIND_INFO: FeedbackKindInfo[] = [
-  { label: 'Employee', tone: 'internal', description: 'Peer and self feedback among employees.' },
+  { label: 'Employee', tone: 'internal', description: 'Feedback among employees.' },
   { label: 'Management', tone: 'internal', description: 'Upward feedback about a manager.' },
   { label: 'Client', tone: 'external', description: 'Feedback collected from a client outside your organization.' },
   { label: 'Product', tone: 'external', description: 'Feedback tied to a specific product.' },
@@ -397,7 +397,7 @@ function Features() {
           PDF and Excel exports for any cycle, campaign, or insight.
         </FeatureCard>
         <FeatureCard icon={<IconLock width={20} height={20} />} title="Session security & audit trail">
-          See and revoke active sessions per device, with a full record of
+          See and revoke active sessions, with a full record of
           platform activity.
         </FeatureCard>
       </div>
@@ -586,12 +586,6 @@ function Pricing() {
               isCurrent={tier.value === currentPlan}
             />
           ))}
-        </div>
-        <div className="mt-10 flex justify-center">
-          {/* <div className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-4 py-2 text-xs text-ink-500 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-400">
-            <IconLock width={14} height={14} className="shrink-0" />
-            All plans include secure access, data isolation and audit trail.
-          </div> */}
         </div>
       </Section>
     </div>
