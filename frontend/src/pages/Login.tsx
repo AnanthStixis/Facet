@@ -117,7 +117,7 @@ export function Login() {
 
         <div className="relative z-10 max-w-lg px-12 pb-14">
           <h2 className="text-4xl font-semibold leading-tight tracking-[-0.03em] text-ink-900 dark:text-white">
-            Every relationship has more than one side.
+            Bring Every Perspective Into Focus.
           </h2>
           <p className="mt-3.5 text-base leading-relaxed text-ink-500 dark:text-ink-400">
             Employee, client, and proposal feedback in a single graph &mdash; so you

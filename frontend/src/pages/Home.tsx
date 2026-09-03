@@ -4,14 +4,12 @@ import { BrandLogo, FacetMark } from '../components/Logo'
 import { GraphArtwork } from '../components/GraphArtwork'
 import { PerspectivesIllustration } from '../components/PerspectivesIllustration'
 import {
-  IconBriefcase,
   IconCheck,
   IconFile,
   IconGauge,
   IconLayers,
   IconLock,
   IconShield,
-  IconSpark,
   IconTag,
   IconUsers,
 } from '../components/icons'
@@ -23,7 +21,20 @@ const NAV_LINKS = [
   { href: '#pricing', label: 'Pricing' },
 ]
 
-const FEEDBACK_KINDS = ['Employee', 'Management', 'Client', 'Product', 'Service', 'Proposal']
+type FeedbackKindInfo = {
+  label: string
+  description: string
+  tone: 'internal' | 'external'
+}
+
+const FEEDBACK_KIND_INFO: FeedbackKindInfo[] = [
+  { label: 'Employee', tone: 'internal', description: 'Peer and self feedback among employees.' },
+  { label: 'Management', tone: 'internal', description: 'Upward feedback about a manager.' },
+  { label: 'Client', tone: 'external', description: 'Feedback collected from a client outside your organization.' },
+  { label: 'Product', tone: 'external', description: 'Feedback tied to a specific product.' },
+  { label: 'Service', tone: 'external', description: 'Feedback tied to a specific service rendered.' },
+  { label: 'Proposal', tone: 'external', description: 'Feedback tied to a specific business proposal.' },
+]
 
 function HomeHeader() {
   return (
@@ -110,7 +121,7 @@ function Hero() {
           </div>
           <div className="animate-fade-up text-center lg:flex-1 lg:text-left">
           <h1 className="text-4xl font-semibold leading-tight tracking-[-0.03em] text-ink-900 dark:text-white lg:text-5xl">
-            Every relationship has more than one side.
+            Bring Every Perspective Into Focus.
           </h1>
           <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-ink-500 dark:text-ink-400 lg:mx-0">
             Facet360 runs employee, manager, client, and proposal feedback in a single
@@ -156,19 +167,6 @@ function About() {
               clients, and opportunities are performing.
             </p>
           </div>
-          <div className="mt-6 flex items-center gap-5 rounded-2xl border border-ink-200 bg-ink-50/60 p-5 dark:border-ink-800 dark:bg-ink-900/30">
-            <div className="shrink-0 text-center">
-              <p className="accent-text text-3xl font-semibold tracking-[-0.02em]">6</p>
-              <p className="mt-0.5 text-2xs uppercase tracking-[0.1em] text-ink-500 dark:text-ink-400">
-                Perspectives
-              </p>
-            </div>
-            <div className="h-10 w-px shrink-0 bg-ink-200 dark:bg-ink-700" />
-            <p className="text-base font-medium leading-snug text-ink-900 dark:text-ink-50">
-              From collecting feedback to understanding what it means — Facet360
-              connects the entire process.
-            </p>
-          </div>
         </div>
       </div>
     </Section>
@@ -185,8 +183,8 @@ function WhyCard({
   children: ReactNode
 }) {
   return (
-    <div className="surface p-6">
-      <span className="accent-soft-bg accent-text flex h-10 w-10 items-center justify-center rounded-md">
+    <div className="group relative rounded-[20px] border border-ink-200 bg-white p-7 shadow-card transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:shadow-[0_16px_38px_-12px_rgba(47,111,98,0.3)] dark:border-ink-700 dark:bg-ink-900 dark:hover:border-[var(--accent)]">
+      <span className="accent-soft-bg accent-text flex h-11 w-11 items-center justify-center rounded-xl">
         {icon}
       </span>
       <h3 className="mt-4 text-lg font-semibold text-ink-900 dark:text-ink-50">{title}</h3>
@@ -197,38 +195,61 @@ function WhyCard({
 
 function WhyChooseUs() {
   return (
-    <Section id="why" className="bg-ink-50 py-20 dark:bg-ink-900/40 lg:py-24">
-      <h2 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-        Why choose Facet360
-      </h2>
-      <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        <WhyCard icon={<IconLayers width={20} height={20} />} title="One connected feedback platform">
-          Bring internal reviews and external feedback together instead of
-          managing separate tools for each relationship.
-        </WhyCard>
-        <WhyCard icon={<IconUsers width={20} height={20} />} title="Built for every relationship">
-          Collect feedback from employees, managers, clients, product users,
-          service recipients, and proposal stakeholders through structured
-          workflows.
-        </WhyCard>
-        <WhyCard icon={<IconSpark width={20} height={20} />} title="Actionable insights, not just responses">
-          Surface trends, themes, sentiment, participation gaps, and areas that
-          need attention so teams know where to focus.
-        </WhyCard>
-        <WhyCard icon={<IconShield width={20} height={20} />} title="Secure external feedback">
-          Invite clients and other external reviewers through secure,
-          single-use links — no account or password required.
-        </WhyCard>
-        <WhyCard icon={<IconBriefcase width={20} height={20} />} title="Data-driven decisions">
-          Use historical feedback and proposal outcomes to identify trends and
-          support better decisions with predictive analytics.
-        </WhyCard>
-        <WhyCard icon={<IconTag width={20} height={20} />} title="Designed for your organization">
-          Keep the experience aligned with your brand through
-          organization-specific logos, emails, reports, and controlled access.
-        </WhyCard>
-      </div>
-    </Section>
+    <div className="relative overflow-hidden bg-ink-50 dark:bg-ink-900/40">
+      <div
+        className="absolute inset-0 opacity-[0.35] dark:opacity-[0.06]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(18,22,28,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(18,22,28,0.05) 1px, transparent 1px)',
+          backgroundSize: '36px 36px',
+        }}
+      />
+      <div
+        className="absolute -left-20 top-0 h-80 w-80 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(47,111,98,0.14), transparent 68%)' }}
+      />
+      <div
+        className="absolute -right-20 bottom-0 h-80 w-80 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(47,111,98,0.12), transparent 68%)' }}
+      />
+      <Section id="why" className="relative py-20 lg:py-24">
+        <div className="mx-auto max-w-2xl text-center">
+          <div className="flex items-center justify-center gap-4">
+            <span className="h-px w-10 bg-ink-200 dark:bg-ink-700" />
+            <span className="accent-text text-2xs font-semibold uppercase tracking-[0.12em]">
+              Why choose Facet360
+            </span>
+            <span className="h-px w-10 bg-ink-200 dark:bg-ink-700" />
+          </div>
+          <h2 className="mt-4 text-4xl font-bold tracking-[-0.02em] text-ink-900 dark:text-white lg:text-5xl">
+            Why choose Facet360
+          </h2>
+          <p className="mx-auto mt-4 max-w-lg text-base text-ink-500 dark:text-ink-400">
+            Everything you need to collect feedback, understand it, and take
+            action that drives real improvement.
+          </p>
+        </div>
+        <div className="mt-14 grid gap-7 sm:grid-cols-2">
+          <WhyCard icon={<IconLayers width={20} height={20} />} title="One connected feedback platform">
+            Bring internal reviews and external feedback together instead of
+            managing separate tools for each relationship.
+          </WhyCard>
+          <WhyCard icon={<IconUsers width={20} height={20} />} title="Built for every relationship">
+            Collect feedback from employees, managers, clients, product users,
+            service recipients, and proposal stakeholders through structured
+            workflows.
+          </WhyCard>
+          <WhyCard icon={<IconShield width={20} height={20} />} title="Secure external feedback">
+            Invite clients and other external reviewers through secure,
+            single-use links.
+          </WhyCard>
+          <WhyCard icon={<IconTag width={20} height={20} />} title="Designed for your organization">
+            Keep the experience aligned with your brand through
+            organization-specific logos, emails, reports, and controlled access.
+          </WhyCard>
+        </div>
+      </Section>
+    </div>
   )
 }
 
@@ -242,14 +263,12 @@ function FeatureCard({
   children: ReactNode
 }) {
   return (
-    <div className="flex gap-4">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300">
+    <div className="rounded-[20px] border border-ink-200 bg-white p-7 shadow-card transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:shadow-[0_16px_38px_-12px_rgba(47,111,98,0.3)] dark:border-ink-700 dark:bg-ink-900 dark:hover:border-[var(--accent)]">
+      <span className="accent-soft-bg accent-text flex h-11 w-11 items-center justify-center rounded-xl">
         {icon}
       </span>
-      <div>
-        <h3 className="text-base font-semibold text-ink-900 dark:text-ink-50">{title}</h3>
-        <p className="mt-1 text-sm leading-relaxed text-ink-500 dark:text-ink-400">{children}</p>
-      </div>
+      <h3 className="mt-4 text-lg font-semibold text-ink-900 dark:text-ink-50">{title}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-ink-500 dark:text-ink-400">{children}</p>
     </div>
   )
 }
@@ -257,42 +276,46 @@ function FeatureCard({
 function Features() {
   return (
     <Section id="features" className="py-20 lg:py-24">
-      <div className="max-w-2xl">
-        <h2 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
+      <div className="mx-auto max-w-2xl text-center">
+        <span className="accent-text text-2xs font-semibold uppercase tracking-[0.12em]">
+          Platform features
+        </span>
+        <h2 className="mt-3 text-4xl font-bold tracking-[-0.02em] text-ink-900 dark:text-white lg:text-5xl">
           What's included
         </h2>
-        <p className="mt-3 text-base text-ink-500 dark:text-ink-400">
+        <p className="mx-auto mt-4 max-w-lg text-base text-ink-500 dark:text-ink-400">
           Six feedback kinds, run through the same cycles and reported on
           together.
         </p>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {FEEDBACK_KINDS.map((kind) => (
-            <span
-              key={kind}
-              className="rounded-full border border-ink-200 px-3 py-1 text-sm text-ink-600 dark:border-ink-700 dark:text-ink-300"
-            >
-              {kind}
-            </span>
-          ))}
-        </div>
       </div>
 
-      <div className="mt-12 grid gap-x-10 gap-y-9 sm:grid-cols-2">
+      <div className="mx-auto mt-8 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3">
+        {FEEDBACK_KIND_INFO.map((kind) => (
+          <div
+            key={kind.label}
+            className={
+              kind.tone === 'internal'
+                ? 'rounded-xl border border-internal/25 bg-internal/5 p-4 dark:border-internal/40 dark:bg-internal/10'
+                : 'rounded-xl border border-external/25 bg-external/5 p-4 dark:border-external/40 dark:bg-external/10'
+            }
+          >
+            <p className={kind.tone === 'internal' ? 'text-sm font-semibold text-internal' : 'text-sm font-semibold text-external'}>
+              {kind.label}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-500 dark:text-ink-400">
+              {kind.description}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-14 grid gap-6 sm:grid-cols-2">
         <FeatureCard icon={<IconLayers width={20} height={20} />} title="Cycles & campaigns">
           Run structured, repeatable feedback rounds instead of one-off requests.
         </FeatureCard>
         <FeatureCard icon={<IconGauge width={20} height={20} />} title="Role-based dashboards">
           Super Admins, Client Admins, Managers, and Employees each see what's
           relevant to them.
-        </FeatureCard>
-        <FeatureCard icon={<IconSpark width={20} height={20} />} title="Insights engine">
-          Automatic findings — low participation, sharp declines, negative
-          sentiment clusters, stalled campaigns — surfaced without anyone
-          digging for them.
-        </FeatureCard>
-        <FeatureCard icon={<IconBriefcase width={20} height={20} />} title="Predictive analytics">
-          Win-probability and trend forecasts for proposals, built on your own
-          feedback history.
         </FeatureCard>
         <FeatureCard icon={<IconFile width={20} height={20} />} title="Exportable reports">
           PDF and Excel exports for any cycle, campaign, or insight.
