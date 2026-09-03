@@ -897,6 +897,42 @@ async def send_thank_you(
     )
 
 
+async def send_welcome(
+    *,
+    to: str,
+    full_name: str,
+    org_name: str,
+    branding: Branding,
+) -> bool:
+    """Confirm an instant self-registration went through.
+
+    Unlike `send_invitation`, there is nothing to activate here and no
+    token — the account is already fully active and its password already
+    set (see `self_register_instant`), so this is a pure confirmation with
+    a link straight to sign-in.
+    """
+    first_name = _first_name(full_name)
+    return await send(
+        to=to,
+        subject=f"Welcome to {org_name}",
+        heading=f"Welcome, {first_name}",
+        body_html=(
+            f"Your organization <b>{escape(org_name)}</b>, has been "
+            f"successfully registered and is now active. You may sign in "
+            f"at any time using the email address and password provided "
+            f"during registration."
+        ),
+        body_text=(
+            f"Your organization {org_name}, has been successfully "
+            f"registered and is now active. You may sign in at any time "
+            f"using the email address and password provided during "
+            f"registration."
+        ),
+        branding=branding,
+        cta=("Sign in", f"{settings.public_app_url}/login"),
+    )
+
+
 async def send_response_notification(
     *,
     to: str,

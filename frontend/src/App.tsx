@@ -17,7 +17,7 @@ import { MyResults } from './pages/MyResults'
 import { Organizations } from './pages/Organizations'
 import { Masters } from './pages/Masters'
 import { People } from './pages/People'
-import { AcceptInvite, Register, ResetPassword } from './pages/Public'
+import { AcceptInvite, Register, ResetPassword, Signup } from './pages/Public'
 import { AuditPage } from './pages/ReportView'
 import { Reports } from './pages/Reports'
 import { Results } from './pages/Results'
@@ -99,7 +99,7 @@ function SessionExpiredModal() {
 // Routes an unauthenticated stranger is meant to reach. Attempting a session
 // restore on these is pointless: the visitor has no account, and it costs a
 // wasted request plus a 401 in their console.
-const PUBLIC_PREFIXES = ['/f/', '/give-feedback/', '/register', '/accept-invite', '/reset-password', '/home']
+const PUBLIC_PREFIXES = ['/f/', '/give-feedback/', '/register', '/signup', '/accept-invite', '/reset-password', '/home']
 
 export default function App() {
   const { phase, boot, sessionExpiredNotice } = useAuth()
@@ -128,6 +128,7 @@ export default function App() {
       />
       <Route path="/home" element={<Home />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/signup" element={<Signup />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       {/* The respondent's page. Outside the shell and outside RequireAuth —

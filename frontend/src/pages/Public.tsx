@@ -1,3 +1,4 @@
+import clsx from 'clsx'
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandLogo } from '../components/Logo'
@@ -6,6 +7,7 @@ import { Banner, Field, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
 import { TIMEZONES, TIMEZONE_FIELD_ENABLED } from '../lib/timezones'
+import type { SessionResponse } from '../lib/types'
 import { useAuth } from '../store/auth'
 
 function PublicFrame({
@@ -37,6 +39,16 @@ function PublicFrame({
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE = /^[+()0-9][0-9()\-.\s]{5,}$/
+
+// Display names match the marketing site's pricing cards (Basic/Standard/
+// Enterprise) — `value` is the real thing the backend's OrgPlan
+// understands and is what actually gets sent, same split as Home.tsx's
+// TIERS array.
+const PLAN_OPTIONS = [
+  { value: 'starter', name: 'Basic', description: 'Up to 50 employees, 1 admin' },
+  { value: 'growth', name: 'Standard', description: 'Up to 150 employees, 3 admins' },
+  { value: 'enterprise', name: 'Enterprise', description: 'Unlimited employees and admins' },
+]
 
 export function Register() {
   const [form, setForm] = useState({
@@ -189,6 +201,231 @@ export function Register() {
         <button type="submit" className="btn-primary mt-6 w-full py-2.5" disabled={busy}>
           {busy && <Spinner />}
           Submit for review
+        </button>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-ink-500 dark:text-ink-400">
+        Already have an account?{' '}
+        <Link to="/login" className="accent-text font-medium hover:underline">
+          Sign in
+        </Link>
+      </p>
+    </PublicFrame>
+  )
+}
+
+export function Signup() {
+  const [params] = useSearchParams()
+  // Coming from a specific pricing card ("Get Started" on Home.tsx) carries
+  // ?plan=starter|growth|enterprise — falls back to Basic for a direct
+  // /signup visit, or an unrecognised value, rather than defaulting to
+  // Enterprise silently.
+  const requestedPlan = params.get('plan')
+  const initialPlan = PLAN_OPTIONS.some((option) => option.value === requestedPlan)
+    ? requestedPlan!
+    : 'starter'
+  const [form, setForm] = useState({
+    name: '',
+    contact_name: '',
+    contact_email: '',
+    contact_phone: '',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    password: '',
+    plan: initialPlan,
+  })
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const toast = useToast()
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [done, setDone] = useState<string | null>(null)
+
+  const mismatch = confirm.length > 0 && form.password !== confirm
+
+  if (done) {
+    return (
+      <PublicFrame title="Account created" subtitle="You're all set.">
+        <Banner tone="success">{done}</Banner>
+        <Link to="/login" className="btn-primary mt-6 inline-flex px-3 py-1.5">
+          Sign in
+        </Link>
+      </PublicFrame>
+    )
+  }
+
+  return (
+    <PublicFrame
+      title="Create your account"
+      subtitle="Set up your organization and sign in immediately — no approval, no waiting."
+    >
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault()
+
+          const validation: Record<string, string> = {}
+          if (form.name.trim().length < 2) {
+            validation.name = 'Enter your organization name.'
+          }
+          if (form.contact_name.trim().length < 2) {
+            validation.contact_name = 'Enter your name.'
+          }
+          if (!EMAIL_RE.test(form.contact_email.trim())) {
+            validation.contact_email = 'Enter a valid work email.'
+          }
+          if (!PHONE_RE.test(form.contact_phone.trim())) {
+            validation.contact_phone = 'Enter a valid phone number.'
+          }
+          if (!form.timezone) {
+            validation.timezone = 'Choose a time zone.'
+          }
+          if (form.password.length < 6) {
+            validation.password = 'At least 6 characters.'
+          }
+          if (mismatch) {
+            validation.confirm = 'The two passwords do not match.'
+          }
+          if (Object.keys(validation).length > 0) {
+            setFieldErrors(validation)
+            return
+          }
+
+          setBusy(true)
+          setFieldErrors({})
+          try {
+            const result = await api.post<{ message: string }>('/auth/self-register', form)
+            setDone(result.message)
+          } catch (caught) {
+            if (caught instanceof ApiError) {
+              toast.show('critical', 'Could not create your account', caught.message)
+              setFieldErrors(caught.fieldErrors())
+            } else {
+              toast.show('critical', 'Could not create your account')
+            }
+          } finally {
+            setBusy(false)
+          }
+        }}
+      >
+        <div className="space-y-4">
+          <Field
+            label="Organization name"
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+            error={fieldErrors.name}
+            required
+            autoFocus
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Your name"
+              value={form.contact_name}
+              onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
+              error={fieldErrors.contact_name}
+              required
+            />
+            <Field
+              label="Work email"
+              type="email"
+              value={form.contact_email}
+              onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
+              error={fieldErrors.contact_email}
+              required
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Phone"
+              type="tel"
+              value={form.contact_phone}
+              onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
+              error={fieldErrors.contact_phone}
+              required
+            />
+            {TIMEZONE_FIELD_ENABLED && (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                  Time zone
+                </span>
+                <select
+                  className="field"
+                  value={form.timezone}
+                  onChange={(event) => setForm({ ...form, timezone: event.target.value })}
+                  required
+                >
+                  <option value="" disabled>
+                    Choose a time zone…
+                  </option>
+                  {[...new Set([form.timezone, ...TIMEZONES])].filter(Boolean).map((zone) => (
+                    <option key={zone} value={zone}>
+                      {zone}
+                    </option>
+                  ))}
+                </select>
+                {fieldErrors.timezone && (
+                  <span className="mt-1 block text-xs text-critical">{fieldErrors.timezone}</span>
+                )}
+              </label>
+            )}
+          </div>
+          <div>
+            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+              Plan
+            </span>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {PLAN_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setForm({ ...form, plan: option.value })}
+                  className={clsx(
+                    'rounded-lg border p-3 text-left transition-colors',
+                    form.plan === option.value
+                      ? 'accent-border accent-soft-bg'
+                      : 'border-ink-200 hover:border-ink-300 dark:border-ink-700 dark:hover:border-ink-600',
+                  )}
+                >
+                  <p
+                    className={clsx(
+                      'text-sm font-semibold',
+                      form.plan === option.value
+                        ? 'accent-text'
+                        : 'text-ink-900 dark:text-ink-50',
+                    )}
+                  >
+                    {option.name}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
+                    {option.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Password"
+              type="password"
+              autoComplete="new-password"
+              value={form.password}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              error={fieldErrors.password}
+              required
+              hint="At least 6 characters. Length matters more than symbols."
+            />
+            <Field
+              label="Confirm password"
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(event) => setConfirm(event.target.value)}
+              error={mismatch ? 'The two passwords do not match.' : undefined}
+              required
+            />
+          </div>
+        </div>
+
+        <button type="submit" className="btn-primary mt-6 w-full py-2.5" disabled={busy || mismatch}>
+          {busy && <Spinner />}
+          Create account
         </button>
       </form>
 

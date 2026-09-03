@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Request, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
+from app.api.v1.orgs import FACET_LOGO_URL, _unique_slug
 from app.core.errors import (
     AuthenticationError,
     Conflict,
@@ -17,6 +18,7 @@ from app.core.errors import (
     SessionExpired,
     ValidationFailed,
 )
+from app.core.ratelimit import REGISTRATION_PER_IP, limiter
 from app.core.security import (
     generate_token,
     hash_token,
@@ -25,8 +27,8 @@ from app.core.security import (
 )
 from app.db.tenancy import TenantContext, bind_tenant
 from app.models.auth import SessionFamily
-from app.models.enums import AuditAction, UserStatus
-from app.models.organization import Organization
+from app.models.enums import AuditAction, OrgPlan, OrgRegistrationSource, OrgStatus, UserRole, UserStatus
+from app.models.organization import Organization, OrgBranding
 from app.models.user import Invitation, PasswordResetToken, User
 from app.schemas.auth import (
     AcceptInviteRequest,
@@ -41,6 +43,7 @@ from app.schemas.auth import (
     UserSummary,
 )
 from app.schemas.common import MessageResponse
+from app.schemas.org import OrgSelfRegisterRequest
 from app.services import audit, auth as auth_service, email as email_service
 from app.services.auth import CSRF_COOKIE, CSRF_HEADER, REFRESH_COOKIE
 
@@ -185,6 +188,102 @@ async def refresh(
         csrf_token=issued.csrf_token,
         user=UserSummary.model_validate(user),
         organization=_org_summary(org),
+    )
+
+
+@router.post("/self-register", response_model=MessageResponse, status_code=201)
+async def self_register_instant(
+    payload: OrgSelfRegisterRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session: DbSession,
+) -> MessageResponse:
+    """Public self-registration that goes live immediately and signs the new
+    Admin straight in — no Super Admin review, and no email link to click.
+    The counterpart to `POST /orgs/register`, which lands in `pending` and
+    emails an activation link instead of setting a password here directly.
+
+    No payment gateway is wired up yet, so `plan` is taken directly from
+    whatever the person picks on the form — nothing actually verifies it
+    against a real payment. This is a deliberate, known gap for now, not an
+    oversight: once payment integration exists, the confirmed payment
+    amount should decide the plan here instead of the raw form value.
+    """
+    await limiter.hit(
+        f"register:{audit.client_ip(request) or 'unknown'}", REGISTRATION_PER_IP
+    )
+    await bind_tenant(session, TenantContext(org_id=None, is_super_admin=True))
+
+    existing_user = (
+        await session.execute(
+            select(User.id).where(func.lower(User.email) == payload.contact_email.lower())
+        )
+    ).first()
+    if existing_user is not None:
+        raise Conflict(
+            "That email already has an account on the platform. Sign in "
+            "instead, or use a different contact email for this registration."
+        )
+
+    now = datetime.now(UTC)
+    org = Organization(
+        name=payload.name.strip(),
+        slug=await _unique_slug(session, payload.name),
+        status=OrgStatus.ACTIVE,
+        registration_source=OrgRegistrationSource.PAID_SELF_SERVICE,
+        contact_name=payload.contact_name.strip(),
+        contact_email=payload.contact_email.lower(),
+        contact_phone=payload.contact_phone,
+        country=payload.country.upper() if payload.country else None,
+        timezone=payload.timezone or "UTC",
+        primary_domain=payload.primary_domain,
+        plan=payload.plan,
+        approved_at=now,
+    )
+    session.add(org)
+    await session.flush()
+    branding = OrgBranding(org_id=org.id)
+    session.add(branding)
+    org.branding = branding
+
+    # The person who filled out this form IS the Admin — there is no
+    # separate "someone else provisions this on my behalf" step here, and
+    # no invitation token: the password they typed above is set directly.
+    admin = User(
+        org_id=org.id,
+        email=payload.contact_email.lower(),
+        full_name=payload.contact_name.strip(),
+        role=UserRole.CLIENT_ADMIN,
+        status=UserStatus.ACTIVE,
+    )
+    session.add(admin)
+    await session.flush()
+    await auth_service.set_password(session, admin, new_password=payload.password)
+
+    await audit.record(
+        session,
+        action=AuditAction.ORG_APPROVED,
+        summary=f"{org.name} self-registered on the {org.plan.value.title()} plan and is active immediately",
+        org_id=org.id,
+        actor=admin,
+        target_type="organization",
+        target_id=org.id,
+        target_label=org.name,
+        context={"source": "paid_self_service"},
+        request=request,
+    )
+    await session.commit()
+
+    background_tasks.add_task(
+        email_service.send_welcome,
+        to=admin.email,
+        full_name=admin.full_name,
+        org_name=org.name,
+        branding=email_service.Branding(org_name=org.name, logo_url=FACET_LOGO_URL),
+    )
+
+    return MessageResponse(
+        message="Your account has been created successfully. You can now sign in."
     )
 
 

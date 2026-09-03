@@ -19,6 +19,7 @@ class OrgStatus(StrEnum):
 class OrgRegistrationSource(StrEnum):
     SELF_SERVICE = "self_service"   # requires approval
     PROVISIONED = "provisioned"     # created by Super Admin, auto-approved
+    PAID_SELF_SERVICE = "paid_self_service"  # self-registered, active immediately — see self_register_instant
 
 
 class OrgPlan(StrEnum):

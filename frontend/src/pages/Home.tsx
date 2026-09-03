@@ -47,8 +47,8 @@ function HomeHeader() {
           <Link to="/login" className="btn-ghost px-3 py-1.5 text-sm">
             Log in
           </Link>
-          <Link to="/register" className="btn-primary px-3.5 py-1.5 text-sm">
-            Request access
+          <Link to="/signup" className="btn-primary px-3.5 py-1.5 text-sm">
+            Register here
           </Link>
         </div>
       </div>
@@ -313,6 +313,10 @@ type PlanFeature = {
 
 type Tier = {
   name: string
+  // The real value the backend's OrgPlan understands — this display name
+  // (Basic/Standard/Enterprise) is marketing copy only; `value` is what
+  // actually gets sent to /auth/self-register.
+  value: string
   limit: string
   cta: string
   highlighted?: boolean
@@ -323,6 +327,7 @@ type Tier = {
 const TIERS: Tier[] = [
   {
     name: 'Basic',
+    value: 'starter',
     limit: '1 Admin + 50 Users',
     cta: 'Get Started',
     features: [
@@ -334,6 +339,7 @@ const TIERS: Tier[] = [
   },
   {
     name: 'Standard',
+    value: 'growth',
     limit: '3 Admins + 150 Users',
     cta: 'Get Started',
     highlighted: true,
@@ -346,6 +352,7 @@ const TIERS: Tier[] = [
   },
   {
     name: 'Enterprise',
+    value: 'enterprise',
     limit: 'Unlimited Admins & Users',
     cta: 'Get Started',
     features: [
@@ -399,7 +406,7 @@ function PricingCard({ tier }: { tier: Tier }) {
       </ul>
 
       <Link
-        to="/register"
+        to={`/signup?plan=${tier.value}`}
         className={
           tier.highlighted
             ? 'btn-primary mt-7 w-full py-2.5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg'

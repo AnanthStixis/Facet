@@ -220,7 +220,9 @@ async def self_register(
     )
     session.add(org)
     await session.flush()
-    session.add(OrgBranding(org_id=org.id))
+    branding = OrgBranding(org_id=org.id)
+    session.add(branding)
+    org.branding = branding
 
     await audit.record(
         session,
@@ -242,6 +244,8 @@ async def self_register(
             "primary contact will receive an email once it is approved."
         )
     )
+
+
 
 
 # --- Super Admin: tenant lifecycle -----------------------------------------

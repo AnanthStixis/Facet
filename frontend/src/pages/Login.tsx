@@ -207,12 +207,12 @@ export function Login() {
                 <span className="text-2xs uppercase tracking-[0.1em] text-ink-400">or</span>
                 <span className="h-px flex-1 bg-ink-200 dark:bg-ink-800" />
               </div>
-              <p className="text-center text-sm text-ink-500 dark:text-ink-400">
-                Don't have an account yet?{' '}
-                <Link to="/register" className="accent-text font-medium hover:underline">
-                   Register here.
-                </Link>
-              </p>
+                    <p className="text-center text-sm text-ink-500 dark:text-ink-400">
+        Don't have an account yet?{' '}
+        <Link to="/signup" className="accent-text font-medium hover:underline">
+           Register here.
+        </Link>
+      </p>
             </>
           )}
 

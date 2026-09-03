@@ -27,6 +27,19 @@ class OrgRegistrationRequest(BaseModel):
     primary_domain: str | None = Field(default=None, max_length=255)
 
 
+class OrgSelfRegisterRequest(OrgRegistrationRequest):
+    """Instant self-registration — the same fields as the pending-review
+    flow, plus a password, since there's no separate "click an email link"
+    step here: the org goes live and the person is signed in immediately.
+
+    `plan` is taken directly from whatever the person picks on the form —
+    there is no payment gateway wired up yet, so nothing actually verifies
+    it. Defaults to Starter if omitted."""
+
+    password: str = Field(min_length=6, max_length=256)
+    plan: OrgPlan = OrgPlan.STARTER
+
+
 class OrgProvisionRequest(OrgRegistrationRequest):
     """Super Admin direct provisioning. Auto-approved, since it is pre-vetted."""
 
