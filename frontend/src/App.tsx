@@ -8,6 +8,7 @@ import { Clients } from './pages/Clients'
 import { CreateFeedback } from './pages/CreateFeedback'
 import { Cycles } from './pages/Cycles'
 import { Dashboard } from './pages/Dashboard'
+import { Home } from './pages/Home'
 import { Insights } from './pages/Insights'
 import { Login } from './pages/Login'
 import { PublicFeedback } from './pages/PublicFeedback'
@@ -98,7 +99,7 @@ function SessionExpiredModal() {
 // Routes an unauthenticated stranger is meant to reach. Attempting a session
 // restore on these is pointless: the visitor has no account, and it costs a
 // wasted request plus a 401 in their console.
-const PUBLIC_PREFIXES = ['/f/', '/give-feedback/', '/register', '/accept-invite', '/reset-password']
+const PUBLIC_PREFIXES = ['/f/', '/give-feedback/', '/register', '/accept-invite', '/reset-password', '/home']
 
 export default function App() {
   const { phase, boot, sessionExpiredNotice } = useAuth()
@@ -125,6 +126,7 @@ export default function App() {
         path="/login"
         element={phase === 'authenticated' ? <Navigate to="/" replace /> : <Login />}
       />
+      <Route path="/home" element={<Home />} />
       <Route path="/register" element={<Register />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/reset-password" element={<ResetPassword />} />
