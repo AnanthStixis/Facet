@@ -66,18 +66,21 @@ export function Login() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [forgot, setForgot] = useState(false)
+  const [planExpired, setPlanExpired] = useState(false)
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
     setError(null)
     setFieldErrors({})
+    setPlanExpired(false)
     try {
       await login(email, password)
     } catch (caught) {
       if (caught instanceof ApiError) {
         setError(caught.message)
         setFieldErrors(caught.fieldErrors())
+        setPlanExpired(caught.code === 'plan_expired')
       } else {
         setError('Could not reach the server. Check that the API is running.')
       }
@@ -172,7 +175,19 @@ export function Login() {
             </div>
           ) : (
           <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-            {error && <Banner tone="error">{error}</Banner>}
+            {error && (
+              <Banner tone="error">
+                {error}
+                {planExpired && (
+                  <>
+                    {' '}
+                    <Link to="/home#pricing" className="font-semibold underline">
+                      Upgrade or renew
+                    </Link>
+                  </>
+                )}
+              </Banner>
+            )}
 
             <Field
               label="Work email"

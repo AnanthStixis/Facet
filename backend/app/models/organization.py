@@ -53,7 +53,12 @@ class Organization(UUIDPrimaryKey, Timestamped, Base):
         nullable=False,
         default=OrgPlan.STARTER,
     )
-   
+    # Reset whenever a Super Admin renews or changes the plan (see
+    # update_organization) — authenticate() compares this against
+    # PLAN_DURATION_DAYS to decide whether the org's access has expired.
+    plan_started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
 
     # Contact captured at registration, before any user account exists.
     contact_name: Mapped[str] = mapped_column(String(150), nullable=False)

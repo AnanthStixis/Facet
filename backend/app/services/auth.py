@@ -19,6 +19,7 @@ from app.core.errors import (
     AuthenticationError,
     InvalidCredentials,
     OrganizationInactive,
+    PlanExpired,
     SessionExpired,
     TokenReuseDetected,
     ValidationFailed,
@@ -39,7 +40,7 @@ from app.core.security import (
 )
 from app.db.tenancy import TenantContext
 from app.models.auth import LoginAttempt, RefreshToken, SessionFamily
-from app.models.enums import AuditAction, OrgStatus, UserRole, UserStatus
+from app.models.enums import AuditAction, OrgPlan, OrgStatus, UserRole, UserStatus
 from app.models.user import User
 from app.services import audit
 
@@ -48,6 +49,12 @@ log = get_logger("facet.auth")
 REFRESH_COOKIE = "facet_rt"
 CSRF_COOKIE = "facet_csrf"
 CSRF_HEADER = "x-facet-csrf"
+
+# How long a plan lasts before login is blocked pending renewal. There is no
+# billing system yet to reset this automatically on payment — a Super Admin
+# renewing or changing an org's plan (update_organization) resets the clock
+# by hand for now.
+PLAN_DURATION_DAYS = 0
 
 
 @dataclass(slots=True)
@@ -65,6 +72,8 @@ class Principal:
     failed_login_count: int
     locked_until: datetime | None
     org_status: OrgStatus | None
+    org_plan: OrgPlan | None
+    org_plan_started_at: datetime | None
 
     @property
     def is_super_admin(self) -> bool:
@@ -120,6 +129,8 @@ async def load_principal(
         failed_login_count=row["failed_login_count"],
         locked_until=row["locked_until"],
         org_status=OrgStatus(row["org_status"]) if row["org_status"] else None,
+        org_plan=OrgPlan(row["org_plan"]) if row["org_plan"] else None,
+        org_plan_started_at=row["org_plan_started_at"],
     )
 
 
@@ -299,6 +310,21 @@ async def authenticate(
         )
         await session.commit()
         raise OrganizationInactive()
+
+    # No billing system exists yet to renew this automatically — a plan
+    # simply lasts PLAN_DURATION_DAYS from whenever it was last set
+    # (org creation, or a Super Admin explicitly renewing/changing it via
+    # update_organization) before login is blocked pending renewal. Super
+    # Admins have no org and skip this check, same as org_status above.
+    if not principal.is_super_admin and principal.org_plan_started_at is not None:
+        plan_age = now - principal.org_plan_started_at
+        if plan_age > timedelta(days=PLAN_DURATION_DAYS):
+            await _record_attempt(
+                session, email=email, principal=principal,
+                succeeded=False, reason="plan_expired", request=request,
+            )
+            await session.commit()
+            raise PlanExpired()
 
     await _record_attempt(
         session, email=email, principal=principal,

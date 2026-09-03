@@ -107,6 +107,12 @@ class OrganizationInactive(AppError):
     message = "This organization is not active. Contact your administrator."
 
 
+class PlanExpired(AppError):
+    status_code = status.HTTP_403_FORBIDDEN
+    code = "plan_expired"
+    message = "Your plan has expired. Please upgrade or renew to continue."
+
+
 async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, AppError)
     return exc.to_response(request_id=getattr(request.state, "request_id", None))

@@ -322,6 +322,7 @@ async def provision_organization(
         timezone=payload.timezone or "UTC",
         primary_domain=payload.primary_domain,
         plan=payload.plan,
+        plan_started_at=now,
         approved_at=now,
         approved_by_id=actor.id,
     )

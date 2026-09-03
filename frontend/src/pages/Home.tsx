@@ -588,10 +588,10 @@ function Pricing() {
           ))}
         </div>
         <div className="mt-10 flex justify-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-4 py-2 text-xs text-ink-500 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-400">
+          {/* <div className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-4 py-2 text-xs text-ink-500 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-400">
             <IconLock width={14} height={14} className="shrink-0" />
             All plans include secure access, data isolation and audit trail.
-          </div>
+          </div> */}
         </div>
       </Section>
     </div>
