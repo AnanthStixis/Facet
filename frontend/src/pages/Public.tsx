@@ -2,12 +2,12 @@ import clsx from 'clsx'
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandLogo } from '../components/Logo'
+import { IconArrowLeft } from '../components/icons'
 // import { IconCheck, IconShield } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
 import { TIMEZONES, TIMEZONE_FIELD_ENABLED } from '../lib/timezones'
-import type { SessionResponse } from '../lib/types'
 import { useAuth } from '../store/auth'
 
 function PublicFrame({
@@ -22,7 +22,14 @@ function PublicFrame({
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink-50 px-4 py-12 dark:bg-ink-950">
       <div className="w-full max-w-lg animate-fade-up">
-        <Link to="/login" className="mb-7 flex items-center">
+        <Link
+          to="/home"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
+        >
+          <IconArrowLeft width={16} height={16} />
+          Back to home
+        </Link>
+        <Link to="/home" className="mb-7 flex items-center">
           <BrandLogo height={28} />
         </Link>
         <div className="surface p-7">

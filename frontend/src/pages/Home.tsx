@@ -1,10 +1,11 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { BrandLogo, FacetMark } from '../components/Logo'
+import { BrandLogo } from '../components/Logo'
 import { GraphArtwork } from '../components/GraphArtwork'
 import { PerspectivesIllustration } from '../components/PerspectivesIllustration'
 import { useAuth } from '../store/auth'
 import {
+  IconArrowLeft,
   IconCheck,
   IconFile,
   IconGauge,
@@ -40,7 +41,7 @@ const FEEDBACK_KIND_INFO: FeedbackKindInfo[] = [
 function HomeHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-ink-200 bg-white dark:border-ink-800 dark:bg-ink-950">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <div className="flex w-full items-center justify-between px-6 py-4">
         <Link to="/home" className="flex items-center">
           <BrandLogo height={26} />
         </Link>
@@ -49,7 +50,7 @@ function HomeHeader() {
             <a
               key={item.href}
               href={item.href}
-              className="text-sm font-medium text-ink-500 transition hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
+              className="text-base font-medium text-ink-500 transition hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
             >
               {item.label}
             </a>
@@ -84,25 +85,9 @@ function Section({
   )
 }
 
-function Legend() {
-  return (
-    <div className="flex flex-wrap gap-x-6 gap-y-2 text-2xs uppercase tracking-[0.12em] text-ink-500 dark:text-ink-500">
-      <span className="flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-internal" /> Internal 360
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-external" /> Client experience
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-external opacity-60" /> Proposal quality
-      </span>
-    </div>
-  )
-}
-
 function Hero() {
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative overflow-hidden bg-white dark:bg-ink-950">
       <div
         className="absolute inset-0 opacity-[0.35] dark:opacity-[0.06]"
         style={{
@@ -112,27 +97,104 @@ function Hero() {
         }}
       />
       <div
-        className="absolute -left-24 top-1/3 h-96 w-96 rounded-full blur-3xl"
+        className="absolute -left-24 top-10 h-96 w-96 rounded-full blur-3xl"
         style={{ background: 'radial-gradient(circle, rgba(47,111,98,0.16), transparent 68%)' }}
       />
-      <Section className="relative py-14 lg:py-16">
-        <div className="flex flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-14">
-          <div className="w-full max-w-xs shrink-0 animate-fade-up lg:w-2/5">
-            <GraphArtwork />
+      <div
+        className="absolute -right-24 bottom-0 h-80 w-80 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(53,114,176,0.12), transparent 68%)' }}
+      />
+      <Section className="relative py-16 lg:py-20">
+        <div className="flex flex-col gap-14 lg:flex-row lg:items-center lg:gap-16">
+          <div className="relative w-full lg:w-[55%] lg:shrink-0">
+            <div
+              className="absolute -inset-8 -z-10 rounded-[2.5rem] blur-2xl motion-reduce:animate-none animate-[hero-glow_6s_ease-in-out_infinite]"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(47,111,98,0.16), rgba(53,114,176,0.08) 55%, transparent 75%)',
+              }}
+            />
+            <div className="relative overflow-hidden rounded-[2rem] border border-ink-100 p-8 shadow-[0_24px_60px_-24px_rgba(18,22,28,0.2)] dark:border-ink-800 lg:p-12">
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'radial-gradient(circle at 28% 22%, rgba(53,114,176,0.07), transparent 55%), radial-gradient(circle at 72% 82%, rgba(47,111,98,0.09), transparent 55%)',
+                }}
+              />
+              <div
+                className="absolute inset-0 opacity-70 dark:opacity-15"
+                style={{
+                  backgroundImage: 'radial-gradient(rgba(18,22,28,0.09) 1px, transparent 1px)',
+                  backgroundSize: '18px 18px',
+                }}
+              />
+              <div className="relative animate-fade-up">
+                <GraphArtwork />
+              </div>
+            </div>
+
+            <div className="absolute -left-6 top-6 hidden w-48 rounded-2xl border border-ink-100 bg-white p-3.5 shadow-lg motion-reduce:animate-none animate-[float-a_5s_ease-in-out_infinite] dark:border-ink-700 dark:bg-ink-900 lg:block">
+              <div className="flex items-center gap-2.5">
+                <span className="accent-soft-bg accent-text flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+                  <IconGauge width={16} height={16} />
+                </span>
+                <div>
+                  <p className="text-2xs font-medium text-ink-500 dark:text-ink-400">Feedback Coverage</p>
+                  <p className="accent-text text-lg font-semibold leading-tight">360°</p>
+                </div>
+              </div>
+              <p className="mt-1 text-2xs text-ink-400 dark:text-ink-500">Connected perspectives</p>
+            </div>
+
+            <div className="absolute -bottom-6 left-2 hidden w-52 rounded-2xl border border-ink-100 bg-white p-3.5 shadow-lg motion-reduce:animate-none animate-[float-a_5.5s_ease-in-out_infinite] dark:border-ink-700 dark:bg-ink-900 lg:block">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-external/10 text-external">
+                  <IconUsers width={16} height={16} />
+                </span>
+                <p className="text-sm font-semibold text-ink-900 dark:text-ink-50">Feedback Types</p>
+              </div>
+              <p className="mt-1.5 text-2xs leading-snug text-ink-500 dark:text-ink-400">
+                Employee · Client · Product · Service · Proposal
+              </p>
+            </div>
+
+            <style>{`
+              @keyframes hero-glow { 0%, 100% { opacity: 0.75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
+              @keyframes float-a { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+              @keyframes float-b { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+            `}</style>
           </div>
+
           <div className="animate-fade-up text-center lg:flex-1 lg:text-left">
-          <h1 className="text-4xl font-semibold leading-tight tracking-[-0.03em] text-ink-900 dark:text-white lg:text-5xl">
-            Bring Every Perspective Into Focus.
-          </h1>
-          <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-ink-500 dark:text-ink-400 lg:mx-0">
-            Facet360 runs employee, manager, client, and proposal feedback in a single
-            graph — so you can see whether the teams working well together are the
-            ones actually winning the work.
-          </p>
-          <div className="mt-9 flex justify-center lg:justify-start">
-            <Legend />
+            <div className="inline-flex flex-col items-center gap-2 lg:items-start">
+              <span className="accent-text text-2xs font-semibold uppercase tracking-[0.14em]">
+                360° Feedback & Insights
+              </span>
+              <span className="accent-bg h-0.5 w-10 rounded-full" />
+            </div>
+
+            <h1 className="mx-auto mt-5 max-w-md text-4xl font-bold leading-[1.15] tracking-[-0.03em] text-ink-900 dark:text-white lg:mx-0 lg:text-5xl">
+              Bring Every Perspective Into <span className="accent-text">Focus.</span>
+            </h1>
+
+            <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-ink-500 dark:text-ink-400 lg:mx-0">
+              Facet360 brings employee, manager, client, product, service, and
+              proposal feedback together in one connected view — helping you
+              uncover meaningful insights and make better decisions.
+            </p>
+
+            <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
+              <Link to="/signup" className="btn-primary inline-flex items-center gap-1.5 px-5 py-2.5">
+                Get Started
+                <IconArrowLeft width={16} height={16} className="rotate-180" />
+              </Link>
+              <a href="#features" className="btn-secondary inline-flex items-center gap-1.5 px-5 py-2.5">
+                Explore Features
+                <IconArrowLeft width={16} height={16} className="rotate-180" />
+              </a>
+            </div>
           </div>
-        </div>
         </div>
       </Section>
     </div>
@@ -341,6 +403,7 @@ type Tier = {
   // (Basic/Standard/Enterprise) is marketing copy only; `value` is what
   // actually gets sent to /auth/self-register.
   value: string
+  price: string
   limit: string
   cta: string
   highlighted?: boolean
@@ -352,6 +415,7 @@ const TIERS: Tier[] = [
   {
     name: 'Basic',
     value: 'starter',
+    price: '₹2,499',
     limit: '1 Admin + 50 Users',
     cta: 'Get Started',
     features: [
@@ -364,6 +428,7 @@ const TIERS: Tier[] = [
   {
     name: 'Standard',
     value: 'growth',
+    price: '₹7,999',
     limit: '3 Admins + 150 Users',
     cta: 'Get Started',
     highlighted: true,
@@ -377,6 +442,7 @@ const TIERS: Tier[] = [
   {
     name: 'Enterprise',
     value: 'enterprise',
+    price: '₹14,999',
     limit: 'Unlimited Admins & Users',
     cta: 'Get Started',
     features: [
@@ -407,7 +473,14 @@ function PricingCard({ tier, disabled, isCurrent }: { tier: Tier; disabled: bool
       )}
       <h3 className="text-lg font-semibold text-ink-900 dark:text-ink-50">{tier.name}</h3>
 
-      <p className="mt-4 text-xl font-semibold tracking-[-0.01em] text-ink-900 dark:text-white">
+      <div className="mt-4 flex items-baseline gap-1.5">
+        <span className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
+          {tier.price}
+        </span>
+        <span className="text-xs text-ink-500 dark:text-ink-400">/year</span>
+      </div>
+
+      <p className="mt-2 text-base font-semibold text-ink-700 dark:text-ink-200">
         {tier.limit}
       </p>
 
@@ -512,31 +585,6 @@ function Pricing() {
   )
 }
 
-function LoginCta() {
-  return (
-    <Section id="login" className="py-20 lg:py-24">
-      <div className="surface flex flex-col items-center gap-5 px-6 py-14 text-center">
-        <FacetMark size={32} />
-        <h2 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-          Ready to see it?
-        </h2>
-        <p className="max-w-md text-base text-ink-500 dark:text-ink-400">
-          Sign in if your organization already has a Facet360 account, or request
-          access to get your organization set up.
-        </p>
-        <div className="mt-2 flex flex-wrap justify-center gap-3">
-          <Link to="/login" className="btn-secondary px-5 py-2.5">
-            Log in
-          </Link>
-          <Link to="/register" className="btn-primary px-5 py-2.5">
-            Request access
-          </Link>
-        </div>
-      </div>
-    </Section>
-  )
-}
-
 function HomeFooter() {
   return (
     <footer className="border-t border-ink-200 py-10 dark:border-ink-800">
@@ -561,6 +609,7 @@ function HomeFooter() {
     </footer>
   )
 }
+
 export function Home() {
   const location = useLocation()
 
@@ -592,7 +641,6 @@ export function Home() {
       <WhyChooseUs />
       <Features />
       <Pricing />
-      <LoginCta />
       <HomeFooter />
     </div>
   )

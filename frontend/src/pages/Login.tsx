@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BrandLogo } from '../components/Logo'
 import { GraphArtwork } from '../components/GraphArtwork'
-import { IconLock } from '../components/icons'
+import { IconArrowLeft, IconLock } from '../components/icons'
 import { Banner, Field, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
@@ -106,7 +106,9 @@ export function Login() {
         />
 
         <div className="relative z-10 flex items-center gap-2.5 px-12 pt-11">
-          <BrandLogo height={32} />
+          <Link to="/home">
+            <BrandLogo height={32} />
+          </Link>
         </div>
 
         <div className="relative z-10 flex flex-1 items-center justify-center px-12">
@@ -141,8 +143,18 @@ export function Login() {
       {/* Right: the form. */}
       <div className="flex items-center justify-center bg-white px-6 py-12 dark:bg-ink-950 sm:px-12">
         <div className="w-full max-w-sm animate-fade-up">
+          <Link
+            to="/home"
+            className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
+          >
+            <IconArrowLeft width={16} height={16} />
+            Back to home
+          </Link>
+
           <div className="mb-8 lg:hidden">
-            <BrandLogo height={32} />
+            <Link to="/home">
+              <BrandLogo height={32} />
+            </Link>
           </div>
 
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
