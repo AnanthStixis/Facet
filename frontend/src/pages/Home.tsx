@@ -2,13 +2,14 @@ import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { BrandLogo, FacetMark } from '../components/Logo'
 import { GraphArtwork } from '../components/GraphArtwork'
+import { PerspectivesIllustration } from '../components/PerspectivesIllustration'
 import {
+  IconBriefcase,
   IconCheck,
   IconFile,
   IconGauge,
   IconLayers,
   IconLock,
-  IconSend,
   IconShield,
   IconSpark,
   IconTag,
@@ -17,14 +18,16 @@ import {
 
 const NAV_LINKS = [
   { href: '#about', label: 'About' },
-  { href: '#why', label: 'Why Facet' },
+  { href: '#why', label: 'Why Facet360' },
   { href: '#features', label: 'Features' },
   { href: '#pricing', label: 'Pricing' },
 ]
 
+const FEEDBACK_KINDS = ['Employee', 'Management', 'Client', 'Product', 'Service', 'Proposal']
+
 function HomeHeader() {
   return (
-    <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur dark:border-ink-800 dark:bg-ink-950/85">
+    <header className="sticky top-0 z-20 border-b border-ink-200 bg-white dark:border-ink-800 dark:bg-ink-950">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link to="/home" className="flex items-center">
           <BrandLogo height={26} />
@@ -100,30 +103,24 @@ function Hero() {
         className="absolute -left-24 top-1/3 h-96 w-96 rounded-full blur-3xl"
         style={{ background: 'radial-gradient(circle, rgba(47,111,98,0.16), transparent 68%)' }}
       />
-      <Section className="relative grid gap-12 py-20 lg:grid-cols-2 lg:items-center lg:py-28">
-        <div className="animate-fade-up">
+      <Section className="relative py-14 lg:py-16">
+        <div className="flex flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-14">
+          <div className="w-full max-w-xs shrink-0 animate-fade-up lg:w-2/5">
+            <GraphArtwork />
+          </div>
+          <div className="animate-fade-up text-center lg:flex-1 lg:text-left">
           <h1 className="text-4xl font-semibold leading-tight tracking-[-0.03em] text-ink-900 dark:text-white lg:text-5xl">
             Every relationship has more than one side.
           </h1>
-          <p className="mt-5 max-w-md text-base leading-relaxed text-ink-500 dark:text-ink-400">
-            Facet runs employee, manager, client, and proposal feedback in a single
+          <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-ink-500 dark:text-ink-400 lg:mx-0">
+            Facet360 runs employee, manager, client, and proposal feedback in a single
             graph — so you can see whether the teams working well together are the
             ones actually winning the work.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/register" className="btn-primary px-5 py-2.5">
-              Request access
-            </Link>
-            <Link to="/login" className="btn-secondary px-5 py-2.5">
-              Log in
-            </Link>
-          </div>
-          <div className="mt-9">
+          <div className="mt-9 flex justify-center lg:justify-start">
             <Legend />
           </div>
         </div>
-        <div className="mx-auto w-full max-w-md animate-fade-up">
-          <GraphArtwork />
         </div>
       </Section>
     </div>
@@ -132,28 +129,46 @@ function Hero() {
 
 function About() {
   return (
-    <Section id="about" className="py-20 lg:py-24">
-      <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
-        <div>
-          <h2 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-            One platform for feedback on both sides of the table
-          </h2>
+    <Section id="about" className="py-16 lg:py-20">
+      <div className="grid gap-10 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-14">
+        <div className="animate-fade-up rounded-3xl border border-ink-100 bg-ink-50/60 p-6 dark:border-ink-800 dark:bg-ink-900/30">
+          <PerspectivesIllustration />
         </div>
-        <div className="space-y-4 text-base leading-relaxed text-ink-600 dark:text-ink-300">
-          <p>
-            Most organizations run two separate systems: an internal tool for
-            employee and manager reviews, and a scattered mix of surveys,
-            spreadsheets, and inboxes for client, product, and proposal feedback.
-            Facet puts both in one place — the same cycles, the same reporting,
-            the same platform.
-          </p>
-          <p>
-            Every organization on Facet runs in its own isolated space,
-            multi-tenant by design and enforced at the database level rather than
-            left to application code to get right. Feedback moves through
-            structured cycles and campaigns, gets analyzed automatically, and
-            rolls up into reports your team can act on — not just file away.
-          </p>
+        <div>
+          <span className="accent-text text-2xs font-semibold uppercase tracking-[0.12em]">
+            One connected view
+          </span>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
+            Bring every perspective together
+          </h2>
+          <div className="mt-5 space-y-4 text-base leading-relaxed text-ink-600 dark:text-ink-300">
+            <p>
+              Feedback is most valuable when you can see the complete picture.
+              Facet360 brings employee, manager, client, product, service, and
+              proposal feedback together in one connected platform.
+            </p>
+            <p>
+              Run structured feedback cycles, collect responses from internal
+              teams and external reviewers, and turn that information into clear
+              insights and actionable reports. Instead of managing feedback
+              across spreadsheets, forms, emails, and disconnected tools, your
+              organization gets one consistent view of how people, teams,
+              clients, and opportunities are performing.
+            </p>
+          </div>
+          <div className="mt-6 flex items-center gap-5 rounded-2xl border border-ink-200 bg-ink-50/60 p-5 dark:border-ink-800 dark:bg-ink-900/30">
+            <div className="shrink-0 text-center">
+              <p className="accent-text text-3xl font-semibold tracking-[-0.02em]">6</p>
+              <p className="mt-0.5 text-2xs uppercase tracking-[0.1em] text-ink-500 dark:text-ink-400">
+                Perspectives
+              </p>
+            </div>
+            <div className="h-10 w-px shrink-0 bg-ink-200 dark:bg-ink-700" />
+            <p className="text-base font-medium leading-snug text-ink-900 dark:text-ink-50">
+              From collecting feedback to understanding what it means — Facet360
+              connects the entire process.
+            </p>
+          </div>
         </div>
       </div>
     </Section>
@@ -184,41 +199,38 @@ function WhyChooseUs() {
   return (
     <Section id="why" className="bg-ink-50 py-20 dark:bg-ink-900/40 lg:py-24">
       <h2 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-        Why teams choose Facet
+        Why choose Facet360
       </h2>
       <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        <WhyCard icon={<IconShield width={20} height={20} />} title="Isolation enforced by the database">
-          Every tenant table is protected by Postgres row-level security, not just
-          application-level filters. One organization's data is structurally
-          unable to reach another's.
+        <WhyCard icon={<IconLayers width={20} height={20} />} title="One connected feedback platform">
+          Bring internal reviews and external feedback together instead of
+          managing separate tools for each relationship.
         </WhyCard>
-        <WhyCard icon={<IconLayers width={20} height={20} />} title="One graph, not two tools">
-          Employee and manager reviews sit next to client, product, service, and
-          proposal feedback — run from the same cycles and reported on together.
+        <WhyCard icon={<IconUsers width={20} height={20} />} title="Built for every relationship">
+          Collect feedback from employees, managers, clients, product users,
+          service recipients, and proposal stakeholders through structured
+          workflows.
         </WhyCard>
-        <WhyCard icon={<IconUsers width={20} height={20} />} title="Onboarding stays in your control">
-          New organizations register themselves, but nothing goes live until an
-          administrator approves it.
+        <WhyCard icon={<IconSpark width={20} height={20} />} title="Actionable insights, not just responses">
+          Surface trends, themes, sentiment, participation gaps, and areas that
+          need attention so teams know where to focus.
         </WhyCard>
-        <WhyCard icon={<IconSend width={20} height={20} />} title="External reviewers need no account">
-          Clients and reviewers outside your organization respond through a
-          single-use secure link — no login, no account to manage on their end.
+        <WhyCard icon={<IconShield width={20} height={20} />} title="Secure external feedback">
+          Invite clients and other external reviewers through secure,
+          single-use links — no account or password required.
         </WhyCard>
-        <WhyCard icon={<IconSpark width={20} height={20} />} title="AI reads the words, statistics do the forecasting">
-          Written feedback gets AI-assisted theme and sentiment analysis.
-          Win-probability and trend forecasts run on models trained on your own
-          history — not a language model guessing at a percentage.
+        <WhyCard icon={<IconBriefcase width={20} height={20} />} title="Data-driven decisions">
+          Use historical feedback and proposal outcomes to identify trends and
+          support better decisions with predictive analytics.
         </WhyCard>
-        <WhyCard icon={<IconTag width={20} height={20} />} title="Looks like your organization, not ours">
-          Your logo appears in every email and report your organization sends —
-          the platform stays in the background.
+        <WhyCard icon={<IconTag width={20} height={20} />} title="Designed for your organization">
+          Keep the experience aligned with your brand through
+          organization-specific logos, emails, reports, and controlled access.
         </WhyCard>
       </div>
     </Section>
   )
 }
-
-const FEEDBACK_KINDS = ['Employee', 'Management', 'Client', 'Product', 'Service', 'Proposal']
 
 function FeatureCard({
   icon,
@@ -269,9 +281,18 @@ function Features() {
         <FeatureCard icon={<IconLayers width={20} height={20} />} title="Cycles & campaigns">
           Run structured, repeatable feedback rounds instead of one-off requests.
         </FeatureCard>
-                <FeatureCard icon={<IconGauge width={20} height={20} />} title="Role-based dashboards">
+        <FeatureCard icon={<IconGauge width={20} height={20} />} title="Role-based dashboards">
           Super Admins, Client Admins, Managers, and Employees each see what's
           relevant to them.
+        </FeatureCard>
+        <FeatureCard icon={<IconSpark width={20} height={20} />} title="Insights engine">
+          Automatic findings — low participation, sharp declines, negative
+          sentiment clusters, stalled campaigns — surfaced without anyone
+          digging for them.
+        </FeatureCard>
+        <FeatureCard icon={<IconBriefcase width={20} height={20} />} title="Predictive analytics">
+          Win-probability and trend forecasts for proposals, built on your own
+          feedback history.
         </FeatureCard>
         <FeatureCard icon={<IconFile width={20} height={20} />} title="Exportable reports">
           PDF and Excel exports for any cycle, campaign, or insight.
@@ -285,56 +306,52 @@ function Features() {
   )
 }
 
+type PlanFeature = {
+  label: string
+  included: boolean
+}
+
 type Tier = {
   name: string
-  price: string
-  cadence: string
-  description: string
+  limit: string
   cta: string
   highlighted?: boolean
-  features: string[]
+  badge?: string
+  features: PlanFeature[]
 }
 
 const TIERS: Tier[] = [
   {
-    name: 'Starter',
-    price: '$6',
-    cadence: 'per employee / month',
-    description: 'Internal 360 reviews for teams getting started.',
-    cta: 'Request access',
+    name: 'Basic',
+    limit: '1 Admin + 50 Users',
+    cta: 'Get Started',
     features: [
-      'Employee & Management review',
-      'Cycles & campaigns',
-      '100 external responses/month included',
-      'PDF exports',
+      { label: 'Employee & Management Review', included: true },
+      { label: 'Export Results — Only export option available in Results page', included: true },
+      { label: 'Client, Product, Service & Proposal Feedback', included: false },
+      { label: 'All export options (PDF, Excel, full reports)', included: false },
     ],
   },
   {
-    name: 'Growth',
-    price: '$10',
-    cadence: 'per employee / month',
-    description: 'The full feedback graph, internal and external.',
-    cta: 'Request access',
+    name: 'Standard',
+    limit: '3 Admins + 150 Users',
+    cta: 'Get Started',
     highlighted: true,
+    badge: 'Most Popular',
     features: [
-      'All 6 feedback kinds',
-      'AI insights & recommendations',
-      '1,000 external responses/month included',
-      'PDF + Excel exports',
-      'Branded emails & reports',
+      { label: 'Employee & Management Review', included: true },
+      { label: 'Client, Product, Service & Proposal Feedback', included: true },
+      { label: 'All export options (PDF, Excel, full reports)', included: true },
     ],
   },
   {
     name: 'Enterprise',
-    price: 'Custom',
-    cadence: 'billed annually',
-    description: 'Unlimited scale with predictive analytics and audit access.',
-    cta: 'Contact sales',
+    limit: 'Unlimited Admins & Users',
+    cta: 'Get Started',
     features: [
-      'Everything in Growth',
-      'Unlimited external responses',
-      'Full audit log access',
-      'Priority support',
+      { label: 'Employee & Management Review', included: true },
+      { label: 'Client, Product, Service & Proposal Feedback', included: true },
+      { label: 'All export options (PDF, Excel, full reports)', included: true },
     ],
   },
 ]
@@ -344,34 +361,50 @@ function PricingCard({ tier }: { tier: Tier }) {
     <div
       className={
         tier.highlighted
-          ? 'surface relative border-2 p-7 accent-border'
-          : 'surface p-7'
+          ? 'relative rounded-lg border-2 accent-border bg-white p-7 shadow-lg transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-[0_16px_40px_-10px_rgba(47,111,98,0.32)] dark:bg-ink-900'
+          : 'relative rounded-lg border border-ink-200 bg-white p-7 shadow-card transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-ink-300 hover:shadow-[0_14px_34px_-10px_rgba(47,111,98,0.22)] dark:border-ink-700 dark:bg-ink-900 dark:hover:border-ink-600'
       }
     >
-      {tier.highlighted && (
+      {tier.badge && (
         <span className="accent-bg absolute -top-3 left-7 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-[0.08em] text-white">
-          Most teams choose this
+          {tier.badge}
         </span>
       )}
       <h3 className="text-lg font-semibold text-ink-900 dark:text-ink-50">{tier.name}</h3>
-      <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">{tier.description}</p>
-      <div className="mt-5 flex items-baseline gap-1.5">
-        <span className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-          {tier.price}
-        </span>
-        <span className="text-xs text-ink-500 dark:text-ink-400">{tier.cadence}</span>
-      </div>
-      <ul className="mt-6 space-y-2.5">
+
+      <p className="mt-4 text-xl font-semibold tracking-[-0.01em] text-ink-900 dark:text-white">
+        {tier.limit}
+      </p>
+
+      <ul className="mt-6 space-y-2.5 border-t border-ink-100 pt-6 dark:border-ink-800">
         {tier.features.map((feature) => (
-          <li key={feature} className="flex items-start gap-2 text-sm text-ink-600 dark:text-ink-300">
-            <IconCheck width={16} height={16} className="mt-0.5 shrink-0 accent-text" />
-            {feature}
+          <li
+            key={feature.label}
+            className={
+              feature.included
+                ? 'flex items-start gap-2 text-sm text-ink-600 dark:text-ink-300'
+                : 'flex items-start gap-2 text-sm text-ink-400 dark:text-ink-500'
+            }
+          >
+            {feature.included ? (
+              <IconCheck width={16} height={16} className="mt-0.5 shrink-0 accent-text" />
+            ) : (
+              <span className="mt-0.5 w-4 shrink-0 text-center text-ink-300 dark:text-ink-600" aria-hidden="true">
+                ✗
+              </span>
+            )}
+            {feature.label}
           </li>
         ))}
       </ul>
+
       <Link
         to="/register"
-        className={tier.highlighted ? 'btn-primary mt-7 w-full py-2.5' : 'btn-secondary mt-7 w-full py-2.5'}
+        className={
+          tier.highlighted
+            ? 'btn-primary mt-7 w-full py-2.5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg'
+            : 'btn-secondary mt-7 w-full py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md'
+        }
       >
         {tier.cta}
       </Link>
@@ -381,25 +414,44 @@ function PricingCard({ tier }: { tier: Tier }) {
 
 function Pricing() {
   return (
-    <Section id="pricing" className="bg-ink-50 py-20 dark:bg-ink-900/40 lg:py-24">
-      <div className="max-w-2xl">
-        <h2 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-          Simple pricing, priced for how you actually use it
-        </h2>
-        <p className="mt-3 text-base text-ink-500 dark:text-ink-400">
-          Per employee, with external feedback volume bundled in — your clients
-          and proposal reviewers never need a seat.
-        </p>
-      </div>
-      <div className="mt-12 grid gap-6 lg:grid-cols-3">
-        {TIERS.map((tier) => (
-          <PricingCard key={tier.name} tier={tier} />
-        ))}
-      </div>
-      <p className="mt-6 text-xs text-ink-400 dark:text-ink-500">
-        Starting points for discussion — nothing above is billed automatically yet.
-      </p>
-    </Section>
+    <div className="relative overflow-hidden bg-ink-50 dark:bg-ink-900/40">
+      <div
+        className="absolute inset-0 opacity-[0.35] dark:opacity-[0.06]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(18,22,28,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(18,22,28,0.05) 1px, transparent 1px)',
+          backgroundSize: '36px 36px',
+        }}
+      />
+      <div
+        className="absolute -right-24 top-1/4 h-96 w-96 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(47,111,98,0.14), transparent 68%)' }}
+      />
+      <Section id="pricing" className="relative py-20 lg:py-24">
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="accent-text text-2xs font-semibold uppercase tracking-[0.12em]">
+            Plans & pricing
+          </span>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
+            Plans that grow with you
+          </h2>
+          <p className="mx-auto mt-3 max-w-lg text-base text-ink-500 dark:text-ink-400">
+            Choose the plan that fits your organization's size and feedback needs.
+          </p>
+        </div>
+        <div className="mt-12 grid gap-6 lg:grid-cols-3">
+          {TIERS.map((tier) => (
+            <PricingCard key={tier.name} tier={tier} />
+          ))}
+        </div>
+        <div className="mt-10 flex justify-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-4 py-2 text-xs text-ink-500 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-400">
+            <IconLock width={14} height={14} className="shrink-0" />
+            All plans include secure access, data isolation and audit trail.
+          </div>
+        </div>
+      </Section>
+    </div>
   )
 }
 
@@ -412,7 +464,7 @@ function LoginCta() {
           Ready to see it?
         </h2>
         <p className="max-w-md text-base text-ink-500 dark:text-ink-400">
-          Sign in if your organization already has a Facet account, or request
+          Sign in if your organization already has a Facet360 account, or request
           access to get your organization set up.
         </p>
         <div className="mt-2 flex flex-wrap justify-center gap-3">
