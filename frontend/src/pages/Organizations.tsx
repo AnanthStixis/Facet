@@ -91,8 +91,8 @@ function ApprovalForm({
             value={plan}
             onChange={(event) => setPlan(event.target.value)}
           >
-            <option value="starter">Starter — up to 50 employees, 1 admin</option>
-            <option value="growth">Growth — up to 150 employees, 3 admins</option>
+            <option value="starter">Basic — up to 50 employees, 1 admin</option>
+            <option value="growth">Standard — up to 150 employees, 3 admins</option>
             <option value="enterprise">Enterprise — unlimited</option>
           </select>
         </label>
@@ -392,8 +392,8 @@ function OrgFormModal({
               value={form.plan}
               onChange={(event) => setForm({ ...form, plan: event.target.value })}
             >
-              <option value="starter">Starter — up to 50 employees, 1 admin</option>
-              <option value="growth">Growth — up to 150 employees, 3 admins</option>
+              <option value="starter">Basic — up to 50 employees, 1 admin</option>
+              <option value="growth">Standard — up to 150 employees, 3 admins</option>
               <option value="enterprise">Enterprise — unlimited</option>
             </select>
           </label>
