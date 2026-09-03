@@ -8,7 +8,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.models.enums import UserRole
+from app.models.enums import OrgPlan, UserRole
 from app.schemas.common import LookupItem, ORMModel
 
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$")
@@ -37,7 +37,7 @@ class OrgProvisionRequest(OrgRegistrationRequest):
     slug: str | None = Field(default=None, max_length=80)
     admin_full_name: str = Field(min_length=2, max_length=150)
     admin_email: EmailStr
-    seat_limit: int | None = Field(default=None, ge=1, le=100_000)
+    plan: OrgPlan = OrgPlan.STARTER
 
     @field_validator("slug")
     @classmethod
@@ -52,7 +52,7 @@ class OrgProvisionRequest(OrgRegistrationRequest):
 class OrgApprovalRequest(BaseModel):
     admin_full_name: str = Field(min_length=2, max_length=150)
     admin_email: EmailStr
-    seat_limit: int | None = Field(default=None, ge=1, le=100_000)
+    plan: OrgPlan = OrgPlan.STARTER
     note: str | None = Field(default=None, max_length=500)
 
 
@@ -81,7 +81,7 @@ class OrgUpdateRequest(BaseModel):
     contact_phone: str | None = Field(default=None, max_length=40)
     country: str | None = Field(default=None, min_length=2, max_length=2)
     timezone: str = Field(min_length=1, max_length=64)
-    seat_limit: int | None = Field(default=None, ge=1, le=100_000)
+    plan: OrgPlan
 
 
 class OrgRejectionRequest(BaseModel):
@@ -129,9 +129,8 @@ class OrgDetail(ORMModel):
     contact_name: str
     contact_email: str
     contact_phone: str | None = None
-    country: str | None = None
     timezone: str
-    seat_limit: int | None = None
+    plan: str
     approved_at: datetime | None = None
     rejection_reason: str | None = None
     suspension_reason: str | None = None

@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, Timestamped, UUIDPrimaryKey, pg_enum
-from app.models.enums import OrgRegistrationSource, OrgStatus
+from app.models.enums import OrgPlan, OrgRegistrationSource, OrgStatus
 
 
 class Organization(UUIDPrimaryKey, Timestamped, Base):
@@ -48,6 +48,12 @@ class Organization(UUIDPrimaryKey, Timestamped, Base):
         nullable=False,
         default=OrgRegistrationSource.SELF_SERVICE,
     )
+    plan: Mapped[OrgPlan] = mapped_column(
+        pg_enum(OrgPlan, "org_plan"),
+        nullable=False,
+        default=OrgPlan.STARTER,
+    )
+   
 
     # Contact captured at registration, before any user account exists.
     contact_name: Mapped[str] = mapped_column(String(150), nullable=False)

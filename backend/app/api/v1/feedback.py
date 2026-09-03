@@ -17,6 +17,7 @@ from sqlalchemy import select
 
 from app.api.deps import DbSession, ManagerUser
 from app.core.errors import NotFound, ValidationFailed
+from app.core.plans import limits_for
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import Contact, FeedbackTarget, FeedbackTemplate, FeedbackTemplateVersion
 from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
@@ -169,6 +170,12 @@ async def create_feedback(
     org = (
         await session.execute(select(Organization).where(Organization.id == actor.org_id))
     ).scalar_one()
+
+    if payload.kind in feedback_service.EXTERNAL_KINDS and not limits_for(org.plan).external_review:
+        raise ValidationFailed(
+            f"The {org.plan.value.title()} plan does not include Client, Product, "
+            f"Service, or Proposal Review. Upgrade to Growth or above to use this."
+        )
 
     result = await feedback_service.create_and_send(
         session,

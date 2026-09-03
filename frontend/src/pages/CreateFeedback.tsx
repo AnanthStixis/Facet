@@ -4,11 +4,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FloatingPanel, SearchBox, useDismiss } from '../components/filters'
 import { IconChevronDown } from '../components/icons'
 import { useToast } from '../components/Toast'
-import { Banner, Card, Field, Modal, Skeleton, Spinner } from '../components/ui'
+import { Banner, Card, Field, Modal, Skeleton, Spinner, Tooltip } from '../components/ui'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
 import type { LookupItem, Paged } from '../lib/types'
 import { minClosingDate } from '../lib/date'
+import { useAuth } from '../store/auth'
 
 // A chip list truncates once it grows past this many entries — picking 50
 // recipients (the case the client called out) should not turn the form into
@@ -1093,10 +1094,18 @@ export function CreateFeedback() {
   const toast = useToast()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+  const plan = useAuth((state) => state.organization?.plan)
+  // Only Starter excludes external review kinds today — mirrors PLAN_LIMITS
+  // in backend/app/core/plans.py, the actual source of truth. The backend
+  // enforces this independently on submit either way; this is purely so a
+  // Starter org sees it up front instead of at the very last step.
+  const externalReviewLocked = plan === 'starter'
   const initialKind = (params.get('kind') as FeedbackKind | null) ?? 'employee'
-  const [kind, setKind] = useState<FeedbackKind>(
-    FEEDBACK_TYPES.some((t) => t.kind === initialKind) ? initialKind : 'employee',
-  )
+  const [kind, setKind] = useState<FeedbackKind>(() => {
+    const requested = FEEDBACK_TYPES.find((t) => t.kind === initialKind)
+    if (!requested) return 'employee'
+    return requested.audience === 'external' && externalReviewLocked ? 'employee' : requested.kind
+  })
   const config = FEEDBACK_TYPES.find((t) => t.kind === kind)!
 
   const [templates, setTemplates] = useState<TemplateOption[]>([])
@@ -1142,9 +1151,10 @@ export function CreateFeedback() {
   // than only being read once at mount.
   useEffect(() => {
     const fromUrl = params.get('kind') as FeedbackKind | null
-    if (fromUrl && FEEDBACK_TYPES.some((t) => t.kind === fromUrl) && fromUrl !== kind) {
-      setKind(fromUrl)
-    }
+    const requested = fromUrl ? FEEDBACK_TYPES.find((t) => t.kind === fromUrl) : undefined
+    if (!requested || requested.kind === kind) return
+    if (requested.audience === 'external' && externalReviewLocked) return
+    setKind(requested.kind)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params])
 
@@ -1378,26 +1388,40 @@ export function CreateFeedback() {
       <PageHeader title="Create Feedback" description={config.blurb} />
 
       <div className="surface mb-5 flex flex-wrap gap-1.5 p-1.5">
-        {FEEDBACK_TYPES.map((t) => (
-          <button
-            key={t.kind}
-            type="button"
-            onClick={() => setKind(t.kind)}
-            className={clsx(
-              'flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors',
-              kind === t.kind
+        {FEEDBACK_TYPES.map((t) => {
+          const locked = t.audience === 'external' && externalReviewLocked
+          const className = clsx(
+            'flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors',
+            locked
+              ? 'cursor-not-allowed text-ink-300 dark:text-ink-600'
+              : kind === t.kind
                 ? 'bg-ink-900 text-white dark:bg-white dark:text-ink-900'
                 : 'text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800',
-            )}
-          >
+          )
+          const dot = (
             <span
               className="h-2 w-2 shrink-0 rounded-full"
-              style={{ background: t.color }}
+              style={{ background: locked ? '#B8BFC7' : t.color }}
               aria-hidden="true"
             />
-            {t.label}
-          </button>
-        ))}
+          )
+          if (locked) {
+            return (
+              <Tooltip key={t.kind} content="Upgrade to Growth or above to use this.">
+                <button type="button" disabled className={className}>
+                  {dot}
+                  {t.label}
+                </button>
+              </Tooltip>
+            )
+          }
+          return (
+            <button key={t.kind} type="button" onClick={() => setKind(t.kind)} className={className}>
+              {dot}
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
       {error && (

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { BrandLogo, FacetMark } from '../components/Logo'
 import { GraphArtwork } from '../components/GraphArtwork'
 import {
-  IconBriefcase,
   IconCheck,
   IconFile,
   IconGauge,
@@ -270,18 +269,9 @@ function Features() {
         <FeatureCard icon={<IconLayers width={20} height={20} />} title="Cycles & campaigns">
           Run structured, repeatable feedback rounds instead of one-off requests.
         </FeatureCard>
-        <FeatureCard icon={<IconGauge width={20} height={20} />} title="Role-based dashboards">
+                <FeatureCard icon={<IconGauge width={20} height={20} />} title="Role-based dashboards">
           Super Admins, Client Admins, Managers, and Employees each see what's
           relevant to them.
-        </FeatureCard>
-        <FeatureCard icon={<IconSpark width={20} height={20} />} title="Insights engine">
-          Automatic findings — low participation, sharp declines, negative
-          sentiment clusters, stalled campaigns — surfaced without anyone
-          digging for them.
-        </FeatureCard>
-        <FeatureCard icon={<IconBriefcase width={20} height={20} />} title="Predictive analytics">
-          Win-probability and trend forecasts for proposals, built on your own
-          feedback history.
         </FeatureCard>
         <FeatureCard icon={<IconFile width={20} height={20} />} title="Exportable reports">
           PDF and Excel exports for any cycle, campaign, or insight.
@@ -342,7 +332,6 @@ const TIERS: Tier[] = [
     cta: 'Contact sales',
     features: [
       'Everything in Growth',
-      'Predictive analytics (win-probability)',
       'Unlimited external responses',
       'Full audit log access',
       'Priority support',

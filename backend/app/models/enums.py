@@ -21,6 +21,17 @@ class OrgRegistrationSource(StrEnum):
     PROVISIONED = "provisioned"     # created by Super Admin, auto-approved
 
 
+class OrgPlan(StrEnum):
+    """Which pricing tier an organization is on — determines seat caps and
+    whether external review types (Client/Product/Service/Proposal) are
+    available. No payment gateway exists yet; a Super Admin sets this
+    directly until self-serve billing is built."""
+
+    STARTER = "starter"
+    GROWTH = "growth"
+    ENTERPRISE = "enterprise"
+
+
 class UserRole(StrEnum):
     """Platform roles, ordered from most to least privileged.
 

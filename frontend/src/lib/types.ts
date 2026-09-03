@@ -21,6 +21,7 @@ export interface Organization {
   slug: string
   status: string
   timezone: string
+  plan: string
   branding?: Branding | null
 }
 
@@ -191,7 +192,7 @@ export interface OrgDetail {
   contact_phone?: string | null
   country?: string | null
   timezone: string
-  seat_limit?: number | null
+  plan: string
   approved_at?: string | null
   rejection_reason?: string | null
   suspension_reason?: string | null

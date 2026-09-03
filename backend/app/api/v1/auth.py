@@ -96,6 +96,7 @@ def _org_summary(org: Organization | None) -> OrgSummary | None:
         slug=org.slug,
         status=str(org.status),
         timezone=org.timezone,
+        plan=str(org.plan),
         branding=BrandingSummary(
             accent_color=org.branding.accent_color if org.branding else "#B4633A",
             logo_url=_logo_url(org),

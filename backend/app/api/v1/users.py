@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from app.api.deps import AdminUser, CurrentUser, DbSession
 from app.core.config import settings
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
+from app.core.plans import limits_for
 from app.core.security import generate_token, hash_token
 from app.models.catalog import FeedbackTarget, FeedbackTemplate, FeedbackTemplateVersion
 from app.models.cycle import FeedbackResponse, ReviewCycle
@@ -288,9 +289,48 @@ async def user_reports(
     ]
 
 
+async def _seat_limit_reason(session: DbSession, org: Organization, role: UserRole) -> str | None:
+    """None if this org has room for one more user of this role under its
+    plan, otherwise a short reason why not.
+
+    Admin seats and everyone else (Manager + Employee) are two separate
+    pools, matching the plan's own seat caps — an org can run out of Admin
+    seats while Employee seats are still free, and vice versa.
+
+    DELETED status is always excluded from the count: delete_user is a soft
+    delete (the row stays forever, for feedback history and audit trail),
+    but the seat itself should free up immediately, not stay occupied by
+    someone who no longer has an account.
+    """
+    limits = limits_for(org.plan)
+    is_admin = role == UserRole.CLIENT_ADMIN
+    cap = limits.admin_seats if is_admin else limits.employee_seats
+    if cap is None:
+        return None
+    role_filter = (
+        User.role == UserRole.CLIENT_ADMIN if is_admin else User.role != UserRole.CLIENT_ADMIN
+    )
+    used = int(
+        (
+            await session.execute(
+                select(func.count())
+                .select_from(User)
+                .where(User.org_id == org.id, User.status != UserStatus.DELETED, role_filter)
+            )
+        ).scalar_one()
+    )
+    if used >= cap:
+        seat_kind = "Admin" if is_admin else "user"
+        plural = "s" if cap != 1 else ""
+        return (
+            f"This organization's {org.plan.value.title()} plan allows up to {cap} "
+            f"{seat_kind} seat{plural}, and all of them are in use."
+        )
+    return None
+
+
 @router.post("", response_model=InviteResult, status_code=201)
-async def invite_user(
-    payload: UserCreateRequest,
+async def invite_user(    payload: UserCreateRequest,
     request: Request,
     session: DbSession,
     actor: AdminUser,
@@ -315,18 +355,9 @@ async def invite_user(
         await session.execute(select(Organization).where(Organization.id == org_id))
     ).scalar_one()
 
-    if org.seat_limit is not None:
-        used = int(
-            (
-                await session.execute(
-                    select(func.count()).select_from(User).where(User.org_id == org_id)
-                )
-            ).scalar_one()
-        )
-        if used >= org.seat_limit:
-            raise Conflict(
-                f"This organization has used all {org.seat_limit} of its seats."
-            )
+    reason = await _seat_limit_reason(session, org, payload.role)
+    if reason:
+        raise Conflict(reason)
 
     # No pre-check SELECT here: RLS restricts this session to its own org's
     # rows, so a query scoped to org_id could never see a duplicate sitting
@@ -508,19 +539,10 @@ async def bulk_invite_users(
             )
             continue
 
-        if org.seat_limit is not None:
-            used = int(
-                (
-                    await session.execute(
-                        select(func.count())
-                        .select_from(User)
-                        .where(User.org_id == actor.org_id)
-                    )
-                ).scalar_one()
-            )
-            if used >= org.seat_limit:
-                skipped.append({"row": index, "email": email, "reason": "Seat limit reached"})
-                continue
+        reason = await _seat_limit_reason(session, org, role)
+        if reason:
+            skipped.append({"row": index, "email": email, "reason": reason})
+            continue
 
         # No pre-check SELECT: RLS restricts this session to its own org's
         # rows, so this could never see a duplicate sitting in a different

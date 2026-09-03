@@ -18,6 +18,7 @@ from app.core.security import generate_token, hash_token
 from app.db.tenancy import TenantContext, bind_tenant
 from app.models.enums import (
     AuditAction,
+    OrgPlan,
     OrgRegistrationSource,
     OrgStatus,
     UserRole,
@@ -104,7 +105,7 @@ def _detail(org: Organization, user_count: int = 0) -> OrgDetail:
         contact_phone=org.contact_phone,
         country=org.country,
         timezone=org.timezone,
-        seat_limit=org.seat_limit,
+        plan=str(org.plan),
         approved_at=org.approved_at,
         rejection_reason=org.rejection_reason,
         suspension_reason=org.suspension_reason,
@@ -316,7 +317,7 @@ async def provision_organization(
         country=payload.country.upper() if payload.country else None,
         timezone=payload.timezone or "UTC",
         primary_domain=payload.primary_domain,
-        seat_limit=payload.seat_limit,
+        plan=payload.plan,
         approved_at=now,
         approved_by_id=actor.id,
     )
@@ -433,9 +434,9 @@ async def update_organization(
         changes["contact_email"] = [org.contact_email, new_email]
         org.contact_email = new_email
 
-    if payload.seat_limit != org.seat_limit:
-        changes["seat_limit"] = [org.seat_limit, payload.seat_limit]
-        org.seat_limit = payload.seat_limit
+    if payload.plan != org.plan:
+        changes["plan"] = [str(org.plan), str(payload.plan)]
+        org.plan = payload.plan
 
     if changes:
         await audit.record(
@@ -483,8 +484,7 @@ async def approve_organization(
     org.approved_at = datetime.now(UTC)
     org.approved_by_id = actor.id
     org.rejection_reason = None
-    if payload.seat_limit:
-        org.seat_limit = payload.seat_limit
+    org.plan = payload.plan
 
     admin, raw_token = await _invite_admin(
         session,

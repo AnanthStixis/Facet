@@ -27,8 +27,8 @@ class OrgSummary(ORMModel):
     slug: str
     status: str
     timezone: str
+    plan: str
     branding: BrandingSummary | None = None
-
 
 class UserSummary(ORMModel):
     id: uuid.UUID

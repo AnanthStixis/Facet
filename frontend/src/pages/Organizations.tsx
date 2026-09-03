@@ -35,7 +35,7 @@ function ApprovalForm({
   const toast = useToast()
   const [fullName, setFullName] = useState(org.contact_name)
   const [email, setEmail] = useState(org.contact_email)
-  const [seatLimit, setSeatLimit] = useState('')
+  const [plan, setPlan] = useState('starter')
   const [busy, setBusy] = useState(false)
 
   const submit = async (event: React.FormEvent) => {
@@ -45,7 +45,7 @@ function ApprovalForm({
       const updated = await api.post<OrgDetail>(`/orgs/${org.id}/approve`, {
         admin_full_name: fullName,
         admin_email: email,
-        seat_limit: seatLimit ? Number(seatLimit) : null,
+        plan,
       })
       onDone(updated)
     } catch (caught) {
@@ -82,14 +82,20 @@ function ApprovalForm({
           onChange={(event) => setEmail(event.target.value)}
           required
         />
-        <Field
-          label="User limit (optional)"
-          type="number"
-          min={1}
-          value={seatLimit}
-          onChange={(event) => setSeatLimit(event.target.value)}
-          placeholder="Unlimited"
-        />
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+            Plan
+          </span>
+          <select
+            className="field"
+            value={plan}
+            onChange={(event) => setPlan(event.target.value)}
+          >
+            <option value="starter">Starter — up to 50 employees, 1 admin</option>
+            <option value="growth">Growth — up to 150 employees, 3 admins</option>
+            <option value="enterprise">Enterprise — unlimited</option>
+          </select>
+        </label>
       </div>
       <div className="mt-3 flex gap-2">
         <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>
@@ -124,7 +130,7 @@ function OrgFormModal({
     contact_phone: org?.contact_phone ?? '',
     country: org?.country ?? '',
     timezone: org?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
-    seat_limit: org?.seat_limit ? String(org.seat_limit) : '',
+    plan: org?.plan ?? 'starter',
     admin_full_name: '',
     admin_email: '',
   })
@@ -226,7 +232,7 @@ function OrgFormModal({
           contact_phone: form.contact_phone || null,
           country: form.country || null,
           timezone: form.timezone,
-          seat_limit: form.seat_limit ? Number(form.seat_limit) : null,
+          plan: form.plan,
         })
       } else {
         saved = await api.post<OrgDetail>('/orgs', {
@@ -238,7 +244,7 @@ function OrgFormModal({
           timezone: form.timezone,
           admin_full_name: form.admin_full_name,
           admin_email: form.admin_email,
-          seat_limit: form.seat_limit ? Number(form.seat_limit) : null,
+          plan: form.plan,
         })
         orgId = saved.id
       }
@@ -377,15 +383,20 @@ function OrgFormModal({
               </select>
             </label>
           )}
-          <Field
-            label="User limit (optional)"
-            type="number"
-            min={1}
-            value={form.seat_limit}
-            onChange={(event) => setForm({ ...form, seat_limit: event.target.value })}
-            placeholder="Unlimited"
-            className="max-w-[130px]"
-          />
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+              Plan
+            </span>
+            <select
+              className="field max-w-[260px]"
+              value={form.plan}
+              onChange={(event) => setForm({ ...form, plan: event.target.value })}
+            >
+              <option value="starter">Starter — up to 50 employees, 1 admin</option>
+              <option value="growth">Growth — up to 150 employees, 3 admins</option>
+              <option value="enterprise">Enterprise — unlimited</option>
+            </select>
+          </label>
         </div>
 
         <div className="mt-4">
@@ -449,7 +460,7 @@ function OrgDetailModal({ org, onClose }: { org: OrgDetail; onClose: () => void 
     { label: 'Primary contact name', value: org.contact_name },
     { label: 'Primary contact email', value: org.contact_email },
     { label: 'Country', value: countryName },
-    { label: 'User limit', value: org.seat_limit ?? 'Unlimited' },
+    { label: 'Plan', value: org.plan.charAt(0).toUpperCase() + org.plan.slice(1) },
     { label: 'Users', value: org.user_count },
     { label: 'Created', value: formatDate(org.created_at) },
     { label: 'Approved', value: formatDate(org.approved_at) },
