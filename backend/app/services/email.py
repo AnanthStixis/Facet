@@ -915,7 +915,7 @@ async def send_welcome(
     return await send(
         to=to,
         subject=f"Welcome to {org_name}",
-        heading=f"Welcome, {first_name}",
+        heading=f"Welcome {first_name}",
         body_html=(
             f"Your organization <b>{escape(org_name)}</b>, has been "
             f"successfully registered and is now active. You may sign in "

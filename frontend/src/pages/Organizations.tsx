@@ -460,7 +460,10 @@ function OrgDetailModal({ org, onClose }: { org: OrgDetail; onClose: () => void 
     { label: 'Primary contact name', value: org.contact_name },
     { label: 'Primary contact email', value: org.contact_email },
     { label: 'Country', value: countryName },
-    { label: 'Plan', value: org.plan.charAt(0).toUpperCase() + org.plan.slice(1) },
+    {
+      label: 'Plan',
+      value: { starter: 'Basic', growth: 'Standard', enterprise: 'Enterprise' }[org.plan] ?? org.plan,
+    },
     { label: 'Users', value: org.user_count },
     { label: 'Created', value: formatDate(org.created_at) },
     { label: 'Approved', value: formatDate(org.approved_at) },

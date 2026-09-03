@@ -54,7 +54,7 @@ CSRF_HEADER = "x-facet-csrf"
 # billing system yet to reset this automatically on payment — a Super Admin
 # renewing or changing an org's plan (update_organization) resets the clock
 # by hand for now.
-PLAN_DURATION_DAYS = 0
+PLAN_DURATION_DAYS = 30
 
 
 @dataclass(slots=True)
