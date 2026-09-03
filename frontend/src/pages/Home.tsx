@@ -7,6 +7,7 @@ import { useAuth } from '../store/auth'
 import {
   IconArrowLeft,
   IconCheck,
+  IconEye,
   IconFile,
   IconGauge,
   IconLayers,
@@ -145,6 +146,18 @@ function Hero() {
                 </div>
               </div>
               <p className="mt-1 text-2xs text-ink-400 dark:text-ink-500">Connected perspectives</p>
+            </div>
+
+            <div className="absolute -right-6 top-36 hidden w-48 rounded-2xl border border-ink-100 bg-white p-3.5 shadow-lg motion-reduce:animate-none animate-[float-b_6s_ease-in-out_infinite] dark:border-ink-700 dark:bg-ink-900 lg:block">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-internal/10 text-internal">
+                  <IconEye width={16} height={16} />
+                </span>
+                <p className="text-sm font-semibold text-ink-900 dark:text-ink-50">Role-Based Views</p>
+              </div>
+              <p className="mt-1.5 text-2xs leading-snug text-ink-500 dark:text-ink-400">
+                Admins · Managers · Employees
+              </p>
             </div>
 
             <div className="absolute -bottom-6 left-2 hidden w-52 rounded-2xl border border-ink-100 bg-white p-3.5 shadow-lg motion-reduce:animate-none animate-[float-a_5.5s_ease-in-out_infinite] dark:border-ink-700 dark:bg-ink-900 lg:block">
@@ -477,7 +490,7 @@ function PricingCard({ tier, disabled, isCurrent }: { tier: Tier; disabled: bool
         <span className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
           {tier.price}
         </span>
-        <span className="text-xs text-ink-500 dark:text-ink-400">/year</span>
+        <span className="text-xs text-ink-500 dark:text-ink-400">/Month</span>
       </div>
 
       <p className="mt-2 text-base font-semibold text-ink-700 dark:text-ink-200">
