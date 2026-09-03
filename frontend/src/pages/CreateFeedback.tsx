@@ -1388,36 +1388,20 @@ export function CreateFeedback() {
       <PageHeader title="Create Feedback" description={config.blurb} />
 
       <div className="surface mb-5 flex flex-wrap gap-1.5 p-1.5">
-        {FEEDBACK_TYPES.map((t) => {
-          const locked = t.audience === 'external' && externalReviewLocked
+        {/* Locked types (external review, below Growth) are filtered out
+            here rather than shown disabled — the sidebar is now the one
+            place that signals "you don't have this yet", so this strip
+            only ever shows tabs the org can actually use. */}
+        {FEEDBACK_TYPES.filter((t) => !(t.audience === 'external' && externalReviewLocked)).map((t) => {
           const className = clsx(
             'flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors',
-            locked
-              ? 'cursor-not-allowed text-ink-300 dark:text-ink-600'
-              : kind === t.kind
-                ? 'bg-ink-900 text-white dark:bg-white dark:text-ink-900'
-                : 'text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800',
+            kind === t.kind
+              ? 'bg-ink-900 text-white dark:bg-white dark:text-ink-900'
+              : 'text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800',
           )
-          const dot = (
-            <span
-              className="h-2 w-2 shrink-0 rounded-full"
-              style={{ background: locked ? '#B8BFC7' : t.color }}
-              aria-hidden="true"
-            />
-          )
-          if (locked) {
-            return (
-              <Tooltip key={t.kind} content="Upgrade to Growth or above to use this.">
-                <button type="button" disabled className={className}>
-                  {dot}
-                  {t.label}
-                </button>
-              </Tooltip>
-            )
-          }
           return (
             <button key={t.kind} type="button" onClick={() => setKind(t.kind)} className={className}>
-              {dot}
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: t.color }} aria-hidden="true" />
               {t.label}
             </button>
           )

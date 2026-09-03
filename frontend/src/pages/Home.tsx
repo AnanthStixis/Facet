@@ -1,8 +1,9 @@
 import { useEffect, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { BrandLogo, FacetMark } from '../components/Logo'
 import { GraphArtwork } from '../components/GraphArtwork'
 import { PerspectivesIllustration } from '../components/PerspectivesIllustration'
+import { useAuth } from '../store/auth'
 import {
   IconCheck,
   IconFile,
@@ -386,7 +387,11 @@ const TIERS: Tier[] = [
   },
 ]
 
-function PricingCard({ tier }: { tier: Tier }) {
+// Higher number = higher tier. Used to disable a signed-in visitor's
+// current plan and anything below it, leaving only real upgrades clickable.
+const PLAN_ORDER: Record<string, number> = { starter: 0, growth: 1, enterprise: 2 }
+
+function PricingCard({ tier, disabled, isCurrent }: { tier: Tier; disabled: boolean; isCurrent: boolean }) {
   return (
     <div
       className={
@@ -428,21 +433,38 @@ function PricingCard({ tier }: { tier: Tier }) {
         ))}
       </ul>
 
-      <Link
-        to={`/signup?plan=${tier.value}`}
-        className={
-          tier.highlighted
-            ? 'btn-primary mt-7 w-full py-2.5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg'
-            : 'btn-secondary mt-7 w-full py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md'
-        }
-      >
-        {tier.cta}
-      </Link>
+      {disabled ? (
+        <span
+          className={
+            tier.highlighted
+              ? 'btn-primary mt-7 flex w-full cursor-not-allowed items-center justify-center py-2.5 opacity-50'
+              : 'btn-secondary mt-7 flex w-full cursor-not-allowed items-center justify-center py-2.5 opacity-50'
+          }
+        >
+          {isCurrent ? 'Current plan' : 'Not available'}
+        </span>
+      ) : (
+        <Link
+          to={`/signup?plan=${tier.value}`}
+          className={
+            tier.highlighted
+              ? 'btn-primary mt-7 w-full py-2.5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg'
+              : 'btn-secondary mt-7 w-full py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md'
+          }
+        >
+          {tier.cta}
+        </Link>
+      )}
     </div>
   )
 }
 
 function Pricing() {
+  // Only meaningful for a signed-in visitor who arrived via the in-app
+  // "Upgrade" link — a stranger seeing this page for the first time has no
+  // organization, so every tier stays enabled for them.
+  const currentPlan = useAuth((state) => state.organization?.plan)
+
   return (
     <div className="relative overflow-hidden bg-ink-50 dark:bg-ink-900/40">
       <div
@@ -471,7 +493,12 @@ function Pricing() {
         </div>
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
           {TIERS.map((tier) => (
-            <PricingCard key={tier.name} tier={tier} />
+            <PricingCard
+              key={tier.name}
+              tier={tier}
+              disabled={Boolean(currentPlan) && PLAN_ORDER[tier.value] <= PLAN_ORDER[currentPlan as string]}
+              isCurrent={tier.value === currentPlan}
+            />
           ))}
         </div>
         <div className="mt-10 flex justify-center">
@@ -534,8 +561,9 @@ function HomeFooter() {
     </footer>
   )
 }
-
 export function Home() {
+  const location = useLocation()
+
   // Anchor nav links (#about, #why, ...) should ease-scroll rather than jump —
   // scoped to this page's lifetime rather than a global CSS change, since no
   // other screen in the app has same-page anchor navigation.
@@ -546,6 +574,15 @@ export function Home() {
       document.documentElement.style.scrollBehavior = previous
     }
   }, [])
+
+  // Arriving here with a hash (e.g. the sidebar's "Upgrade" link, which
+  // points to /home#pricing) is a full route change, not an in-page anchor
+  // click — React Router doesn't scroll to the fragment the way a real
+  // browser navigation would, so this does it by hand.
+  useEffect(() => {
+    if (!location.hash) return
+    document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: 'smooth' })
+  }, [location.hash])
 
   return (
     <div className="bg-white dark:bg-ink-950">

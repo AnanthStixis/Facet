@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { BrandLogo } from '../components/Logo'
-import { Chip } from '../components/ui'
+import { Chip, Tooltip } from '../components/ui'
 import {
   IconArrowLeft,
   IconBriefcase,
@@ -42,6 +42,10 @@ interface NavItem {
   icon?: typeof IconGauge
   dotColor?: string
   roles?: string[]
+  // True for the four external review types (Client/Product/Service/
+  // Proposal) — used together with the org's plan, at render time, to grey
+  // this item out below Growth. Undefined/false for everything else.
+  external?: boolean
 }
 
 // Kept in sync with FEEDBACK_TYPES in pages/CreateFeedback.tsx by hand — the
@@ -49,12 +53,12 @@ interface NavItem {
 // blurbs), so importing the whole module here would pull the API/state
 // machinery of the create-feedback page into every page's nav render.
 const CREATE_FEEDBACK_TYPES = [
-  { kind: 'client', label: 'Client Review', color: '#B4633A' },
-  { kind: 'employee', label: 'Employees Review', color: '#3B82F6' },
-  { kind: 'management', label: 'Management Review', color: '#8B5CF6' },
-  { kind: 'product', label: 'Product Review', color: '#10B981' },
-  { kind: 'service', label: 'Service Review', color: '#F59E0B' },
-  { kind: 'proposal', label: 'Proposal Review', color: '#EC4899' },
+  { kind: 'client', label: 'Client Review', color: '#B4633A', external: true },
+  { kind: 'employee', label: 'Employees Review', color: '#3B82F6', external: false },
+  { kind: 'management', label: 'Management Review', color: '#8B5CF6', external: false },
+  { kind: 'product', label: 'Product Review', color: '#10B981', external: true },
+  { kind: 'service', label: 'Service Review', color: '#F59E0B', external: true },
+  { kind: 'proposal', label: 'Proposal Review', color: '#EC4899', external: true },
 ]
 
 const NAV: { section: string; items: NavItem[] }[] = [
@@ -103,6 +107,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
       label: t.label,
       dotColor: t.color,
       roles: ['super_admin', 'client_admin'],
+      external: t.external,
     })),
   },
   {
@@ -211,6 +216,11 @@ export function AppShell() {
   // isn't a member of any org's feedback graph, so both pages would only
   // ever show empty state. Same gate as Create Feedback.
   const hideOrgScopedNav = user.role === 'super_admin' && !organization
+  // Mirrors CreateFeedback.tsx's own externalReviewLocked check — kept as a
+  // simple string comparison here rather than importing plan-limit logic,
+  // since the sidebar only needs the one starter/not-starter boolean, not
+  // the full seat-cap numbers.
+  const externalReviewLocked = organization?.plan === 'starter'
 
   const visible = NAV.filter(
     (group) => !(hideOrgScopedNav && (group.section === 'Create Feedback' || group.section === 'For me')),
@@ -269,6 +279,31 @@ export function AppShell() {
                 {group.section}
               </p>
               {group.items.map((item) => {
+                const locked = item.external === true && externalReviewLocked
+
+                if (locked) {
+                  return (
+                    <Tooltip key={item.to} content="Upgrade to Standard or above to use this.">
+                      <div className="flex cursor-not-allowed items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-base text-ink-300 dark:text-ink-600">
+                        <span className="flex items-center gap-2.5">
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ background: '#B8BFC7' }}
+                            aria-hidden="true"
+                          />
+                          {item.label}
+                        </span>
+                        <Link
+                          to="/home#pricing"
+                          className="accent-text shrink-0 text-2xs font-semibold hover:underline"
+                        >
+                          Upgrade
+                        </Link>
+                      </div>
+                    </Tooltip>
+                  )
+                }
+
                 // Items that carry a query string (the six feedback-type
                 // entries) need an exact pathname+search match, not a prefix
                 // check — otherwise every one of them would light up
@@ -276,7 +311,7 @@ export function AppShell() {
                 // A bare /create-feedback (no kind yet) is treated as the
                 // default 'employee' type, matching CreateFeedback.tsx's own
                 // fallback.
-                                const active = item.to.includes('?')
+                const active = item.to.includes('?')
                   ? `${location.pathname}${location.search}` === item.to ||
                     (location.pathname === '/create-feedback' &&
                       !location.search &&
@@ -284,7 +319,7 @@ export function AppShell() {
                   : item.to === '/'
                     ? location.pathname === '/'
                     : location.pathname.startsWith(item.to)
-                                                return (
+                return (
                   <NavLink
                     key={item.to}
                     to={item.to}
@@ -324,8 +359,16 @@ export function AppShell() {
             {user.full_name}
           </p>
           <p className="truncate text-2xs text-ink-400 dark:text-ink-500">{user.email}</p>
-          <div className="mt-1.5">
+          <div className="mt-1.5 flex items-center gap-1.5">
             <Chip value={user.role}>{ROLE_LABEL[user.role]}</Chip>
+            {externalReviewLocked && (
+              <Link
+                to="/home#pricing"
+                className="accent-text text-2xs font-semibold hover:underline"
+              >
+                Upgrade
+              </Link>
+            )}
           </div>
         </div>
       </aside>
