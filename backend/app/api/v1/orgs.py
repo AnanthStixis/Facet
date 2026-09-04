@@ -106,6 +106,8 @@ def _detail(org: Organization, user_count: int = 0) -> OrgDetail:
         country=org.country,
         timezone=org.timezone,
         plan=str(org.plan),
+        seat_limit=org.seat_limit,
+        requested_plan=(org.settings or {}).get("requested_plan"),
         approved_at=org.approved_at,
         rejection_reason=org.rejection_reason,
         suspension_reason=org.suspension_reason,
@@ -217,6 +219,11 @@ async def self_register(
         country=payload.country.upper() if payload.country else None,
         timezone=payload.timezone or "UTC",
         primary_domain=payload.primary_domain,
+        settings=(
+            {"requested_plan": payload.requested_plan.value}
+            if payload.requested_plan
+            else {}
+        ),
     )
     session.add(org)
     await session.flush()
@@ -233,7 +240,7 @@ async def self_register(
         target_type="organization",
         target_id=org.id,
         target_label=org.name,
-        context={"source": "self_service"},
+        context={"source": "self_service", "requested_plan": payload.requested_plan},
         request=request,
     )
     await session.commit()
@@ -322,6 +329,7 @@ async def provision_organization(
         timezone=payload.timezone or "UTC",
         primary_domain=payload.primary_domain,
         plan=payload.plan,
+        seat_limit=payload.seat_limit,
         plan_started_at=now,
         approved_at=now,
         approved_by_id=actor.id,
@@ -443,6 +451,10 @@ async def update_organization(
         changes["plan"] = [str(org.plan), str(payload.plan)]
         org.plan = payload.plan
 
+    if payload.seat_limit != org.seat_limit:
+        changes["seat_limit"] = [org.seat_limit, payload.seat_limit]
+        org.seat_limit = payload.seat_limit
+
     if changes:
         await audit.record(
             session,
@@ -490,6 +502,7 @@ async def approve_organization(
     org.approved_by_id = actor.id
     org.rejection_reason = None
     org.plan = payload.plan
+    org.seat_limit = payload.seat_limit
 
     admin, raw_token = await _invite_admin(
         session,
@@ -509,7 +522,12 @@ async def approve_organization(
         target_type="organization",
         target_id=org.id,
         target_label=org.name,
-        context={"admin_email": admin.email, "note": payload.note},
+        context={
+            "admin_email": admin.email,
+            "note": payload.note,
+            "plan": str(payload.plan),
+            "seat_limit": payload.seat_limit,
+        },
         request=request,
     )
     await session.commit()

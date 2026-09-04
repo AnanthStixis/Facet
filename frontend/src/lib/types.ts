@@ -193,6 +193,8 @@ export interface OrgDetail {
   country?: string | null
   timezone: string
   plan: string
+  seat_limit?: number | null
+  requested_plan?: string | null
   approved_at?: string | null
   rejection_reason?: string | null
   suspension_reason?: string | null

@@ -198,7 +198,7 @@ function Hero() {
             </p>
 
             <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
-              <Link to="/signup" className="btn-primary inline-flex items-center gap-1.5 px-5 py-2.5">
+              <Link to="/register?plan=starter" className="btn-primary inline-flex items-center gap-1.5 px-5 py-2.5">
                 Get Started
                 <IconArrowLeft width={16} height={16} className="rotate-180" />
               </Link>
@@ -386,7 +386,7 @@ function Features() {
       </div>
 
       <div className="mt-14 grid gap-6 sm:grid-cols-2">
-        <FeatureCard icon={<IconLayers width={20} height={20} />} title="Cycles & campaigns">
+        <FeatureCard icon={<IconLayers width={20} height={20} />} title="Review Cycles">
           Run structured, repeatable feedback rounds instead of one-off requests.
         </FeatureCard>
         <FeatureCard icon={<IconGauge width={20} height={20} />} title="Role-based dashboards">
@@ -394,7 +394,7 @@ function Features() {
           relevant to them.
         </FeatureCard>
         <FeatureCard icon={<IconFile width={20} height={20} />} title="Exportable reports">
-          PDF and Excel exports for any cycle, campaign, or insight.
+          PDF and Excel exports for any cycle or result.
         </FeatureCard>
         <FeatureCard icon={<IconLock width={20} height={20} />} title="Session security & audit trail">
           See and revoke active sessions, with a full record of
@@ -413,8 +413,11 @@ type PlanFeature = {
 type Tier = {
   name: string
   // The real value the backend's OrgPlan understands — this display name
-  // (Basic/Standard/Enterprise) is marketing copy only; `value` is what
-  // actually gets sent to /auth/self-register.
+  // (Basic/Standard/Enterprise) is marketing copy only. Clicking "Get
+  // Started" on a card carries this as ?plan= on /register, which is what
+  // makes Register() show its License section pre-selected to this tier.
+  // It's still just a request signal: a Super Admin sets the authoritative
+  // plan and seat count when they approve.
   value: string
   price: string
   limit: string
@@ -531,7 +534,7 @@ function PricingCard({ tier, disabled, isCurrent }: { tier: Tier; disabled: bool
         </span>
       ) : (
         <Link
-          to={`/signup?plan=${tier.value}`}
+          to={`/register?plan=${tier.value}`}
           className={
             tier.highlighted
               ? 'btn-primary mt-7 w-full py-2.5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg'

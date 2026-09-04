@@ -35,7 +35,15 @@ function ApprovalForm({
   const toast = useToast()
   const [fullName, setFullName] = useState(org.contact_name)
   const [email, setEmail] = useState(org.contact_email)
-  const [plan, setPlan] = useState('starter')
+  // Pre-filled from whatever the applicant asked for on the public
+  // "Request access" form (OrgRegistrationRequest.requested_plan) — this is
+  // only ever a signal from them, never applied automatically, so it still
+  // renders as an editable dropdown. Falls back to Basic if they didn't
+  // request anything (e.g. reached this form without a ?plan= link).
+  const [plan, setPlan] = useState(org.requested_plan ?? 'starter')
+  // Licence count for this tenant. Blank = unlimited seats, matching the
+  // backend's `None` (see OrgApprovalRequest.seat_limit).
+  const [seatLimit, setSeatLimit] = useState(org.seat_limit ? String(org.seat_limit) : '')
   const [busy, setBusy] = useState(false)
 
   const submit = async (event: React.FormEvent) => {
@@ -46,6 +54,7 @@ function ApprovalForm({
         admin_full_name: fullName,
         admin_email: email,
         plan,
+        seat_limit: seatLimit.trim() ? Number(seatLimit) : null,
       })
       onDone(updated)
     } catch (caught) {
@@ -68,7 +77,7 @@ function ApprovalForm({
         Approving provisions the workspace and emails a single-use invitation to the
         first Admin. No password is ever sent by email.
       </p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <Field
           label="Admin name"
           value={fullName}
@@ -96,6 +105,14 @@ function ApprovalForm({
             <option value="enterprise">Enterprise — unlimited</option>
           </select>
         </label>
+        <Field
+          label="Seat limit"
+          type="number"
+          min={1}
+          value={seatLimit}
+          onChange={(event) => setSeatLimit(event.target.value)}
+          placeholder="Unlimited"
+        />
       </div>
       <div className="mt-3 flex gap-2">
         <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>
@@ -131,6 +148,9 @@ function OrgFormModal({
     country: org?.country ?? '',
     timezone: org?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
     plan: org?.plan ?? 'starter',
+    // Licence count for this tenant. Blank = unlimited seats, matching the
+    // backend's `None` (see OrgProvisionRequest/OrgUpdateRequest.seat_limit).
+    seat_limit: org?.seat_limit ? String(org.seat_limit) : '',
     admin_full_name: '',
     admin_email: '',
   })
@@ -233,6 +253,7 @@ function OrgFormModal({
           country: form.country || null,
           timezone: form.timezone,
           plan: form.plan,
+          seat_limit: form.seat_limit.trim() ? Number(form.seat_limit) : null,
         })
       } else {
         saved = await api.post<OrgDetail>('/orgs', {
@@ -245,6 +266,7 @@ function OrgFormModal({
           admin_full_name: form.admin_full_name,
           admin_email: form.admin_email,
           plan: form.plan,
+          seat_limit: form.seat_limit.trim() ? Number(form.seat_limit) : null,
         })
         orgId = saved.id
       }
@@ -397,6 +419,14 @@ function OrgFormModal({
               <option value="enterprise">Enterprise — unlimited</option>
             </select>
           </label>
+          <Field
+            label="Seat limit"
+            type="number"
+            min={1}
+            value={form.seat_limit}
+            onChange={(event) => setForm({ ...form, seat_limit: event.target.value })}
+            placeholder="Unlimited"
+          />
         </div>
 
         <div className="mt-4">
@@ -460,10 +490,8 @@ function OrgDetailModal({ org, onClose }: { org: OrgDetail; onClose: () => void 
     { label: 'Primary contact name', value: org.contact_name },
     { label: 'Primary contact email', value: org.contact_email },
     { label: 'Country', value: countryName },
-    {
-      label: 'Plan',
-      value: { starter: 'Basic', growth: 'Standard', enterprise: 'Enterprise' }[org.plan] ?? org.plan,
-    },
+    { label: 'Plan', value: org.plan.charAt(0).toUpperCase() + org.plan.slice(1) },
+    { label: 'Seat limit', value: org.seat_limit ?? 'Unlimited' },
     { label: 'Users', value: org.user_count },
     { label: 'Created', value: formatDate(org.created_at) },
     { label: 'Approved', value: formatDate(org.approved_at) },

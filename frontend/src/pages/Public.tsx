@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandLogo } from '../components/Logo'
 import { IconArrowLeft } from '../components/icons'
 // import { IconCheck, IconShield } from '../components/icons'
-import { Banner, Field, Spinner } from '../components/ui'
+import { Banner, Field, InfoTooltip, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
 import { TIMEZONES, TIMEZONE_FIELD_ENABLED } from '../lib/timezones'
@@ -47,23 +47,64 @@ function PublicFrame({
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE = /^[+()0-9][0-9()\-.\s]{5,}$/
 
-// Display names match the marketing site's pricing cards (Basic/Standard/
-// Enterprise) — `value` is the real thing the backend's OrgPlan
-// understands and is what actually gets sent, same split as Home.tsx's
-// TIERS array.
+// Display names, and monthly/yearly prices, match the marketing site's
+// pricing cards (Basic/Standard/Enterprise) — `value` is the real thing
+// the backend's OrgPlan understands and is what actually gets sent, same
+// split as Home.tsx's TIERS array. Yearly price is ~2 months free versus
+// paying monthly (10x monthly rather than 12x).
 const PLAN_OPTIONS = [
-  { value: 'starter', name: 'Basic', description: 'Up to 50 employees, 1 admin' },
-  { value: 'growth', name: 'Standard', description: 'Up to 150 employees, 3 admins' },
-  { value: 'enterprise', name: 'Enterprise', description: 'Unlimited employees and admins' },
+  {
+    value: 'starter',
+    name: 'Basic',
+    description: 'Up to 50 employees, 1 admin',
+    monthlyPrice: '₹2,499',
+    yearlyPrice: '₹24,990',
+  },
+  {
+    value: 'growth',
+    name: 'Standard',
+    description: 'Up to 150 employees, 3 admins',
+    monthlyPrice: '₹7,999',
+    yearlyPrice: '₹79,990',
+  },
+  {
+    value: 'enterprise',
+    name: 'Enterprise',
+    description: 'Unlimited employees and admins',
+    monthlyPrice: '₹14,999',
+    yearlyPrice: '₹149,990',
+  },
 ]
 
+// Same three tiers, used on the "Request access" form. No prices here —
+// nothing is being purchased at this step. This is the applicant telling
+// the Super Admin what they're after; the Admin sets the real plan and
+// seat count when they approve (see OrgApprovalRequest on the backend).
+const LICENSE_OPTIONS = PLAN_OPTIONS.map(({ value, name, description }) => ({
+  value,
+  name,
+  description,
+}))
+
+type BillingCycle = 'monthly' | 'yearly'
+
 export function Register() {
+  const [params] = useSearchParams()
+  // The License section only appears when this form was reached via a
+  // pricing card's "Get Started" (Home.tsx sends ?plan=starter|growth|
+  // enterprise there). The nav's "Register here" and the hero's plain
+  // "Get Started" link to /register with no query string, and get the
+  // simple form with no License step at all.
+  const requestedPlanParam = params.get('plan')
+  const showLicense = LICENSE_OPTIONS.some((option) => option.value === requestedPlanParam)
+
   const [form, setForm] = useState({
     name: '',
     contact_name: '',
     contact_email: '',
     contact_phone: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    requested_plan: showLicense ? requestedPlanParam! : 'starter',
   })
   const [busy, setBusy] = useState(false)
   const toast = useToast()
@@ -119,7 +160,8 @@ export function Register() {
           setBusy(true)
           setFieldErrors({})
           try {
-            const result = await api.post<{ message: string }>('/orgs/register', form)
+            const payload = showLicense ? form : { ...form, requested_plan: undefined }
+            const result = await api.post<{ message: string }>('/orgs/register', payload)
             setDone(result.message)
           } catch (caught) {
             if (caught instanceof ApiError) {
@@ -203,6 +245,46 @@ export function Register() {
               </label>
             )}
           </div>
+          {showLicense && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+                License
+              </span>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {LICENSE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setForm({ ...form, requested_plan: option.value })}
+                    className={clsx(
+                      'rounded-lg border p-3 text-left transition-colors',
+                      form.requested_plan === option.value
+                        ? 'accent-border accent-soft-bg'
+                        : 'border-ink-200 hover:border-ink-300 dark:border-ink-700 dark:hover:border-ink-600',
+                    )}
+                  >
+                    <p
+                      className={clsx(
+                        'text-sm font-semibold',
+                        form.requested_plan === option.value
+                          ? 'accent-text'
+                          : 'text-ink-900 dark:text-ink-50',
+                      )}
+                    >
+                      {option.name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
+                      {option.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-ink-400 dark:text-ink-500">
+                This is the license you're requesting. A platform administrator confirms
+                your plan and seat count when they approve your organization.
+              </p>
+            </div>
+          )}
         </div>
 
         <button type="submit" className="btn-primary mt-6 w-full py-2.5" disabled={busy}>
@@ -245,6 +327,7 @@ export function Signup() {
   const toast = useToast()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [done, setDone] = useState<string | null>(null)
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
 
   const mismatch = confirm.length > 0 && form.password !== confirm
 
@@ -373,10 +456,56 @@ export function Signup() {
               </label>
             )}
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Password"
+              type="password"
+              autoComplete="new-password"
+              value={form.password}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              error={fieldErrors.password}
+              required
+            />
+            <Field
+              label="Confirm password"
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(event) => setConfirm(event.target.value)}
+              error={mismatch ? 'The two passwords do not match.' : undefined}
+              required
+            />
+          </div>
           <div>
-            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-              Plan
-            </span>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-sm font-medium text-ink-700 dark:text-ink-200">Plan</span>
+              <div className="inline-flex rounded-md border border-ink-200 p-0.5 dark:border-ink-700">
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle('monthly')}
+                  className={clsx(
+                    'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                    billingCycle === 'monthly'
+                      ? 'accent-bg text-white'
+                      : 'text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200',
+                  )}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle('yearly')}
+                  className={clsx(
+                    'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                    billingCycle === 'yearly'
+                      ? 'accent-bg text-white'
+                      : 'text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200',
+                  )}
+                >
+                  Yearly
+                </button>
+              </div>
+            </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {PLAN_OPTIONS.map((option) => (
                 <button
@@ -392,41 +521,24 @@ export function Signup() {
                 >
                   <p
                     className={clsx(
-                      'text-sm font-semibold',
+                      'flex items-center text-sm font-semibold',
                       form.plan === option.value
                         ? 'accent-text'
                         : 'text-ink-900 dark:text-ink-50',
                     )}
                   >
                     {option.name}
+                    <InfoTooltip text={option.description} />
                   </p>
                   <p className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
-                    {option.description}
+                    {billingCycle === 'monthly' ? option.monthlyPrice : option.yearlyPrice}
+                    <span className="text-ink-400 dark:text-ink-500">
+                      {billingCycle === 'monthly' ? '/mo' : '/yr'}
+                    </span>
                   </p>
                 </button>
               ))}
             </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Password"
-              type="password"
-              autoComplete="new-password"
-              value={form.password}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
-              error={fieldErrors.password}
-              required
-              hint="At least 6 characters. Length matters more than symbols."
-            />
-            <Field
-              label="Confirm password"
-              type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(event) => setConfirm(event.target.value)}
-              error={mismatch ? 'The two passwords do not match.' : undefined}
-              required
-            />
           </div>
         </div>
 

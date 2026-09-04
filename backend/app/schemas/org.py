@@ -25,6 +25,11 @@ class OrgRegistrationRequest(BaseModel):
     country: str | None = Field(default=None, min_length=2, max_length=2)
     timezone: str = Field(min_length=1, max_length=64)
     primary_domain: str | None = Field(default=None, max_length=255)
+    # The licence/plan the applicant is asking for. Purely a signal for the
+    # Super Admin reviewing the request — it is stored, never applied
+    # automatically. The authoritative `plan` (and `seat_limit`) are set on
+    # Organization only when a Super Admin approves, via OrgApprovalRequest.
+    requested_plan: OrgPlan | None = None
 
 
 class OrgSelfRegisterRequest(OrgRegistrationRequest):
@@ -51,6 +56,10 @@ class OrgProvisionRequest(OrgRegistrationRequest):
     admin_full_name: str = Field(min_length=2, max_length=150)
     admin_email: EmailStr
     plan: OrgPlan = OrgPlan.STARTER
+    # Number of user licences granted to the tenant. Nullable = unlimited,
+    # matching Organization.seat_limit; enforced in api/v1/users.py's
+    # _seat_limit_reason() whenever a user is invited or added.
+    seat_limit: int | None = Field(default=None, ge=1, le=100000)
 
     @field_validator("slug")
     @classmethod
@@ -63,9 +72,18 @@ class OrgProvisionRequest(OrgRegistrationRequest):
 
 
 class OrgApprovalRequest(BaseModel):
+    """Super Admin decision on a pending self-registration.
+
+    The requesting organization never chooses its own plan or licence
+    count on the public form (see OrgRegistrationRequest) — both are set
+    here, by the Super Admin, at the moment of approval.
+    """
+
     admin_full_name: str = Field(min_length=2, max_length=150)
     admin_email: EmailStr
     plan: OrgPlan = OrgPlan.STARTER
+    # Licence count for this tenant. None = unlimited seats.
+    seat_limit: int | None = Field(default=None, ge=1, le=100000)
     note: str | None = Field(default=None, max_length=500)
 
 
@@ -95,6 +113,7 @@ class OrgUpdateRequest(BaseModel):
     country: str | None = Field(default=None, min_length=2, max_length=2)
     timezone: str = Field(min_length=1, max_length=64)
     plan: OrgPlan
+    seat_limit: int | None = Field(default=None, ge=1, le=100000)
 
 
 class OrgRejectionRequest(BaseModel):
@@ -144,6 +163,8 @@ class OrgDetail(ORMModel):
     contact_phone: str | None = None
     timezone: str
     plan: str
+    seat_limit: int | None = None
+    requested_plan: str | None = None
     approved_at: datetime | None = None
     rejection_reason: str | None = None
     suspension_reason: str | None = None
