@@ -108,6 +108,8 @@ def _detail(org: Organization, user_count: int = 0) -> OrgDetail:
         plan=str(org.plan),
         seat_limit=org.seat_limit,
         requested_plan=(org.settings or {}).get("requested_plan"),
+        requested_seats=(org.settings or {}).get("requested_seats"),
+        plan_managed=bool((org.settings or {}).get("plan_managed")),
         approved_at=org.approved_at,
         rejection_reason=org.rejection_reason,
         suspension_reason=org.suspension_reason,
@@ -195,6 +197,12 @@ async def self_register(
     await limiter.hit(
         f"register:{audit.client_ip(request) or 'unknown'}", REGISTRATION_PER_IP
     )
+    # Required only on this flow, not on the shared OrgRegistrationRequest
+    # base itself — self_register_instant (/signup) also inherits from that
+    # base and doesn't collect this field, so the check lives here rather
+    # than on the schema.
+    if payload.requested_seats is None:
+        raise ValidationFailed("Enter how many licenses you need.")
     await bind_tenant(session, TenantContext(org_id=None, is_super_admin=True))
 
     existing_user = (
@@ -220,9 +228,15 @@ async def self_register(
         timezone=payload.timezone or "UTC",
         primary_domain=payload.primary_domain,
         settings=(
-            {"requested_plan": payload.requested_plan.value}
-            if payload.requested_plan
-            else {}
+            {
+                **({"requested_plan": payload.requested_plan.value} if payload.requested_plan else {}),
+                **({"requested_seats": payload.requested_seats} if payload.requested_seats else {}),
+                # Set once, here, from whether a plan was actually part of
+                # this request — the only decision point for this flow.
+                # approve_organization doesn't touch it again; it just
+                # carries forward whatever was true at registration.
+                "plan_managed": bool(payload.requested_plan),
+            }
         ),
     )
     session.add(org)
@@ -240,7 +254,11 @@ async def self_register(
         target_type="organization",
         target_id=org.id,
         target_label=org.name,
-        context={"source": "self_service", "requested_plan": payload.requested_plan},
+        context={
+            "source": "self_service",
+            "requested_plan": payload.requested_plan,
+            "requested_seats": payload.requested_seats,
+        },
         request=request,
     )
     await session.commit()
@@ -331,6 +349,10 @@ async def provision_organization(
         plan=payload.plan,
         seat_limit=payload.seat_limit,
         plan_started_at=now,
+        # No Plan selector shown on this form anymore — matches the same
+        # flow every other creation path uses by default: seat-only, no
+        # feature gating, no expiration, until a plan is deliberately set
+        # later via update_organization.
         approved_at=now,
         approved_by_id=actor.id,
     )
@@ -450,6 +472,25 @@ async def update_organization(
     if payload.plan != org.plan:
         changes["plan"] = [str(org.plan), str(payload.plan)]
         org.plan = payload.plan
+        # A genuine change in value is what makes this deliberate — merely
+        # resubmitting whatever plan was already there (every save through
+        # this form includes one, since it's a required field) shouldn't
+        # silently opt a seat-only org into plan restrictions.
+        if not (org.settings or {}).get("plan_managed"):
+            org.settings = {**(org.settings or {}), "plan_managed": True}
+            changes["plan_managed"] = [False, True]
+
+    # Every explicit save through this endpoint counts as a renewal — it's
+    # the only lever a Super Admin has to un-block a locked-out org until
+    # real billing exists, and "renew the same plan" needs to work even when
+    # the tier itself doesn't change, so this is unconditional rather than
+    # gated on the plan value actually differing.
+    old_plan_started_at = org.plan_started_at
+    org.plan_started_at = datetime.now(UTC)
+    changes["plan_started_at"] = [
+        old_plan_started_at.isoformat(),
+        org.plan_started_at.isoformat(),
+    ]
 
     if payload.seat_limit != org.seat_limit:
         changes["seat_limit"] = [org.seat_limit, payload.seat_limit]
@@ -502,6 +543,7 @@ async def approve_organization(
     org.approved_by_id = actor.id
     org.rejection_reason = None
     org.plan = payload.plan
+    org.plan_started_at = org.approved_at
     org.seat_limit = payload.seat_limit
 
     admin, raw_token = await _invite_admin(

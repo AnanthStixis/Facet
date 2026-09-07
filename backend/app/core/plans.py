@@ -23,12 +23,17 @@ class PlanLimits:
     # Review are available on every plan, so there's no separate flag for
     # those — only the external kinds are ever gated.
     external_review: bool
+    # Total feedback cycles ("feedback forms") this org can ever create.
+    # None means unlimited. A lifetime cap, not monthly — same as the seat
+    # caps above, there's no billing period yet to reset anything against.
+    max_cycles: int | None
 
 
 PLAN_LIMITS: dict[OrgPlan, PlanLimits] = {
-    OrgPlan.STARTER: PlanLimits(employee_seats=50, admin_seats=1, external_review=False),
-    OrgPlan.GROWTH: PlanLimits(employee_seats=150, admin_seats=3, external_review=True),
-    OrgPlan.ENTERPRISE: PlanLimits(employee_seats=None, admin_seats=None, external_review=True),
+    OrgPlan.STARTER: PlanLimits(employee_seats=50, admin_seats=1, external_review=False, max_cycles=100),
+    OrgPlan.GROWTH: PlanLimits(employee_seats=150, admin_seats=3, external_review=True, max_cycles=500),
+    OrgPlan.ENTERPRISE: PlanLimits(employee_seats=None, admin_seats=None, external_review=True, max_cycles=None),
+
 }
 
 

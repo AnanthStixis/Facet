@@ -47,32 +47,35 @@ function PublicFrame({
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE = /^[+()0-9][0-9()\-.\s]{5,}$/
 
-// Display names, and monthly/yearly prices, match the marketing site's
-// pricing cards (Basic/Standard/Enterprise) — `value` is the real thing
-// the backend's OrgPlan understands and is what actually gets sent, same
-// split as Home.tsx's TIERS array. Yearly price is ~2 months free versus
-// paying monthly (10x monthly rather than 12x).
+// Display names match the marketing site's pricing cards (Basic/Standard/
+// Enterprise) — `value` is the real thing the backend's OrgPlan
+// understands and is what actually gets sent, same split as Home.tsx's
+// TIERS array. monthlyAmount is a raw number, not a formatted string — the
+// yearly price and discount are computed at render time (12 x monthly,
+// minus YEARLY_DISCOUNT_PERCENT), same as Home.tsx, never hardcoded as a
+// separate figure per tier.
+const YEARLY_DISCOUNT_PERCENT = 5
+
+const formatINR = (amount: number) => `₹${Math.round(amount).toLocaleString('en-US')}`
+
 const PLAN_OPTIONS = [
   {
     value: 'starter',
     name: 'Basic',
     description: 'Up to 50 employees, 1 admin',
-    monthlyPrice: '₹2,499',
-    yearlyPrice: '₹24,990',
+    monthlyAmount: 2499,
   },
   {
     value: 'growth',
     name: 'Standard',
     description: 'Up to 150 employees, 3 admins',
-    monthlyPrice: '₹7,999',
-    yearlyPrice: '₹79,990',
+    monthlyAmount: 7999,
   },
   {
     value: 'enterprise',
     name: 'Enterprise',
     description: 'Unlimited employees and admins',
-    monthlyPrice: '₹14,999',
-    yearlyPrice: '₹149,990',
+    monthlyAmount: 14999,
   },
 ]
 
@@ -105,6 +108,7 @@ export function Register() {
     contact_phone: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     requested_plan: showLicense ? requestedPlanParam! : 'starter',
+    requested_seats: '',
   })
   const [busy, setBusy] = useState(false)
   const toast = useToast()
@@ -152,6 +156,9 @@ export function Register() {
           if (!form.timezone) {
             validation.timezone = 'Choose a time zone.'
           }
+          if (!form.requested_seats.trim() || Number(form.requested_seats) < 1) {
+            validation.requested_seats = 'Enter how many licenses you need.'
+          }
           if (Object.keys(validation).length > 0) {
             setFieldErrors(validation)
             return
@@ -160,7 +167,11 @@ export function Register() {
           setBusy(true)
           setFieldErrors({})
           try {
-            const payload = showLicense ? form : { ...form, requested_plan: undefined }
+            const payload = {
+              ...form,
+              requested_plan: showLicense ? form.requested_plan : undefined,
+              requested_seats: form.requested_seats.trim() ? Number(form.requested_seats) : undefined,
+            }
             const result = await api.post<{ message: string }>('/orgs/register', payload)
             setDone(result.message)
           } catch (caught) {
@@ -208,6 +219,14 @@ export function Register() {
               value={form.contact_phone}
               onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
               error={fieldErrors.contact_phone}
+              required
+            />
+                        <Field
+              label="Number of licenses"
+              type="number"
+              value={form.requested_seats}
+              onChange={(event) => setForm({ ...form, requested_seats: event.target.value })}
+              error={fieldErrors.requested_seats}
               required
             />
             {/* Timezone is detected from the browser and sent silently with
@@ -530,11 +549,25 @@ export function Signup() {
                     {option.name}
                     <InfoTooltip text={option.description} />
                   </p>
-                  <p className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
-                    {billingCycle === 'monthly' ? option.monthlyPrice : option.yearlyPrice}
+                  <p className="mt-0.5 flex flex-wrap items-baseline gap-1 text-xs text-ink-500 dark:text-ink-400">
+                    {billingCycle === 'yearly' && (
+                      <span className="text-ink-400 line-through dark:text-ink-500">
+                        {formatINR(option.monthlyAmount * 12)}
+                      </span>
+                    )}
+                    <span>
+                      {billingCycle === 'monthly'
+                        ? formatINR(option.monthlyAmount)
+                        : formatINR(option.monthlyAmount * 12 * (1 - YEARLY_DISCOUNT_PERCENT / 100))}
+                    </span>
                     <span className="text-ink-400 dark:text-ink-500">
                       {billingCycle === 'monthly' ? '/mo' : '/yr'}
                     </span>
+                    {billingCycle === 'yearly' && (
+                      <span className="accent-text font-semibold">
+                        Save {YEARLY_DISCOUNT_PERCENT}%
+                      </span>
+                    )}
                   </p>
                 </button>
               ))}
@@ -644,7 +677,7 @@ function SetPasswordForm({
             error={fieldErrors.password}
             required
             autoFocus
-            hint="At least 6 characters. Length matters more than symbols."
+            hint="At least 6 characters"
           />
           <Field
             label="Confirm password"

@@ -1095,11 +1095,15 @@ export function CreateFeedback() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const plan = useAuth((state) => state.organization?.plan)
+  const planManaged = useAuth((state) => state.organization?.plan_managed)
   // Only Starter excludes external review kinds today — mirrors PLAN_LIMITS
   // in backend/app/core/plans.py, the actual source of truth. The backend
   // enforces this independently on submit either way; this is purely so a
   // Starter org sees it up front instead of at the very last step.
-  const externalReviewLocked = plan === 'starter'
+  // Gated on plan_managed: an org whose plan was never actually chosen
+  // (the flat seat-only flow from before plans existed) is never locked,
+  // regardless of what its unused, hidden `plan` value happens to be.
+  const externalReviewLocked = Boolean(planManaged) && plan === 'starter'
   const initialKind = (params.get('kind') as FeedbackKind | null) ?? 'employee'
   const [kind, setKind] = useState<FeedbackKind>(() => {
     const requested = FEEDBACK_TYPES.find((t) => t.kind === initialKind)
@@ -1377,7 +1381,6 @@ export function CreateFeedback() {
       const message =
         caught instanceof ApiError ? caught.message : 'Could not create and send this feedback.'
       setError(message)
-      toast.show('critical', 'Could not send', message)
     } finally {
       setBusy(false)
     }

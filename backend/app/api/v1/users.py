@@ -302,6 +302,30 @@ async def _seat_limit_reason(session: DbSession, org: Organization, role: UserRo
     but the seat itself should free up immediately, not stay occupied by
     someone who no longer has an account.
     """
+    if not bool((org.settings or {}).get("plan_managed")):
+        # The flow from before plans existed: one flat cap across every
+        # user regardless of role, using the seat_limit a Super Admin set
+        # directly — no Admin/Employee split, since that distinction only
+        # exists as part of the plan system this org was never opted into.
+        if org.seat_limit is None:
+            return None
+        used = int(
+            (
+                await session.execute(
+                    select(func.count())
+                    .select_from(User)
+                    .where(User.org_id == org.id, User.status != UserStatus.DELETED)
+                )
+            ).scalar_one()
+        )
+        if used >= org.seat_limit:
+            plural = "s" if org.seat_limit != 1 else ""
+            return (
+                f"This organization allows up to {org.seat_limit} "
+                f"user{plural}, and all of them are in use."
+            )
+        return None
+
     limits = limits_for(org.plan)
     is_admin = role == UserRole.CLIENT_ADMIN
     cap = limits.admin_seats if is_admin else limits.employee_seats

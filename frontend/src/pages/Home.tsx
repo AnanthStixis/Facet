@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import clsx from 'clsx'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { BrandLogo } from '../components/Logo'
 import { GraphArtwork } from '../components/GraphArtwork'
@@ -61,7 +62,7 @@ function HomeHeader() {
           <Link to="/login" className="btn-ghost px-3 py-1.5 text-sm">
             Log in
           </Link>
-          <Link to="/signup" className="btn-primary px-3.5 py-1.5 text-sm">
+          <Link to="/register" className="btn-primary px-3.5 py-1.5 text-sm">
             Register here
           </Link>
         </div>
@@ -198,7 +199,7 @@ function Hero() {
             </p>
 
             <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
-              <Link to="/register?plan=starter" className="btn-primary inline-flex items-center gap-1.5 px-5 py-2.5">
+              <Link to="/register" className="btn-primary inline-flex items-center gap-1.5 px-5 py-2.5">
                 Get Started
                 <IconArrowLeft width={16} height={16} className="rotate-180" />
               </Link>
@@ -414,12 +415,12 @@ type Tier = {
   name: string
   // The real value the backend's OrgPlan understands — this display name
   // (Basic/Standard/Enterprise) is marketing copy only. Clicking "Get
-  // Started" on a card carries this as ?plan= on /register, which is what
-  // makes Register() show its License section pre-selected to this tier.
-  // It's still just a request signal: a Super Admin sets the authoritative
-  // plan and seat count when they approve.
+  // Started" on a card carries this as ?plan= on /signup, the instant
+  // self-registration flow — this is deliberately its only entry point;
+  // every other "Register"/"Get Started" on this page goes to /register
+  // (pending review) instead.
   value: string
-  price: string
+  monthlyAmount: number
   limit: string
   cta: string
   highlighted?: boolean
@@ -427,14 +428,19 @@ type Tier = {
   features: PlanFeature[]
 }
 
+const YEARLY_DISCOUNT_PERCENT = 5
+
+const formatINR = (amount: number) => `₹${Math.round(amount).toLocaleString('en-US')}`
+
 const TIERS: Tier[] = [
   {
     name: 'Basic',
     value: 'starter',
-    price: '₹2,499',
+    monthlyAmount: 2499,
     limit: '1 Admin + 50 Users',
     cta: 'Get Started',
     features: [
+      { label: 'Up to 100 feedback forms', included: true },
       { label: 'Employee & Management Review', included: true },
       { label: 'Export Results — Only export option available in Results page', included: true },
       { label: 'Client, Product, Service & Proposal Feedback', included: false },
@@ -444,12 +450,13 @@ const TIERS: Tier[] = [
   {
     name: 'Standard',
     value: 'growth',
-    price: '₹7,999',
+    monthlyAmount: 7999,
     limit: '3 Admins + 150 Users',
     cta: 'Get Started',
     highlighted: true,
     badge: 'Most Popular',
     features: [
+      { label: 'Up to 500 feedback forms', included: true },
       { label: 'Employee & Management Review', included: true },
       { label: 'Client, Product, Service & Proposal Feedback', included: true },
       { label: 'All export options (PDF, Excel, full reports)', included: true },
@@ -458,10 +465,11 @@ const TIERS: Tier[] = [
   {
     name: 'Enterprise',
     value: 'enterprise',
-    price: '₹14,999',
+    monthlyAmount: 14999,
     limit: 'Unlimited Admins & Users',
     cta: 'Get Started',
     features: [
+      { label: 'Unlimited feedback forms', included: true },
       { label: 'Employee & Management Review', included: true },
       { label: 'Client, Product, Service & Proposal Feedback', included: true },
       { label: 'All export options (PDF, Excel, full reports)', included: true },
@@ -473,7 +481,17 @@ const TIERS: Tier[] = [
 // current plan and anything below it, leaving only real upgrades clickable.
 const PLAN_ORDER: Record<string, number> = { starter: 0, growth: 1, enterprise: 2 }
 
-function PricingCard({ tier, disabled, isCurrent }: { tier: Tier; disabled: boolean; isCurrent: boolean }) {
+function PricingCard({
+  tier,
+  disabled,
+  isCurrent,
+  billingCycle,
+}: {
+  tier: Tier
+  disabled: boolean
+  isCurrent: boolean
+  billingCycle: 'monthly' | 'yearly'
+}) {
   return (
     <div
       className={
@@ -489,11 +507,25 @@ function PricingCard({ tier, disabled, isCurrent }: { tier: Tier; disabled: bool
       )}
       <h3 className="text-lg font-semibold text-ink-900 dark:text-ink-50">{tier.name}</h3>
 
-      <div className="mt-4 flex items-baseline gap-1.5">
+      <div className="mt-4 flex flex-wrap items-baseline gap-1.5">
+        {billingCycle === 'yearly' && (
+          <span className="text-base text-ink-400 line-through dark:text-ink-500">
+            {formatINR(tier.monthlyAmount * 12)}
+          </span>
+        )}
         <span className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-          {tier.price}
+          {billingCycle === 'monthly'
+            ? formatINR(tier.monthlyAmount)
+            : formatINR(tier.monthlyAmount * 12 * (1 - YEARLY_DISCOUNT_PERCENT / 100))}
         </span>
-        <span className="text-xs text-ink-500 dark:text-ink-400">/Month</span>
+        <span className="text-xs text-ink-500 dark:text-ink-400">
+          {billingCycle === 'monthly' ? '/Month' : '/Year'}
+        </span>
+        {billingCycle === 'yearly' && (
+          <span className="accent-soft-bg accent-text rounded-full px-2 py-0.5 text-2xs font-semibold">
+            Save {YEARLY_DISCOUNT_PERCENT}%
+          </span>
+        )}
       </div>
 
       <p className="mt-2 text-base font-semibold text-ink-700 dark:text-ink-200">
@@ -534,7 +566,7 @@ function PricingCard({ tier, disabled, isCurrent }: { tier: Tier; disabled: bool
         </span>
       ) : (
         <Link
-          to={`/register?plan=${tier.value}`}
+          to={`/signup?plan=${tier.value}`}
           className={
             tier.highlighted
               ? 'btn-primary mt-7 w-full py-2.5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg'
@@ -553,6 +585,7 @@ function Pricing() {
   // "Upgrade" link — a stranger seeing this page for the first time has no
   // organization, so every tier stays enabled for them.
   const currentPlan = useAuth((state) => state.organization?.plan)
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
 
   return (
     <div className="relative overflow-hidden bg-ink-50 dark:bg-ink-900/40">
@@ -579,6 +612,32 @@ function Pricing() {
           <p className="mx-auto mt-3 max-w-lg text-base text-ink-500 dark:text-ink-400">
             Choose the plan that fits your organization's size and feedback needs.
           </p>
+          <div className="mt-6 inline-flex rounded-md border border-ink-200 p-0.5 dark:border-ink-700">
+            <button
+              type="button"
+              onClick={() => setBillingCycle('monthly')}
+              className={clsx(
+                'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+                billingCycle === 'monthly'
+                  ? 'accent-bg text-white'
+                  : 'text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200',
+              )}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('yearly')}
+              className={clsx(
+                'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+                billingCycle === 'yearly'
+                  ? 'accent-bg text-white'
+                  : 'text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200',
+              )}
+            >
+              Yearly
+            </button>
+          </div>
         </div>
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
           {TIERS.map((tier) => (
@@ -587,6 +646,7 @@ function Pricing() {
               tier={tier}
               disabled={Boolean(currentPlan) && PLAN_ORDER[tier.value] <= PLAN_ORDER[currentPlan as string]}
               isCurrent={tier.value === currentPlan}
+              billingCycle={billingCycle}
             />
           ))}
         </div>

@@ -13,7 +13,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Literal
 
 from fastapi import APIRouter, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.deps import DbSession, ManagerUser
 from app.core.errors import NotFound, ValidationFailed
@@ -171,11 +171,35 @@ async def create_feedback(
         await session.execute(select(Organization).where(Organization.id == actor.org_id))
     ).scalar_one()
 
-    if payload.kind in feedback_service.EXTERNAL_KINDS and not limits_for(org.plan).external_review:
+    plan_managed = bool((org.settings or {}).get("plan_managed"))
+    if (
+        plan_managed
+        and payload.kind in feedback_service.EXTERNAL_KINDS
+        and not limits_for(org.plan).external_review
+    ):
         raise ValidationFailed(
             f"The {org.plan.value.title()} plan does not include Client, Product, "
             f"Service, or Proposal Review. Upgrade to Growth or above to use this."
         )
+
+    if plan_managed:
+        max_cycles = limits_for(org.plan).max_cycles
+        if max_cycles is not None:
+            cycle_count = int(
+                (
+                    await session.execute(
+                        select(func.count())
+                        .select_from(ReviewCycle)
+                        .where(ReviewCycle.org_id == org.id)
+                    )
+                ).scalar_one()
+            )
+            if cycle_count >= max_cycles:
+                raise ValidationFailed(
+                    f"The {org.plan.value.title()} plan allows up to {max_cycles} "
+                    f"feedback forms in total, and all of them are in use. "
+                    f"Upgrade to create more."
+                )
 
     result = await feedback_service.create_and_send(
         session,

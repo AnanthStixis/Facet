@@ -42,6 +42,7 @@ from app.db.tenancy import TenantContext
 from app.models.auth import LoginAttempt, RefreshToken, SessionFamily
 from app.models.enums import AuditAction, OrgPlan, OrgStatus, UserRole, UserStatus
 from app.models.user import User
+from app.models.organization import Organization
 from app.services import audit
 
 log = get_logger("facet.auth")
@@ -317,14 +318,20 @@ async def authenticate(
     # update_organization) before login is blocked pending renewal. Super
     # Admins have no org and skip this check, same as org_status above.
     if not principal.is_super_admin and principal.org_plan_started_at is not None:
-        plan_age = now - principal.org_plan_started_at
-        if plan_age > timedelta(days=PLAN_DURATION_DAYS):
-            await _record_attempt(
-                session, email=email, principal=principal,
-                succeeded=False, reason="plan_expired", request=request,
+        org_settings = (
+            await session.execute(
+                select(Organization.settings).where(Organization.id == principal.org_id)
             )
-            await session.commit()
-            raise PlanExpired()
+        ).scalar_one_or_none()
+        if bool((org_settings or {}).get("plan_managed")):
+            plan_age = now - principal.org_plan_started_at
+            if plan_age > timedelta(days=PLAN_DURATION_DAYS):
+                await _record_attempt(
+                    session, email=email, principal=principal,
+                    succeeded=False, reason="plan_expired", request=request,
+                )
+                await session.commit()
+                raise PlanExpired()
 
     await _record_attempt(
         session, email=email, principal=principal,

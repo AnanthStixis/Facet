@@ -41,9 +41,17 @@ function ApprovalForm({
   // renders as an editable dropdown. Falls back to Basic if they didn't
   // request anything (e.g. reached this form without a ?plan= link).
   const [plan, setPlan] = useState(org.requested_plan ?? 'starter')
-  // Licence count for this tenant. Blank = unlimited seats, matching the
-  // backend's `None` (see OrgApprovalRequest.seat_limit).
-  const [seatLimit, setSeatLimit] = useState(org.seat_limit ? String(org.seat_limit) : '')
+  // Licence count for this tenant. Pre-filled from the applicant's request
+  // (OrgRegistrationRequest.requested_seats) the same way plan is above —
+  // still just a signal, still an editable field. Blank = unlimited seats,
+  // matching the backend's `None` (see OrgApprovalRequest.seat_limit).
+  const [seatLimit, setSeatLimit] = useState(
+    org.seat_limit
+      ? String(org.seat_limit)
+      : org.requested_seats
+        ? String(org.requested_seats)
+        : '',
+  )
   const [busy, setBusy] = useState(false)
 
   const submit = async (event: React.FormEvent) => {
@@ -91,22 +99,30 @@ function ApprovalForm({
           onChange={(event) => setEmail(event.target.value)}
           required
         />
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-            Plan
-          </span>
-          <select
-            className="field"
-            value={plan}
-            onChange={(event) => setPlan(event.target.value)}
-          >
-            <option value="starter">Basic — up to 50 employees, 1 admin</option>
-            <option value="growth">Standard — up to 150 employees, 3 admins</option>
-            <option value="enterprise">Enterprise — unlimited</option>
-          </select>
-        </label>
+        {/* Only shown when the applicant actually requested a plan (reached
+            the form via a pricing card). Otherwise this is the old flow
+            from before plans existed — Admin name/email and seats only —
+            since showing a pre-selected plan they never asked for would
+            misrepresent their request. A plan is still set on submit
+            either way; the state default (Starter) is just never shown. */}
+        {org.plan_managed && (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+              Plan
+            </span>
+            <select
+              className="field"
+              value={plan}
+              onChange={(event) => setPlan(event.target.value)}
+            >
+              <option value="starter">Basic — up to 50 employees, 1 admin</option>
+              <option value="growth">Standard — up to 150 employees, 3 admins</option>
+              <option value="enterprise">Enterprise — unlimited</option>
+            </select>
+          </label>
+        )}
         <Field
-          label="Seat limit"
+          label="Number of licenses"
           type="number"
           min={1}
           value={seatLimit}
@@ -405,22 +421,8 @@ function OrgFormModal({
               </select>
             </label>
           )}
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-              Plan
-            </span>
-            <select
-              className="field max-w-[260px]"
-              value={form.plan}
-              onChange={(event) => setForm({ ...form, plan: event.target.value })}
-            >
-              <option value="starter">Basic — up to 50 employees, 1 admin</option>
-              <option value="growth">Standard — up to 150 employees, 3 admins</option>
-              <option value="enterprise">Enterprise — unlimited</option>
-            </select>
-          </label>
           <Field
-            label="Seat limit"
+            label="Number of licenses"
             type="number"
             min={1}
             value={form.seat_limit}
@@ -490,8 +492,15 @@ function OrgDetailModal({ org, onClose }: { org: OrgDetail; onClose: () => void 
     { label: 'Primary contact name', value: org.contact_name },
     { label: 'Primary contact email', value: org.contact_email },
     { label: 'Country', value: countryName },
-    { label: 'Plan', value: org.plan.charAt(0).toUpperCase() + org.plan.slice(1) },
-    { label: 'Seat limit', value: org.seat_limit ?? 'Unlimited' },
+    ...(org.plan_managed
+      ? [
+          {
+            label: 'Plan',
+            value: { starter: 'Basic', growth: 'Standard', enterprise: 'Enterprise' }[org.plan] ?? org.plan,
+          },
+        ]
+      : []),
+    { label: 'Number of licenses', value: org.seat_limit ?? 'Unlimited' },
     { label: 'Users', value: org.user_count },
     { label: 'Created', value: formatDate(org.created_at) },
     { label: 'Approved', value: formatDate(org.approved_at) },

@@ -99,7 +99,7 @@ function SessionExpiredModal() {
 // Routes an unauthenticated stranger is meant to reach. Attempting a session
 // restore on these is pointless: the visitor has no account, and it costs a
 // wasted request plus a 401 in their console.
-const PUBLIC_PREFIXES = ['/f/', '/give-feedback/', '/register', '/signup', '/accept-invite', '/reset-password', '/home']
+const PUBLIC_PREFIXES = ['/f/', '/give-feedback/', '/register', '/signup', '/accept-invite', '/reset-password', '/home', '/login']
 
 export default function App() {
   const { phase, boot, sessionExpiredNotice } = useAuth()

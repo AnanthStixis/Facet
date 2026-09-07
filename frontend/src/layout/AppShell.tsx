@@ -219,8 +219,9 @@ export function AppShell() {
   // Mirrors CreateFeedback.tsx's own externalReviewLocked check — kept as a
   // simple string comparison here rather than importing plan-limit logic,
   // since the sidebar only needs the one starter/not-starter boolean, not
-  // the full seat-cap numbers.
-  const externalReviewLocked = organization?.plan === 'starter'
+  // the full seat-cap numbers. Gated on plan_managed the same way: an org
+  // whose plan was never actually chosen is never locked here either.
+  const externalReviewLocked = Boolean(organization?.plan_managed) && organization?.plan === 'starter'
 
   const visible = NAV.filter(
     (group) => !(hideOrgScopedNav && (group.section === 'Create Feedback' || group.section === 'For me')),

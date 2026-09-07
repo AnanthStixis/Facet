@@ -22,6 +22,7 @@ export interface Organization {
   status: string
   timezone: string
   plan: string
+  plan_managed?: boolean
   branding?: Branding | null
 }
 
@@ -195,6 +196,8 @@ export interface OrgDetail {
   plan: string
   seat_limit?: number | null
   requested_plan?: string | null
+  requested_seats?: number | null
+  plan_managed?: boolean
   approved_at?: string | null
   rejection_reason?: string | null
   suspension_reason?: string | null

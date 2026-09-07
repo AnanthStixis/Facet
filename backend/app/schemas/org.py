@@ -30,6 +30,10 @@ class OrgRegistrationRequest(BaseModel):
     # automatically. The authoritative `plan` (and `seat_limit`) are set on
     # Organization only when a Super Admin approves, via OrgApprovalRequest.
     requested_plan: OrgPlan | None = None
+    # Same signal-only treatment as requested_plan above — how many seats the
+    # applicant says they need. Never applied automatically; the Super Admin
+    # sets the authoritative seat_limit at approval time.
+    requested_seats: int | None = Field(default=None, ge=1, le=100000)
 
 
 class OrgSelfRegisterRequest(OrgRegistrationRequest):
@@ -165,6 +169,12 @@ class OrgDetail(ORMModel):
     plan: str
     seat_limit: int | None = None
     requested_plan: str | None = None
+    requested_seats: int | None = None
+    # True once a plan was ever deliberately chosen for this org — see
+    # api/v1/orgs.py and api/v1/auth.py for exactly where this gets set.
+    # False orgs are the old flow: a flat seat_limit cap, no feature gating,
+    # no expiration, and no Plan shown in the UI at all.
+    plan_managed: bool = False
     approved_at: datetime | None = None
     rejection_reason: str | None = None
     suspension_reason: str | None = None

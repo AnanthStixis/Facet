@@ -28,6 +28,10 @@ class OrgSummary(ORMModel):
     status: str
     timezone: str
     plan: str
+    # See Organization.settings — true once a plan was ever deliberately
+    # chosen for this org. False orgs are the flow from before plans
+    # existed: no feature gating, no expiration, `plan` itself unused.
+    plan_managed: bool = False
     branding: BrandingSummary | None = None
 
 class UserSummary(ORMModel):
