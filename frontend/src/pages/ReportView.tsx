@@ -112,7 +112,6 @@ export function ReportView({
         title={meta?.title ?? 'Report'}
         backTo={backTo}
         backLabel={backLabel}
-        description={meta?.description}
         actions={
           meta && (
             <ExportMenu
