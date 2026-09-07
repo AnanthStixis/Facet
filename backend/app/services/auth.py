@@ -55,7 +55,13 @@ CSRF_HEADER = "x-facet-csrf"
 # billing system yet to reset this automatically on payment — a Super Admin
 # renewing or changing an org's plan (update_organization) resets the clock
 # by hand for now.
-PLAN_DURATION_DAYS = 30
+#
+# Two durations, not one: an org's chosen billing_cycle (see
+# self_register_instant) decides which applies. An org with no billing_cycle
+# recorded at all (provisioned directly, or renewed via update_organization,
+# which doesn't set this) falls back to the monthly duration — the shorter,
+# safer default.
+PLAN_DURATION_DAYS = {"monthly": 30, "yearly": 365}
 
 
 @dataclass(slots=True)
@@ -324,8 +330,10 @@ async def authenticate(
             )
         ).scalar_one_or_none()
         if bool((org_settings or {}).get("plan_managed")):
+            billing_cycle = (org_settings or {}).get("billing_cycle", "monthly")
+            duration_days = PLAN_DURATION_DAYS.get(billing_cycle, PLAN_DURATION_DAYS["monthly"])
             plan_age = now - principal.org_plan_started_at
-            if plan_age > timedelta(days=PLAN_DURATION_DAYS):
+            if plan_age > timedelta(days=duration_days):
                 await _record_attempt(
                     session, email=email, principal=principal,
                     succeeded=False, reason="plan_expired", request=request,

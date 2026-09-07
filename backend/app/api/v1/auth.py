@@ -241,7 +241,7 @@ async def self_register_instant(
         plan=payload.plan,
         plan_started_at=now,
         approved_at=now,
-        settings={"plan_managed": True},
+        settings={"plan_managed": True, "billing_cycle": payload.billing_cycle},
     )
     session.add(org)
     await session.flush()

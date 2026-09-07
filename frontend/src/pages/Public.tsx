@@ -400,7 +400,10 @@ export function Signup() {
           setBusy(true)
           setFieldErrors({})
           try {
-            const result = await api.post<{ message: string }>('/auth/self-register', form)
+            const result = await api.post<{ message: string }>('/auth/self-register', {
+              ...form,
+              billing_cycle: billingCycle,
+            })
             setDone(result.message)
           } catch (caught) {
             if (caught instanceof ApiError) {

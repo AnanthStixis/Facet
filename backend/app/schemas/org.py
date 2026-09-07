@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -47,6 +48,11 @@ class OrgSelfRegisterRequest(OrgRegistrationRequest):
 
     password: str = Field(min_length=6, max_length=256)
     plan: OrgPlan = OrgPlan.STARTER
+    # Determines how long the plan lasts before login is blocked pending
+    # renewal — see PLAN_DURATION_DAYS in services/auth.py. Purely what was
+    # picked on the pricing toggle; there's no payment gateway to verify it
+    # actually paid for a year, same caveat as `plan` above.
+    billing_cycle: Literal["monthly", "yearly"] = "monthly"
 
 
 class OrgProvisionRequest(OrgRegistrationRequest):
