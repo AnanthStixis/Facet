@@ -105,9 +105,9 @@ export function Reports() {
                 <h2 className="text-lg font-semibold text-ink-900 dark:text-ink-50">
                   {report.title}
                 </h2>
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-500 dark:text-ink-400">
+                {/* <p className="mt-1.5 text-sm leading-relaxed text-ink-500 dark:text-ink-400">
                   {report.description}
-                </p>
+                </p> */}
                 <p className="mt-3 text-2xs uppercase tracking-[0.08em] text-ink-400">
                   {report.columns.length} columns &middot;{' '}
                   {report.formats.map((format) => format.toUpperCase()).join(' / ')}

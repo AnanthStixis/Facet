@@ -229,7 +229,7 @@ function BrandingCard() {
             </button>
           )}
           <p className="mt-1.5 max-w-[180px] text-2xs text-ink-400">
-            PNG, JPEG, WebP or SVG, up to 2 MB. A wide transparent PNG works best.
+            PNG, JPEG, WebP or SVG, up to 2 MB. 
           </p>
           {(pendingFile || pendingRemove) && (
             <p className="mt-1 max-w-[180px] text-2xs text-caution">

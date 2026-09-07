@@ -458,10 +458,6 @@ function OrgFormModal({
           </div>
         </div>
 
-        {/* Edit-only, per the client's explicit instruction — never shown on
-            the create-org popup. */}
-        {isEdit && <InviteAdminSection org={org} />}
-
         <div className="mt-4 flex gap-2">
           <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>
             {busy && <Spinner />}
@@ -500,7 +496,11 @@ function OrgDetailModal({ org, onClose }: { org: OrgDetail; onClose: () => void 
           },
         ]
       : []),
-    { label: 'Number of licenses', value: org.seat_limit ?? 'Unlimited' },
+    // Only shown for the seat-only flow — org.seat_limit is never set for a
+    // plan-managed org (its caps come from the plan tier itself, shown
+    // above), so falling back to "Unlimited" there would be showing a
+    // number that was never real in the first place.
+    ...(!org.plan_managed ? [{ label: 'Number of licenses', value: org.seat_limit ?? 'Unlimited' }] : []),
     { label: 'Users', value: org.user_count },
     { label: 'Created', value: formatDate(org.created_at) },
     { label: 'Approved', value: formatDate(org.approved_at) },
@@ -553,78 +553,6 @@ function OrgDetailModal({ org, onClose }: { org: OrgDetail; onClose: () => void 
         </button>
       </div>
     </Modal>
-  )
-}
-
-// Edit-only: a Super Admin can add another Client Admin to an org that is
-// already active, from that org's Edit popup specifically. Never rendered
-// in create mode — see the `isEdit` gate where this is used below. Also
-// gated defensively on `org.status === 'active'`, matching the backend's
-// own check, since the Edit popup can still be opened for a suspended org.
-function InviteAdminSection({ org }: { org: OrgDetail }) {
-  const toast = useToast()
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-
-  if (org.status !== 'active') return null
-
-  // Not a <form>: this section lives inside OrgFormModal's own <form>, and
-  // HTML does not allow a nested <form> — the browser would misattribute
-  // submit events between the two. This button submits directly instead.
-  const submit = async () => {
-    setBusy(true)
-    setFieldErrors({})
-    try {
-      await api.post(`/orgs/${org.id}/invite-admin`, { full_name: fullName, email })
-      toast.show('success', 'Admin invited', `An invitation was emailed to ${email}.`)
-      setFullName('')
-      setEmail('')
-    } catch (caught) {
-      if (caught instanceof ApiError) {
-        toast.show('critical', 'Could not create Admin', caught.message)
-        setFieldErrors(caught.fieldErrors())
-      } else {
-        toast.show('critical', 'Could not create Admin', 'That did not work.')
-      }
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="mt-4 border-t border-ink-200 pt-4 dark:border-ink-700">
-      <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-        Add another Admin
-      </span>
-      <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
-        <Field
-          label="Name"
-          value={fullName}
-          onChange={(event) => setFullName(event.target.value)}
-          error={fieldErrors.full_name}
-          required
-        />
-        <Field
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          error={fieldErrors.email}
-          required
-        />
-        <button
-          type="button"
-          className="btn-secondary px-3 py-1.5 text-sm"
-          disabled={busy || !fullName.trim() || !email.trim()}
-          onClick={() => void submit()}
-        >
-          {busy && <Spinner />}
-          Create Admin
-        </button>
-      </div>
-    </div>
   )
 }
 

@@ -54,7 +54,6 @@ class ReportQuery(Protocol):
 class ReportDefinition:
     key: str
     title: str
-    description: str
     columns: list[Column]
     query: ReportQuery
     min_role: UserRole = UserRole.CLIENT_ADMIN

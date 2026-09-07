@@ -119,10 +119,10 @@ AUDIT_REPORT = register(
     ReportDefinition(
         key="audit_trail",
         title="Audit trail",
-        description=(
-            "Every recorded action in your organization. Entries can't be"
-            "edited or deleted by anyone, including admins."
-        ),
+        # description=(
+        #     "Every recorded action in your organization. Entries can't be "
+        #     "edited or deleted by anyone, including admins."
+        # ),
         columns=AUDIT_COLUMNS,
         query=_query_audit,
         min_role=UserRole.CLIENT_ADMIN,
@@ -191,7 +191,7 @@ USER_REPORT = register(
     ReportDefinition(
         key="user_directory",
         title="User directory",
-        description="People with access to the platform and their roles.",
+        # description="People with access to the platform and their roles.",
         columns=USER_COLUMNS,
         query=_query_users,
         min_role=UserRole.CLIENT_ADMIN,
@@ -264,7 +264,7 @@ ORG_REPORT = register(
     ReportDefinition(
         key="organizations",
         title="Organizations",
-        description="Every tenant on the platform, its onboarding route, and its size.",
+        # description="Every tenant on the platform, its onboarding route, and its size.",
         columns=ORG_COLUMNS,
         query=_query_orgs,
         min_role=UserRole.SUPER_ADMIN,
@@ -335,21 +335,21 @@ async def _query_completion(
     return ReportPage(rows=[dict(row) for row in rows], total=total, window=window)
 
 
-COMPLETION_REPORT = register(
-    ReportDefinition(
-        key="cycle_completion",
-        title="Cycle completion",
-        description=(
-            "Who has been asked for feedback and who has responded. Contains no "
-            "answers, so it's safe to share while a feedback cycle is still open."
-        ),
-        columns=COMPLETION_COLUMNS,
-        query=_query_completion,
-        min_role=UserRole.MANAGER,
-        default_sort="cycle",
-        filters_supported=["search", "severities"],
-    )
-)
+# COMPLETION_REPORT = register(
+#     ReportDefinition(
+#         key="cycle_completion",
+#         title="Cycle completion",
+#         description=(
+#             "Who has been asked for feedback and who has responded. Contains no "
+#             "answers, so it's safe to share while a feedback cycle is still open."
+#         ),
+#         columns=COMPLETION_COLUMNS,
+#         query=_query_completion,
+#         min_role=UserRole.MANAGER,
+#         default_sort="cycle",
+#         filters_supported=["search", "severities"],
+#     )
+# )
 
 
 # --- Feedback results (Module A) -------------------------------------------
@@ -549,11 +549,11 @@ SCORECARD_REPORT = register(
     ReportDefinition(
         key="proposal_scorecard",
         title="Proposal scorecard",
-        description=(
-            "Every submitted proposal .with the client's rating beside the"
-            "actual outcome — so you can see whether the proposals that score "
-            "well are the ones that win."
-        ),
+        # description=(
+        #     "Every submitted proposal .with the client's rating beside the"
+        #     "actual outcome — so you can see whether the proposals that score "
+        #     "well are the ones that win."
+        # ),
         columns=SCORECARD_COLUMNS,
         query=_query_scorecard,
         min_role=UserRole.MANAGER,
@@ -630,11 +630,11 @@ DELIVERY_REPORT = register(
     ReportDefinition(
         key="campaign_delivery",
         title="Feedback Cycle delivery",
-        description=(
-            "Every external invitation: sent, opened, and submitted. Contains "
-            "no answers, so it is safe to share with whoever is chasing "
-            "responses."
-        ),
+        # description=(
+        #     "Every external invitation: sent, opened, and submitted. Contains "
+        #     "no answers, so it is safe to share with whoever is chasing "
+        #     "responses."
+        # ),
         columns=DELIVERY_COLUMNS,
         query=_query_delivery,
         min_role=UserRole.MANAGER,
@@ -648,11 +648,11 @@ RESULTS_REPORT = register(
     ReportDefinition(
         key="feedback_results",
         title="Feedback results",
-        description=(
-            "Average scores per person or item, per feedback round. Scores are "
-            "hidden until enough people have responded — the file always matches exactly what you "
-            "see on the screen."
-        ),
+        # description=(
+        #     "Average scores per person or item, per feedback round. Scores are "
+        #     "hidden until enough people have responded — the file always matches exactly what you "
+        #     "see on the screen."
+        # ),
         columns=RESULT_COLUMNS,
         query=_query_results,
         min_role=UserRole.CLIENT_ADMIN,
@@ -741,10 +741,10 @@ RESULTS_OVERVIEW_REPORT = register(
     ReportDefinition(
         key="results_overview",
         title="Results",
-        description=(
-            "Every feedback round listed on the Results page — internal and "
-            "external together, with who it went to and how far it got."
-        ),
+        # description=(
+        #     "Every feedback round listed on the Results page — internal and "
+        #     "external together, with who it went to and how far it got."
+        # ),
         columns=RESULTS_OVERVIEW_COLUMNS,
         query=_query_results_overview,
         min_role=UserRole.MANAGER,

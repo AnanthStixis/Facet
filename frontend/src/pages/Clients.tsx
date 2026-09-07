@@ -251,9 +251,16 @@ function countCsvRows(text: string): number {
 
 /** Same shape as People.tsx's BulkInvitePanel — a starter CSV download, then
  * an upload that gets a client-side row-count confirmation before it fires. */
-function BulkImportPanel({ onDone }: { onDone: (result: BulkResult) => void }) {
+function BulkImportPanel({
+  open,
+  onOpenChange,
+  onDone,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onDone: (result: BulkResult) => void
+}) {
   const toast = useToast()
-  const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState<{ file: File; rowCount: number } | null>(null)
 
@@ -262,7 +269,7 @@ function BulkImportPanel({ onDone }: { onDone: (result: BulkResult) => void }) {
     try {
       const result = await uploadFile<BulkResult>('/contacts/bulk', file)
       onDone(result)
-      setOpen(false)
+      onOpenChange(false)
       setPending(null)
     } catch (caught) {
       toast.show(
@@ -277,15 +284,7 @@ function BulkImportPanel({ onDone }: { onDone: (result: BulkResult) => void }) {
   }
 
   if (!open) {
-    return (
-      <button
-        type="button"
-        className="btn-secondary accent-soft-bg accent-text px-3 py-1.5"
-        onClick={() => setOpen(true)}
-      >
-        Bulk import
-      </button>
-    )
+    return null
   }
 
   return (
@@ -359,7 +358,7 @@ function BulkImportPanel({ onDone }: { onDone: (result: BulkResult) => void }) {
               }}
             />
           </label>
-          <button type="button" className="btn-ghost px-2.5 py-1.5 text-sm" onClick={() => setOpen(false)}>
+          <button type="button" className="btn-ghost px-2.5 py-1.5 text-sm" onClick={() => onOpenChange(false)}>
             Cancel
           </button>
         </div>
@@ -380,6 +379,7 @@ export function Clients() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [modalContact, setModalContact] = useState<ContactMeta | null | 'new'>(null)
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   const reload = () => {
     const query = new URLSearchParams({ page_size: String(PAGE_SIZE), page: String(page) })
@@ -422,6 +422,26 @@ export function Clients() {
         backLabel="Dashboard"
       />
 
+      {/* Deliberately rendered here, in normal page flow, rather than inside
+          the toolbar row below — that row also holds the search box and
+          "New client", and this expanded form is a full-sized Card once a
+          file is chosen, which was squeezing it into whatever narrow space
+          was left beside those. Only the small trigger button in the
+          toolbar controls it; the full form lives down here instead, where
+          its size can't affect that row's layout at all. */}
+      <BulkImportPanel
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        onDone={(result) => {
+          toast.show(
+            'success',
+            'Clients imported',
+            `${result.imported} imported${result.skipped.length ? `, ${result.skipped.length} skipped` : ''}.`,
+          )
+          reload()
+        }}
+      />
+
       <Card padded={false}>
         <div className="flex flex-wrap items-center gap-3 border-b border-ink-200 px-5 py-3 dark:border-ink-800">
           <div className="max-w-xs flex-1">
@@ -435,16 +455,15 @@ export function Clients() {
             />
           </div>
           <div className="ml-auto flex gap-2">
-            <BulkImportPanel
-              onDone={(result) => {
-                toast.show(
-                  'success',
-                  'Clients imported',
-                  `${result.imported} imported${result.skipped.length ? `, ${result.skipped.length} skipped` : ''}.`,
-                )
-                reload()
-              }}
-            />
+            {!bulkOpen && (
+              <button
+                type="button"
+                className="btn-secondary accent-soft-bg accent-text px-3 py-1.5"
+                onClick={() => setBulkOpen(true)}
+              >
+                Bulk import
+              </button>
+            )}
             <button type="button" className="btn-primary px-3 py-1.5" onClick={() => setModalContact('new')}>
               New client
             </button>

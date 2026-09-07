@@ -299,12 +299,12 @@ export function PublicFeedback() {
       <main className="mx-auto max-w-2xl px-5 py-10">
         <form onSubmit={submit}>
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-            How did we do with {data.subject.label}?
+            Please share your feedback on {data.subject.label}
           </h1>
-          <p className="mt-2 text-base leading-relaxed text-ink-500 dark:text-ink-400">
+          {/* <p className="mt-2 text-base leading-relaxed text-ink-500 dark:text-ink-400">
             {data.recipient.full_name.split(' ')[0]}, {data.organization.name} would
-            value your view. It takes about two minutes.
-          </p>
+            appreciate your feedback.
+          </p> */}
 
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-400">
             {data.campaign.closes_at && (
@@ -313,12 +313,12 @@ export function PublicFeedback() {
                 Closes {new Date(data.campaign.closes_at).toLocaleDateString()}
               </span>
             )}
-            <span className="flex items-center gap-1">
-              <IconLock width={12} height={12} />
-              {data.is_anonymous
-                ? 'Your answers are anonymous'
-                : 'No account or password needed'}
-            </span>
+            {data.is_anonymous && (
+              <span className="flex items-center gap-1">
+                <IconLock width={12} height={12} />
+                Your answers are anonymous
+              </span>
+            )}
           </div>
 
           {error && (

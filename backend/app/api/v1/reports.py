@@ -68,7 +68,7 @@ async def list_reports(actor: CurrentUser) -> list[dict[str, Any]]:
         {
             "key": definition.key,
             "title": definition.title,
-            "description": definition.description,
+            # "description": definition.description,
             "columns": [
                 {
                     "key": column.key,

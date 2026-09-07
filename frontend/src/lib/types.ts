@@ -115,7 +115,7 @@ export interface ReportColumn {
 export interface ReportMeta {
   key: string
   title: string
-  description: string
+  // description: string
   columns: ReportColumn[]
   filters_supported: string[]
   formats: string[]

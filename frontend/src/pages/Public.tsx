@@ -14,21 +14,25 @@ function PublicFrame({
   title,
   subtitle,
   children,
+  showBackToHome = true,
 }: {
   title: string
-  subtitle: string
+  subtitle?: string
   children: React.ReactNode
+  showBackToHome?: boolean
 }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink-50 px-4 py-12 dark:bg-ink-950">
       <div className="w-full max-w-lg animate-fade-up">
-        <Link
-          to="/home"
-          className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
-        >
-          <IconArrowLeft width={16} height={16} />
-          Back to home
-        </Link>
+        {showBackToHome && (
+          <Link
+            to="/home"
+            className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
+          >
+            <IconArrowLeft width={16} height={16} />
+            Back to home
+          </Link>
+        )}
         <Link to="/home" className="mb-7 flex items-center">
           <BrandLogo height={28} />
         </Link>
@@ -36,7 +40,7 @@ function PublicFrame({
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
             {title}
           </h1>
-          <p className="mt-1.5 text-sm text-ink-500 dark:text-ink-400">{subtitle}</p>
+          {subtitle && <p className="mt-1.5 text-sm text-ink-500 dark:text-ink-400">{subtitle}</p>}
           <div className="mt-6">{children}</div>
         </div>
       </div>
@@ -608,7 +612,7 @@ function SetPasswordForm({
   missingTokenSubtitle: string
   missingTokenBody: string
   title: string
-  subtitle: string
+  subtitle?: string
   endpoint: string
   submitLabel: string
   navigateTo: string
@@ -625,7 +629,7 @@ function SetPasswordForm({
 
   if (!token) {
     return (
-      <PublicFrame title={missingTokenTitle} subtitle={missingTokenSubtitle}>
+      <PublicFrame title={missingTokenTitle} subtitle={missingTokenSubtitle} showBackToHome={false}>
         <Banner tone="error">{missingTokenBody}</Banner>
       </PublicFrame>
     )
@@ -634,7 +638,7 @@ function SetPasswordForm({
   const mismatch = confirm.length > 0 && password !== confirm
 
   return (
-    <PublicFrame title={title} subtitle={subtitle}>
+    <PublicFrame title={title} subtitle={subtitle} showBackToHome={false}>
       <form
         onSubmit={async (event) => {
           event.preventDefault()
@@ -715,7 +719,7 @@ export function AcceptInvite() {
       missingTokenSubtitle="This link is missing its token."
       missingTokenBody="Open the link exactly as it appears in your invitation email, or ask your administrator to send a new one."
       title="Set your password"
-      subtitle="This link works once and then stops working. Choose a password only you know."
+      // subtitle="This link may only be used once."
       endpoint="/auth/accept-invite"
       submitLabel="Activate my account"
       navigateTo="/login?activated=1"

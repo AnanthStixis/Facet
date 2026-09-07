@@ -290,11 +290,11 @@ export function AssignmentFeedback() {
       <main className="mx-auto max-w-2xl px-5 py-10">
         <form onSubmit={submit}>
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-ink-900 dark:text-white">
-            Feedback on {data.subject.label}
+            Please share your feedback on {data.subject.label}
           </h1>
-          <p className="mt-2 text-base leading-relaxed text-ink-500 dark:text-ink-400">
-            {data.cycle.name}. It takes about two minutes.
-          </p>
+          {/* <p className="mt-2 text-base leading-relaxed text-ink-500 dark:text-ink-400">
+            {data.cycle.name}.
+          </p> */}
 
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-400">
             {data.cycle.closes_at && (

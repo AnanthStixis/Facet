@@ -963,7 +963,7 @@ export function Templates() {
         title="Templates"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Create and publish the questionnaires review cycles are built from."
+        // description="Create and publish the questionnaires review cycles are built from."
         actions={
           <button type="button" className="btn-primary px-3 py-1.5" onClick={() => setModalTemplate('new')}>
             New template

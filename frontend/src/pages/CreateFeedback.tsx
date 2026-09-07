@@ -40,7 +40,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#B4633A',
     targetType: 'client',
     audience: 'external',
-    blurb: 'How a client rates the relationship as a whole — one round, sent straight to their inbox.',
+    blurb: 'Feedback from clients about their experience with your organization',
     revieweeLabel: 'Recipients',
   },
   {
@@ -49,7 +49,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#3B82F6',
     targetType: 'employee',
     audience: 'internal',
-    blurb: "A review of one employee, sent to whichever of their managers you choose.",
+    blurb: "Feedback from managers about employees they work with.",
     revieweeLabel: 'Reviewee',
   },
   {
@@ -58,7 +58,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#8B5CF6',
     targetType: 'manager',
     audience: 'internal',
-    blurb: 'Upward feedback on a manager, gathered from their direct reports.',
+    blurb: 'Feedback shared by team members about their manager.',
     revieweeLabel: 'Manager',
   },
   {
@@ -1717,7 +1717,7 @@ export function CreateFeedback() {
                     placeholder={
                       kind === 'client'
                         ? 'e.g. Northwind relationship'
-                        : 'e.g. Parata / NEXiA platform modernisation'
+                        : 'e.g. Northwind platform modernisation'
                     }
                   />
                 )}
