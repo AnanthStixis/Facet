@@ -76,7 +76,7 @@ export const FEEDBACK_TYPES: KindConfig[] = [
     color: '#F59E0B',
     targetType: 'service',
     audience: 'external',
-    blurb: 'How clients rate a service or engagement once it has been delivered.',
+    blurb: 'Feedback from a client once a service has been delivered',
     revieweeLabel: 'Recipients',
   },
   {
