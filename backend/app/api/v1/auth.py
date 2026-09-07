@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
+from app.core.plans import display_name_for
 from app.api.v1.orgs import FACET_LOGO_URL, _unique_slug
 from app.core.errors import (
     AuthenticationError,
@@ -266,7 +267,7 @@ async def self_register_instant(
     await audit.record(
         session,
         action=AuditAction.ORG_APPROVED,
-        summary=f"{org.name} self-registered on the {org.plan.value.title()} plan and is active immediately",
+        summary=f"{org.name} self-registered on the {display_name_for(org.plan)} plan and is active immediately",
         org_id=org.id,
         actor=admin,
         target_type="organization",

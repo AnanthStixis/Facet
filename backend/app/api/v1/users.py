@@ -6,7 +6,7 @@ import csv
 import io
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, File, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -16,9 +16,9 @@ from sqlalchemy.exc import IntegrityError
 from app.api.deps import AdminUser, CurrentUser, DbSession
 from app.core.config import settings
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
-from app.core.plans import limits_for
+from app.core.plans import display_name_for, limits_for
 from app.core.security import generate_token, hash_token
-from app.models.catalog import FeedbackTarget, FeedbackTemplate, FeedbackTemplateVersion
+from app.models.catalog import Contact, FeedbackTarget, FeedbackTemplate, FeedbackTemplateVersion
 from app.models.cycle import FeedbackResponse, ReviewCycle
 from app.models.enums import AuditAction, UserRole, UserStatus
 from app.models.organization import Organization
@@ -289,23 +289,32 @@ async def user_reports(
     ]
 
 
-async def _seat_limit_reason(session: DbSession, org: Organization, role: UserRole) -> str | None:
-    """None if this org has room for one more user of this role under its
+async def _seat_limit_reason(
+    session: DbSession, org: Organization, pool: Literal["admin", "shared"]
+) -> str | None:
+    """None if this org has room for one more seat in this pool under its
     plan, otherwise a short reason why not.
 
-    Admin seats and everyone else (Manager + Employee) are two separate
-    pools, matching the plan's own seat caps — an org can run out of Admin
-    seats while Employee seats are still free, and vice versa.
+    Admin seats and the "shared" pool are two separate caps, matching the
+    plan's own seat numbers — an org can run out of Admin seats while
+    shared seats are still free, and vice versa. The shared pool counts
+    Manager + Employee accounts AND Client contacts together — a contact
+    has no login, but still occupies a seat here. See create_contact and
+    bulk_import_contacts in campaigns.py, which check this same pool.
 
-    DELETED status is always excluded from the count: delete_user is a soft
-    delete (the row stays forever, for feedback history and audit trail),
-    but the seat itself should free up immediately, not stay occupied by
-    someone who no longer has an account.
+    DELETED status is always excluded from the User count: delete_user is a
+    soft delete (the row stays forever, for feedback history and audit
+    trail), but the seat itself should free up immediately, not stay
+    occupied by someone who no longer has an account. Unsubscribed contacts
+    are NOT excluded from the contact count — unsubscribing stops feedback
+    requests, it doesn't remove them as a client relationship the org is
+    still tracking.
     """
     if not bool((org.settings or {}).get("plan_managed")):
         # The flow from before plans existed: one flat cap across every
         # user regardless of role, using the seat_limit a Super Admin set
-        # directly — no Admin/Employee split, since that distinction only
+        # directly — no Admin/shared split, and contacts were never part
+        # of this flow's counting either, since that distinction only
         # exists as part of the plan system this org was never opted into.
         if org.seat_limit is None:
             return None
@@ -327,28 +336,56 @@ async def _seat_limit_reason(session: DbSession, org: Organization, role: UserRo
         return None
 
     limits = limits_for(org.plan)
-    is_admin = role == UserRole.CLIENT_ADMIN
+    is_admin = pool == "admin"
     cap = limits.admin_seats if is_admin else limits.employee_seats
     if cap is None:
         return None
-    role_filter = (
-        User.role == UserRole.CLIENT_ADMIN if is_admin else User.role != UserRole.CLIENT_ADMIN
-    )
-    used = int(
-        (
-            await session.execute(
-                select(func.count())
-                .select_from(User)
-                .where(User.org_id == org.id, User.status != UserStatus.DELETED, role_filter)
-            )
-        ).scalar_one()
-    )
+    if is_admin:
+        used = int(
+            (
+                await session.execute(
+                    select(func.count())
+                    .select_from(User)
+                    .where(
+                        User.org_id == org.id,
+                        User.status != UserStatus.DELETED,
+                        User.role == UserRole.CLIENT_ADMIN,
+                    )
+                )
+            ).scalar_one()
+        )
+    else:
+        user_count = int(
+            (
+                await session.execute(
+                    select(func.count())
+                    .select_from(User)
+                    .where(
+                        User.org_id == org.id,
+                        User.status != UserStatus.DELETED,
+                        User.role != UserRole.CLIENT_ADMIN,
+                    )
+                )
+            ).scalar_one()
+        )
+        contact_count = int(
+            (
+                await session.execute(
+                    select(func.count()).select_from(Contact).where(Contact.org_id == org.id)
+                )
+            ).scalar_one()
+        )
+        used = user_count + contact_count
     if used >= cap:
         seat_kind = "Admin" if is_admin else "user"
         plural = "s" if cap != 1 else ""
+        # The "Employees, Managers, and Clients" clarification only makes
+        # sense for the shared pool — an Admin seat is never anything else,
+        # so it never needs explaining.
+        clarification = "" if is_admin else " (Employees, Managers, and Clients combined)"
         return (
-            f"This organization's {org.plan.value.title()} plan allows up to {cap} "
-            f"{seat_kind} seat{plural}, and all of them are in use."
+            f"This organization's {display_name_for(org.plan)} plan allows up to {cap} "
+            f"{seat_kind} seat{plural}{clarification}, and all of them are in use."
         )
     return None
 
@@ -379,7 +416,9 @@ async def invite_user(    payload: UserCreateRequest,
         await session.execute(select(Organization).where(Organization.id == org_id))
     ).scalar_one()
 
-    reason = await _seat_limit_reason(session, org, payload.role)
+    reason = await _seat_limit_reason(
+        session, org, "admin" if payload.role == UserRole.CLIENT_ADMIN else "shared"
+    )
     if reason:
         raise Conflict(reason)
 
@@ -563,7 +602,9 @@ async def bulk_invite_users(
             )
             continue
 
-        reason = await _seat_limit_reason(session, org, role)
+        reason = await _seat_limit_reason(
+            session, org, "admin" if role == UserRole.CLIENT_ADMIN else "shared"
+        )
         if reason:
             skipped.append({"row": index, "email": email, "reason": reason})
             continue

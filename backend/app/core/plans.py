@@ -39,3 +39,20 @@ PLAN_LIMITS: dict[OrgPlan, PlanLimits] = {
 
 def limits_for(plan: OrgPlan) -> PlanLimits:
     return PLAN_LIMITS[plan]
+
+
+# The public-facing name for each tier — Starter/Growth/Enterprise internally
+# (the OrgPlan enum, baked into the database) is never what a person should
+# see; Basic/Standard/Enterprise is what's shown everywhere else (pricing
+# page, signup form, org detail popups). Every user-facing message that
+# names a plan should go through this, not org.plan.value.title(), or it
+# silently reverts to the internal name.
+PLAN_DISPLAY_NAMES: dict[OrgPlan, str] = {
+    OrgPlan.STARTER: "Basic",
+    OrgPlan.GROWTH: "Standard",
+    OrgPlan.ENTERPRISE: "Enterprise",
+}
+
+
+def display_name_for(plan: OrgPlan) -> str:
+    return PLAN_DISPLAY_NAMES[plan]

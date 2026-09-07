@@ -18,6 +18,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbSession, ManagerUser, rebind_tenant
+from app.api.v1.users import _seat_limit_reason
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import (
@@ -637,6 +638,12 @@ async def create_contact(
 ) -> ContactDetail:
     if actor.org_id is None:
         raise ValidationFailed("A Super Admin must act within an organization.")
+    org = (
+        await session.execute(select(Organization).where(Organization.id == actor.org_id))
+    ).scalar_one()
+    reason = await _seat_limit_reason(session, org, "shared")
+    if reason:
+        raise Conflict(reason)
     email = payload.email.lower()
     existing = (
         await session.execute(
@@ -774,6 +781,10 @@ async def bulk_import_contacts(
     if actor.org_id is None:
         raise ValidationFailed("A Super Admin must act within an organization.")
 
+    org = (
+        await session.execute(select(Organization).where(Organization.id == actor.org_id))
+    ).scalar_one()
+
     raw = await file.read()
     try:
         rows = parse_csv(raw, required=["full_name", "email"])
@@ -788,6 +799,11 @@ async def bulk_import_contacts(
         full_name = row.get("full_name", "")
         if not email or not full_name:
             skipped.append({"row": index, "reason": "Missing name or email"})
+            continue
+
+        reason = await _seat_limit_reason(session, org, "shared")
+        if reason:
+            skipped.append({"row": index, "email": email, "reason": reason})
             continue
 
         exists = (

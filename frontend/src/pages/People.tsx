@@ -864,6 +864,11 @@ export function People() {
   const [deleting, setDeleting] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
+  // Kept separate from the toast — a toast is transient and can't hold a
+  // clickable action, so the full result (and the "View details" link to
+  // it) lives here instead, persisting until dismissed or the next bulk run.
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null)
+  const [showBulkDetails, setShowBulkDetails] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -1044,24 +1049,93 @@ export function People() {
               const duplicates = result.skipped.filter(
                 (row) => row.reason === 'Already exists' || row.reason === 'Duplicate in this file',
               )
-              const otherSkipped = result.skipped.filter((row) => !duplicates.includes(row))
-              let message = `${result.invited} of ${result.total_rows} invited.`
+              // Matches the wording used by both plan-managed and seat-only
+              // skip reasons (see _seat_limit_reason in api/v1/users.py) —
+              // both phrasings end in "allows up to N ... seats", which is
+              // enough to group them without the backend needing to send a
+              // separate machine-readable category.
+              const limitReached = result.skipped.filter((row) => row.reason.includes('allows up to'))
+              const other = result.skipped.filter(
+                (row) => !duplicates.includes(row) && !limitReached.includes(row),
+              )
+
+              const parts = [`${result.invited} of ${result.total_rows} invited.`]
               if (duplicates.length) {
-                message += ` ${duplicates.length} duplicate email${duplicates.length === 1 ? '' : 's'} skipped: ${duplicates
-                  .map((row) => row.email)
-                  .filter(Boolean)
-                  .join(', ')}.`
+                parts.push(`${duplicates.length} duplicate${duplicates.length === 1 ? '' : 's'} skipped.`)
               }
-              if (otherSkipped.length) {
-                message += ` ${otherSkipped.length} other row${otherSkipped.length === 1 ? '' : 's'} skipped: ${otherSkipped
-                  .slice(0, 5)
-                  .map((row) => `row ${row.row} (${row.reason})`)
-                  .join(', ')}${otherSkipped.length > 5 ? ', ...' : ''}`
+              if (limitReached.length) {
+                parts.push(
+                  `${limitReached.length} skipped — over the plan's seat limit.`,
+                )
               }
-              toast.show('success', 'Bulk invite complete', message)
+              if (other.length) {
+                parts.push(`${other.length} skipped for other reasons.`)
+              }
+              toast.show('success', 'Bulk invite complete', parts.join(' '))
+              setBulkResult(result.skipped.length > 0 ? result : null)
               load()
             }}
           />
+
+          {bulkResult && (
+            <div className="mt-3">
+              <Banner tone="info">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span>
+                    {bulkResult.skipped.length} row{bulkResult.skipped.length === 1 ? '' : 's'}{' '}
+                    skipped from the last bulk invite.
+                  </span>
+                  <div className="flex shrink-0 items-center gap-4">
+                    <button
+                      type="button"
+                      className="accent-text text-sm font-medium hover:underline"
+                      onClick={() => setShowBulkDetails(true)}
+                    >
+                      View details
+                    </button>
+                    <button
+                      type="button"
+                      className="text-ink-400 hover:text-ink-600 dark:hover:text-ink-200"
+                      onClick={() => setBulkResult(null)}
+                      aria-label="Dismiss"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </Banner>
+            </div>
+          )}
+
+          {showBulkDetails && bulkResult && (
+            <Modal title="Skipped rows" onClose={() => setShowBulkDetails(false)}>
+              <div className="max-h-[60vh] space-y-4 overflow-y-auto">
+                {Object.entries(
+                  bulkResult.skipped.reduce<Record<string, typeof bulkResult.skipped>>(
+                    (groups, row) => {
+                      ;(groups[row.reason] ??= []).push(row)
+                      return groups
+                    },
+                    {},
+                  ),
+                ).map(([reason, rows]) => (
+                  <div key={reason}>
+                    <p className="text-sm font-semibold text-ink-800 dark:text-ink-100">
+                      {reason} ({rows.length})
+                    </p>
+                    <ul className="mt-1 space-y-0.5 text-sm text-ink-500 dark:text-ink-400">
+                      {rows.map((row) => (
+                        <li key={row.row}>
+                          Row {row.row}
+                          {row.email ? ` — ${row.email}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </Modal>
+          )}
         </>
       )}
 

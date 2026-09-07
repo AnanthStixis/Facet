@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 
 from app.api.deps import DbSession, ManagerUser
 from app.core.errors import NotFound, ValidationFailed
-from app.core.plans import limits_for
+from app.core.plans import display_name_for, limits_for
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import Contact, FeedbackTarget, FeedbackTemplate, FeedbackTemplateVersion
 from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
@@ -178,8 +178,8 @@ async def create_feedback(
         and not limits_for(org.plan).external_review
     ):
         raise ValidationFailed(
-            f"The {org.plan.value.title()} plan does not include Client, Product, "
-            f"Service, or Proposal Review. Upgrade to Growth or above to use this."
+            f"The {display_name_for(org.plan)} plan does not include Client, Product, "
+            f"Service, or Proposal Review. Upgrade to Standard or above to use this."
         )
 
     if plan_managed:
@@ -196,7 +196,7 @@ async def create_feedback(
             )
             if cycle_count >= max_cycles:
                 raise ValidationFailed(
-                    f"The {org.plan.value.title()} plan allows up to {max_cycles} "
+                    f"The {display_name_for(org.plan)} plan allows up to {max_cycles} "
                     f"feedback forms in total, and all of them are in use. "
                     f"Upgrade to create more."
                 )
