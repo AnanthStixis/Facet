@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandLogo } from '../components/Logo'
 import { IconArrowLeft } from '../components/icons'
 // import { IconCheck, IconShield } from '../components/icons'
-import { Banner, Field, InfoTooltip, Spinner } from '../components/ui'
+import { Banner, Field, InfoTooltip, PasswordField, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
 import { TIMEZONES, TIMEZONE_FIELD_ENABLED } from '../lib/timezones'
@@ -483,18 +483,16 @@ export function Signup() {
             )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field
+            <PasswordField
               label="Password"
-              type="password"
               autoComplete="new-password"
               value={form.password}
               onChange={(event) => setForm({ ...form, password: event.target.value })}
               error={fieldErrors.password}
               required
             />
-            <Field
+            <PasswordField
               label="Confirm password"
-              type="password"
               autoComplete="new-password"
               value={confirm}
               onChange={(event) => setConfirm(event.target.value)}
@@ -675,9 +673,8 @@ function SetPasswordForm({
         }}
       >
         <div className="space-y-4">
-          <Field
+          <PasswordField
             label="New password"
-            type="password"
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -686,9 +683,8 @@ function SetPasswordForm({
             autoFocus
             hint="At least 6 characters"
           />
-          <Field
+          <PasswordField
             label="Confirm password"
-            type="password"
             autoComplete="new-password"
             value={confirm}
             onChange={(event) => setConfirm(event.target.value)}
@@ -696,6 +692,7 @@ function SetPasswordForm({
             required
           />
         </div>
+        
 
         
 

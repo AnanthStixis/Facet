@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { BrandLogo } from '../components/Logo'
 import { GraphArtwork } from '../components/GraphArtwork'
 import { IconArrowLeft, IconLock } from '../components/icons'
-import { Banner, Field, Spinner } from '../components/ui'
+import { Banner, Field, PasswordField, Spinner } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { ApiError, api } from '../lib/api'
 import { useAuth } from '../store/auth'
@@ -200,9 +200,8 @@ export function Login() {
               error={fieldErrors.email}
               placeholder="you@company.com"
             />
-            <Field
+            <PasswordField
               label="Password"
-              type="password"
               autoComplete="current-password"
               required
               value={password}

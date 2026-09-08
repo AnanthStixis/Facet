@@ -231,6 +231,13 @@ export const IconEye = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export const IconEyeOff = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+    <path d="M4 4l16 16" />
+  </svg>
+)
+
 export const IconTrash = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M3 6h18" />

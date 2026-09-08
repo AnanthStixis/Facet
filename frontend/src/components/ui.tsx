@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { IconAlert, IconX } from './icons'
+import { IconAlert, IconEye, IconEyeOff, IconX } from './icons'
 
 export function Card({
   title,
@@ -250,6 +250,65 @@ export function Field({
           className,
         )}
       />
+      {error ? (
+        <span className="mt-1 flex items-start gap-1 text-xs text-critical">
+          <IconAlert width={13} height={13} className="mt-0.5 shrink-0" />
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="mt-1 block text-xs text-ink-400">{hint}</span>
+      ) : null}
+    </label>
+  )
+}
+
+/** Same shape and styling as Field, for a password input specifically — a
+ * toggle button sits inside the right edge of the field, switching between
+ * masked and plain text. Never renders a native browser reveal control
+ * itself; this is what a project without one wired in should reach for. */
+export function PasswordField({
+  label,
+  error,
+  hint,
+  className,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & {
+  label: string
+  error?: string
+  hint?: string
+}) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+        {label}
+        {props.required && (
+          <span className="ml-0.5 text-critical" aria-hidden="true">
+            *
+          </span>
+        )}
+      </span>
+      <div className="relative">
+        <input
+          {...props}
+          type={visible ? 'text' : 'password'}
+          aria-invalid={Boolean(error)}
+          className={clsx(
+            'field pr-9',
+            error && 'border-critical focus:ring-critical',
+            className,
+          )}
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setVisible((current) => !current)}
+          className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-ink-400 hover:text-ink-700 dark:hover:text-ink-200"
+          aria-label={visible ? 'Hide password' : 'Show password'}
+        >
+          {visible ? <IconEyeOff width={16} height={16} /> : <IconEye width={16} height={16} />}
+        </button>
+      </div>
       {error ? (
         <span className="mt-1 flex items-start gap-1 text-xs text-critical">
           <IconAlert width={13} height={13} className="mt-0.5 shrink-0" />

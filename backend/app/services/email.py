@@ -119,7 +119,7 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
              padding:12px 22px;border-radius:6px;display:inline-block">{escape(label)}</a>
         </td></tr>
         <tr><td style="font:400 12px Helvetica,Arial,sans-serif;color:#8A93A0;padding-top:10px">
-          Or click the link below:<br>
+          Or copy the link below:<br>
           <span style="color:#5A6472;word-break:break-all">{escape(url)}</span>
         </td></tr>"""
 
