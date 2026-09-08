@@ -142,7 +142,7 @@ export function MyResults() {
                       </ul>
                     </div>
                     <div>
-                      <p className="label-caps mb-2">Needs improvement</p>
+                      <p className="label-caps mb-2">Lowest Rated</p>
                       <ul className="space-y-2">
                         {[...(result.questions ?? [])]
                           .filter((question) => question.average !== null)
