@@ -384,10 +384,25 @@ export function MyFeedback() {
   useEffect(load, [])
   useRefetchOnFocus(load)
 
-  const pending = (assignments ?? []).filter(
-    (assignment) => assignment.status === 'pending' || assignment.status === 'in_progress',
-  )
-  const submitted = (assignments ?? []).filter((assignment) => assignment.status === 'submitted')
+  // Newest first for both. Assignment has no separate "created" timestamp —
+  // due_at is the only date field a pending item actually has, so that's
+  // what "review date" means for those; a null due_at (no deadline set)
+  // sorts to the end rather than winning the comparison as if it were the
+  // newest.
+  const pending = (assignments ?? [])
+    .filter((assignment) => assignment.status === 'pending' || assignment.status === 'in_progress')
+    .sort((a, b) => {
+      if (!a.due_at) return 1
+      if (!b.due_at) return -1
+      return new Date(b.due_at).getTime() - new Date(a.due_at).getTime()
+    })
+  const submitted = (assignments ?? [])
+    .filter((assignment) => assignment.status === 'submitted')
+    .sort((a, b) => {
+      if (!a.submitted_at) return 1
+      if (!b.submitted_at) return -1
+      return new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()
+    })
 
   const [viewing, setViewing] = useState<{
     assignment: Assignment
@@ -636,9 +651,7 @@ export function MyFeedback() {
             </div>
           ) : !viewingData || !viewingData.available ? (
             <p className="text-sm text-ink-600 dark:text-ink-300">
-              This was an anonymous review. To keep that anonymity real — even for you —
-              the system never stored a link between your account and this specific set
-              of answers, so there is no way to display them here.
+              This review was submitted anonymously, so the responses can’t be linked to you or shown here.
             </p>
           ) : (
             <div className="space-y-5">

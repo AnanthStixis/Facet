@@ -7,7 +7,6 @@ import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
 import type { TargetResults } from '../lib/cycleTypes'
-import { RELATIONSHIP_SHORT } from '../lib/cycleTypes'
 
 /**
  * What the reviewee themselves sees.
@@ -38,7 +37,7 @@ export function MyResults() {
   return (
     <>
       <PageHeader
-        title="My results"
+       title="My Feedbacks"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
         description="Feedback other people have given about you."
@@ -62,13 +61,15 @@ export function MyResults() {
         </Card>
       ) : (
         <div className="space-y-5">
-          {cycles.map((result) => (
+          {cycles.map((result) => {
+            const scored = (result.questions ?? []).filter(
+              (question) => question.average !== null,
+            )
+
+            return (
             <Card
               key={result.cycle.id}
               title={result.cycle.name}
-              hint={`${result.response_count} response${
-                result.response_count === 1 ? '' : 's'
-              } about you`}
             >
               {!result.revealed ? (
                 <div className="flex items-start gap-2.5 rounded-md border border-ink-200 bg-ink-50 p-4 text-sm text-ink-600 dark:border-ink-700 dark:bg-ink-900/60 dark:text-ink-300">
@@ -118,51 +119,23 @@ export function MyResults() {
                     /> */}
                   </div>
 
-                  <div className="mt-5 grid gap-5 lg:grid-cols-2">
-                    <div>
-                      <p className="label-caps mb-2">Highest rated</p>
-                      <ul className="space-y-2">
-                        {[...(result.questions ?? [])]
-                          .filter((question) => question.average !== null)
-                          .sort((a, b) => (b.average ?? 0) - (a.average ?? 0))
-                          .slice(0, 3)
-                          .map((question) => (
-                            <li
-                              key={question.key}
-                              className="flex items-start justify-between gap-3 text-sm"
-                            >
-                              <span className="text-ink-700 dark:text-ink-200">
-                                {question.text}
-                              </span>
-                              <span className="tabular font-medium text-positive">
-                                {question.average?.toFixed(2)}
-                              </span>
-                            </li>
-                          ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="label-caps mb-2">Lowest Rated</p>
-                      <ul className="space-y-2">
-                        {[...(result.questions ?? [])]
-                          .filter((question) => question.average !== null)
-                          .sort((a, b) => (a.average ?? 0) - (b.average ?? 0))
-                          .slice(0, 3)
-                          .map((question) => (
-                            <li
-                              key={question.key}
-                              className="flex items-start justify-between gap-3 text-sm"
-                            >
-                              <span className="text-ink-700 dark:text-ink-200">
-                                {question.text}
-                              </span>
-                              <span className="tabular font-medium text-caution">
-                                {question.average?.toFixed(2)}
-                              </span>
-                            </li>
-                          ))}
-                      </ul>
-                    </div>
+                  <div className="mt-5">
+                    <p className="label-caps mb-2">Ratings</p>
+                    <ul className="space-y-2">
+                      {scored.map((question) => (
+                        <li
+                          key={question.key}
+                          className="flex items-start justify-between gap-3 text-sm"
+                        >
+                          <span className="text-ink-700 dark:text-ink-200">
+                            {question.text}
+                          </span>
+                          <span className="tabular font-medium text-ink-900 dark:text-ink-50">
+                            {question.average?.toFixed(2)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
 
                   {/* Read-only for the subject: they see the summary about
@@ -186,9 +159,6 @@ export function MyResults() {
                             className="border-l-2 border-[color:var(--accent)] pl-3.5 text-sm leading-relaxed text-ink-700 dark:text-ink-200"
                           >
                             {entry.comment}
-                            <span className="mt-0.5 block text-2xs uppercase tracking-[0.08em] text-ink-400">
-                              {RELATIONSHIP_SHORT[entry.relationship]}
-                            </span>
                           </li>
                         ))}
                       </ul>
@@ -197,7 +167,8 @@ export function MyResults() {
                 </>
               )}
             </Card>
-          ))}
+            )
+          })}
         </div>
       )}
     </>

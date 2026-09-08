@@ -65,7 +65,7 @@ export function Dashboard() {
   // should see exactly that — not the directory, not other people's
   // activity, not another manager's (or the Client Admin's) work — which is
   // what the backend now scopes `attention` to for this role. Employee gets
-  // the narrowest view, built from "My feedback" / "My results".
+  // the narrowest view, built from "My feedback" / "My Feedbacks".
   const isAdminPlus = user?.role === 'super_admin' || user?.role === 'client_admin'
   // const isManager = user?.role === 'manager'
   const firstName = user?.full_name.split(' ')[0] ?? ''
@@ -201,7 +201,7 @@ export function Dashboard() {
           //       state={{ from: 'dashboard' }}
           //     />
           //     <StatTile
-          //       label="My results"
+         //       label="My Feedbacks"
           //       value={data.metrics.my_results}
           //       sub="Responses received about you"
           //       icon={<IconSpark width={17} height={17} />}
@@ -221,7 +221,7 @@ export function Dashboard() {
               state={{ from: 'dashboard' }}
             />
             <StatTile
-              label="My results"
+             label="My Feedbacks"
               value={data.metrics.my_results}
               sub="Responses received about you"
               icon={<IconSpark width={17} height={17} />}

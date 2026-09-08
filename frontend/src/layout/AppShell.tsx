@@ -86,7 +86,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: 'For me',
     items: [
       { to: '/my-feedback', label: 'My Reviews', icon: IconInbox },
-      { to: '/my-results', label: 'My results', icon: IconSpark },
+      { to: '/my-results', label: 'My Feedbacks', icon: IconSpark },
     ],
   },
   {
@@ -211,7 +211,7 @@ export function AppShell() {
   // Feedback" for an org-less Super Admin; Templates' own "New template" is
   // untouched — a Super Admin creating templates is intentional and correct.
   //
-  // "For me" (My feedback / My results) is about the signed-in user's own
+  // "For me" (My feedback / My Feedbacks) is about the signed-in user's own
   // standing as a reviewee/reviewer within an org — an org-less Super Admin
   // isn't a member of any org's feedback graph, so both pages would only
   // ever show empty state. Same gate as Create Feedback.
