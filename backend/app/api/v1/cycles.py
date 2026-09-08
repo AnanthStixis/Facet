@@ -552,6 +552,10 @@ async def submit_response(
             # no join path from an answer back to the person who gave it.
             assignment_id=None if anonymous else assignment.id,
             reviewer_user_id=None if anonymous else actor.id,
+            # Populated regardless of anonymity — see the model's own comment
+            # on this column for why it's safe alongside the guarantee above,
+            # and where it may (and may not) be read back.
+            submitted_by_user_id=actor.id,
             is_anonymous=anonymous,
             relationship_type=assignment.relationship_type,
             answers=scored.answers,
@@ -642,12 +646,17 @@ async def get_my_response(
     """This reviewer's own submitted answers for one assignment — the
     question-by-question detail behind "Reviews Given" on My Reviews.
 
-    Returns {"available": False} rather than 404 when no linked response
-    can be found. That's expected, not an error, for every anonymous
-    submission: submit_response deliberately leaves assignment_id and
-    reviewer_user_id both NULL on an anonymous FeedbackResponse, so there
-    is no join path back to it — same anonymity guarantee the page
-    promises everyone, applied even to the person who gave the answer.
+    Looks the response up by submitted_by_user_id + cycle_id + target_id,
+    not by assignment_id: an anonymous FeedbackResponse has no assignment_id
+    (see the model), so that join is only possible through the one column
+    that's deliberately populated regardless of anonymity, for exactly this
+    purpose. This still only ever answers "what did I submit" for the
+    person who submitted it — nothing here weakens the guarantee that
+    nobody else can trace an anonymous answer back to its author.
+
+    Returns {"available": False} rather than 404 when no response is found
+    this way — for a genuinely not-yet-submitted assignment, not for an
+    anonymous one, since those are now resolvable the same as any other.
     """
     assignment = (
         await session.execute(
@@ -662,8 +671,9 @@ async def get_my_response(
     response = (
         await session.execute(
             select(FeedbackResponse).where(
-                FeedbackResponse.assignment_id == assignment_id,
-                FeedbackResponse.reviewer_user_id == actor.id,
+                FeedbackResponse.submitted_by_user_id == actor.id,
+                FeedbackResponse.cycle_id == assignment.cycle_id,
+                FeedbackResponse.target_id == assignment.target_id,
             )
         )
     ).scalar_one_or_none()

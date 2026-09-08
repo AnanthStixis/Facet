@@ -120,7 +120,7 @@ export function MyResults() {
 
                   <div className="mt-5 grid gap-5 lg:grid-cols-2">
                     <div>
-                      <p className="label-caps mb-2">Strongest</p>
+                      <p className="label-caps mb-2">Highest rated</p>
                       <ul className="space-y-2">
                         {[...(result.questions ?? [])]
                           .filter((question) => question.average !== null)
@@ -142,7 +142,7 @@ export function MyResults() {
                       </ul>
                     </div>
                     <div>
-                      <p className="label-caps mb-2">Most room to grow</p>
+                      <p className="label-caps mb-2">Needs improvement</p>
                       <ul className="space-y-2">
                         {[...(result.questions ?? [])]
                           .filter((question) => question.average !== null)
@@ -176,7 +176,9 @@ export function MyResults() {
 
                   {(result.comments ?? []).length > 0 && (
                     <div className="mt-5">
-                      <p className="label-caps mb-2">What people said</p>
+                                            <p className="label-caps mb-2">
+                        {result.comment_prompt || 'Comments'}
+                      </p>
                       <ul className="space-y-3">
                         {(result.comments ?? []).map((entry, index) => (
                           <li

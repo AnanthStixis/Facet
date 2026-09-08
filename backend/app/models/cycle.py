@@ -252,6 +252,25 @@ class FeedbackResponse(UUIDPrimaryKey, Timestamped, Base):
         ForeignKey("campaign_recipients.id", ondelete="SET NULL"),
         unique=True,
     )
+    # A narrow, deliberate exception to the anonymity guarantee above —
+    # populated for EVERY response, anonymous or not, purely so a reviewer
+    # can look up their own past answer later (get_my_response, used by My
+    # Reviews -> Reviews Given -> View Review). It carries the same
+    # information reviewer_user_id would, but exists as a separate column
+    # specifically so the check constraint below (which enforces the real
+    # guarantee) never has to know about it or be relaxed for it.
+    #
+    # DO NOT select, return, export, or log this column from anywhere other
+    # than submit_response (the writer) and get_my_response (the one reader,
+    # which never includes it in its own response payload either — only
+    # uses it in a WHERE clause). Any report, dashboard, or export that
+    # includes it defeats the entire point of this table's design. If you
+    # are adding a new query against feedback_responses, leave this column
+    # out unless you are genuinely building the "view my own submission"
+    # feature and have re-read this comment.
+    submitted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
     is_anonymous: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     relationship_type: Mapped[Relationship] = mapped_column(

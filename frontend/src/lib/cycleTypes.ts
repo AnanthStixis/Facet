@@ -140,6 +140,7 @@ export interface TargetResults {
   }[]
   questions?: QuestionResult[]
   comments?: { comment: string; relationship: Relationship; submitted_at: string }[]
+  comment_prompt?: string
 }
 
 export interface TemplateVersionSummary {

@@ -266,9 +266,7 @@ function FeedbackFormView({
         <Banner tone="info" className="mb-5">
           <span className="flex flex-wrap items-center gap-x-1.5">
             <IconLock width={14} height={14} />
-            <strong>This is anonymous.</strong> Your name is not stored against these
-            answers, and there is no record linking them back to you — not for your
-            administrator, and not for anyone with database access.
+            <strong>This is anonymous.</strong>
           </span>
         </Banner>
       )}
@@ -542,12 +540,12 @@ export function MyFeedback() {
                             <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
                               {assignment.target_label}
                             </span>
-                            {assignment.is_anonymous && assignment.relationship !== 'self' && (
+                            {/* {assignment.is_anonymous && assignment.relationship !== 'self' && (
                               <span className="chip accent-soft-bg accent-text flex items-center gap-1">
                                 <IconLock width={10} height={10} />
                                 Anonymous
                               </span>
-                            )}
+                            )} */}
                           </p>
                           <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-ink-500 dark:text-ink-400">
                             <span>{assignment.cycle_name}</span>
@@ -592,12 +590,12 @@ export function MyFeedback() {
                           <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
                             {assignment.target_label}
                           </span>
-                          {assignment.is_anonymous && assignment.relationship !== 'self' && (
+                          {/* {assignment.is_anonymous && assignment.relationship !== 'self' && (
                             <span className="chip accent-soft-bg accent-text flex items-center gap-1">
                               <IconLock width={10} height={10} />
                               Anonymous
                             </span>
-                          )}
+                          )} */}
                         </p>
                         <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-ink-500 dark:text-ink-400">
                           <span>{assignment.cycle_name}</span>

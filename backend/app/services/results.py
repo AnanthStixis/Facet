@@ -240,6 +240,13 @@ async def target_results(
             # so they ride the same threshold and are shuffled out of
             # submission order to remove the ordering side channel.
             "comments": _collect_comments(others + self_responses),
+            # The single shared prompt every comment above is answering —
+            # same form for the whole cycle, so this isn't per-comment. Lets
+            # the UI show what was actually asked instead of a generic
+            # "comments" heading. Empty string if the template never had a
+            # closing comment box at all (form.comment_prompt already
+            # defaults to "" in that case — see forms.py).
+            "comment_prompt": form.comment_prompt,
             "text_answers": text_answers,
         }
     )

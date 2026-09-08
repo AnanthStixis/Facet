@@ -166,7 +166,7 @@ export function Login() {
           <p className="mt-1.5 text-sm text-ink-500 dark:text-ink-400">
             {forgot
               ? "Enter your work email and we'll send a link to set a new password, if you have an account."
-              : 'Use the credentials issued by your administrator.'}
+              : 'Enter your Email ID and password'}
           </p>
 
           {forgot ? (

@@ -125,7 +125,7 @@ async def seed_cycle() -> None:
                     FeedbackTemplateVersion.template_id == FeedbackTemplate.id,
                 )
                 .where(
-                    FeedbackTemplate.name == "Manager effectiveness (upward feedback)",
+                    FeedbackTemplate.name == "Manager effectiveness",
                     FeedbackTemplateVersion.status == TemplateStatus.PUBLISHED,
                 )
                 .limit(1)
