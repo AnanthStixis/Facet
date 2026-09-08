@@ -535,36 +535,38 @@ export function MyFeedback() {
                 {pending.map((assignment) => {
                   const due = dueLabel(assignment.due_at)
                   return (
-                    <Card key={assignment.id} className="flex flex-nowrap items-center justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                        <p className="flex flex-wrap items-center gap-2">
-                          <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
-                            {assignment.target_label}
-                          </span>
-                          {assignment.is_anonymous && assignment.relationship !== 'self' && (
-                            <span className="chip accent-soft-bg accent-text flex items-center gap-1">
-                              <IconLock width={10} height={10} />
-                              Anonymous
+                    <Card key={assignment.id} className="w-5/6">
+                      <div className="flex flex-col items-start gap-2.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="flex flex-wrap items-center gap-2">
+                            <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
+                              {assignment.target_label}
                             </span>
-                          )}
-                        </p>
-                        <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-ink-500 dark:text-ink-400">
-                          <span>{assignment.cycle_name}</span>
-                          <span className={clsx('flex items-center gap-1', due.tone)}>
-                            <IconClock width={12} height={12} />
-                            {due.text}
-                          </span>
-                        </p>
+                            {assignment.is_anonymous && assignment.relationship !== 'self' && (
+                              <span className="chip accent-soft-bg accent-text flex items-center gap-1">
+                                <IconLock width={10} height={10} />
+                                Anonymous
+                              </span>
+                            )}
+                          </p>
+                          <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-ink-500 dark:text-ink-400">
+                            <span>{assignment.cycle_name}</span>
+                            <span className={clsx('flex items-center gap-1', due.tone)}>
+                              <IconClock width={12} height={12} />
+                              {due.text}
+                            </span>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-primary shrink-0 px-3 py-1.5 text-sm"
+                          disabled={opening === assignment.id}
+                          onClick={() => open(assignment.id)}
+                        >
+                          {opening === assignment.id && <Spinner />}
+                          {assignment.status === 'in_progress' ? 'Continue' : 'Give feedback'}
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        className="btn-primary shrink-0 px-3 py-1.5 text-sm"
-                        disabled={opening === assignment.id}
-                        onClick={() => open(assignment.id)}
-                      >
-                        {opening === assignment.id && <Spinner />}
-                        {assignment.status === 'in_progress' ? 'Continue' : 'Give feedback'}
-                      </button>
                     </Card>
                   )
                 })}
@@ -583,37 +585,38 @@ export function MyFeedback() {
             ) : (
               <div className="mt-3 grid gap-3">
                 {submitted.map((assignment) => (
-                  <Card key={assignment.id} className="flex items-center gap-4">
-
-                    <div className="min-w-0 flex-1">
-                      <p className="flex flex-wrap items-center gap-2">
-                        <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
-                          {assignment.target_label}
-                        </span>
-                        {assignment.is_anonymous && assignment.relationship !== 'self' && (
-                          <span className="chip accent-soft-bg accent-text flex items-center gap-1">
-                            <IconLock width={10} height={10} />
-                            Anonymous
+                  <Card key={assignment.id} className="w-5/6">
+                    <div className="flex flex-col items-start gap-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-2">
+                          <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
+                            {assignment.target_label}
                           </span>
-                        )}
-                      </p>
-                      <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-ink-500 dark:text-ink-400">
-                        <span>{assignment.cycle_name}</span>
-                        <span className="flex items-center gap-1">
-                          <IconCheck width={12} height={12} />
-                          {submittedLabel(assignment.submitted_at)}
-                        </span>
-                      </p>
+                          {assignment.is_anonymous && assignment.relationship !== 'self' && (
+                            <span className="chip accent-soft-bg accent-text flex items-center gap-1">
+                              <IconLock width={10} height={10} />
+                              Anonymous
+                            </span>
+                          )}
+                        </p>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-ink-500 dark:text-ink-400">
+                          <span>{assignment.cycle_name}</span>
+                          <span className="flex items-center gap-1">
+                            <IconCheck width={12} height={12} />
+                            {submittedLabel(assignment.submitted_at)}
+                          </span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-secondary shrink-0 px-3 py-1.5 text-sm"
+                        disabled={viewing?.assignment.id === assignment.id && viewing.loading}
+                        onClick={() => void viewResponse(assignment)}
+                      >
+                        {viewing?.assignment.id === assignment.id && viewing.loading && <Spinner />}
+                        View Review
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className="btn-secondary shrink-0 px-3 py-1.5 text-sm"
-                      disabled={viewing?.assignment.id === assignment.id && viewing.loading}
-                      onClick={() => void viewResponse(assignment)}
-                    >
-                      {viewing?.assignment.id === assignment.id && viewing.loading && <Spinner />}
-                      View Review
-                    </button>
                   </Card>
                 ))}
               </div>
