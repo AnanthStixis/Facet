@@ -421,14 +421,16 @@ function OrgFormModal({
               </select>
             </label>
           )}
-          <Field
-            label="Number of licenses"
-            type="number"
-            min={1}
-            value={form.seat_limit}
-            onChange={(event) => setForm({ ...form, seat_limit: event.target.value })}
-            placeholder="Unlimited"
-          />
+          {!org?.plan_managed && (
+            <Field
+              label="Number of licenses"
+              type="number"
+              min={1}
+              value={form.seat_limit}
+              onChange={(event) => setForm({ ...form, seat_limit: event.target.value })}
+              placeholder="Unlimited"
+            />
+          )}
         </div>
 
         <div className="mt-4">
