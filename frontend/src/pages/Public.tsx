@@ -312,7 +312,7 @@ export function Register() {
 
         <button type="submit" className="btn-primary mt-6 w-full py-2.5" disabled={busy}>
           {busy && <Spinner />}
-          Submit for review
+          Submit for license request
         </button>
       </form>
 

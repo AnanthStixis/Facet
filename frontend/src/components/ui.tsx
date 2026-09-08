@@ -61,6 +61,9 @@ export function StatTile({
   to,
   state,
   onClick,
+  compact = false,
+  active = false,
+  className,
 }: {
   label: string
   value: ReactNode
@@ -70,6 +73,18 @@ export function StatTile({
   to?: string
   state?: Record<string, unknown>
   onClick?: () => void
+  // Smaller padding and a horizontal icon+text layout instead of the
+  // default stacked one — for places like a summary row where several
+  // tiles need to take up meaningfully less vertical space. Off by
+  // default so every other existing use of this component is unaffected.
+  compact?: boolean
+  // Marks this tile as the currently-selected one in a set where only one
+  // can be active at a time (e.g. a toggle between two detail views below).
+  // Purely visual — callers own the actual selection state.
+  active?: boolean
+  // Extra classes on the outer element — e.g. a max-width, for a caller
+  // that doesn't want this tile stretching to fill its grid cell.
+  className?: string
 }) {
   const navigate = useNavigate()
   const interactive = Boolean(to || onClick)
@@ -78,12 +93,65 @@ export function StatTile({
     else if (to) navigate(to, state ? { state } : undefined)
   }
 
+  if (compact) {
+    return (
+      <div
+        className={clsx(
+          'surface animate-fade-up px-3.5 py-3.5 text-left',
+          interactive &&
+            'cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+          active && 'border-[var(--accent)] bg-[var(--accent-soft)]',
+          className,
+        )}
+        role={interactive ? 'button' : undefined}
+        tabIndex={interactive ? 0 : undefined}
+        aria-pressed={interactive ? active : undefined}
+        onClick={interactive ? activate : undefined}
+        onKeyDown={
+          interactive
+            ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  activate()
+                }
+              }
+            : undefined
+        }
+      >
+        {icon && (
+          <span
+            className={clsx(
+              'mb-2 flex h-8 w-8 items-center justify-center rounded-md',
+              TILE_BADGE_TONE[tone],
+            )}
+          >
+            {icon}
+          </span>
+        )}
+        <p className="label-caps">{label}</p>
+        <p
+          className={clsx(
+            'mt-1 text-2xl font-semibold tabular',
+            tone === 'accent' && 'accent-text',
+            tone === 'caution' && 'text-caution',
+            tone === 'critical' && 'text-critical',
+            tone === 'neutral' && 'text-ink-900 dark:text-ink-50',
+          )}
+        >
+          {value}
+        </p>
+        {sub && <p className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">{sub}</p>}
+      </div>
+    )
+  }
+
   return (
     <div
       className={clsx(
         'surface animate-fade-up px-4 py-4 text-left',
         interactive &&
           'cursor-pointer transition-transform hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+        className,
       )}
       role={interactive ? 'button' : undefined}
       tabIndex={interactive ? 0 : undefined}

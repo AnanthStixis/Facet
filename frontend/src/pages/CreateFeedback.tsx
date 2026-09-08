@@ -1373,7 +1373,7 @@ export function CreateFeedback() {
       const warnings = results.flatMap((r) => r.warnings)
       toast.show(
         'success',
-        'Feedback sent',
+        'Feedback requested',
         warnings.length ? `'${name}' is on its way. ${warnings.join(' ')}` : `'${name}' is on its way.`,
       )
       navigate('/results')
@@ -1752,7 +1752,7 @@ export function CreateFeedback() {
                 onClick={submit}
               >
                 {busy && <Spinner />}
-                Send Feedback
+                Request Feedback
               </button>
             </div>
           </Card>

@@ -435,24 +435,28 @@ async def my_assignments(
 ) -> list[AssignmentSummary]:
     """Everything this person has been asked to complete.
 
-    Restricted to open cycles: a draft cycle is still being built and a closed
-    one is no longer accepting answers, so neither belongs in an inbox.
+    include_done=False (the inbox view) is restricted to open cycles: a
+    draft cycle is still being built and a closed one is no longer
+    accepting answers, so neither belongs in an inbox.
+
+    include_done=True is NOT restricted by cycle status — this is also how
+    "Reviews Given" (My Reviews) gets someone's submission history, and a
+    submitted response doesn't stop being theirs just because a manager
+    later closed the cycle it belonged to.
     """
     stmt = (
         select(FeedbackAssignment, ReviewCycle, FeedbackTarget)
         .join(ReviewCycle, ReviewCycle.id == FeedbackAssignment.cycle_id)
         .join(FeedbackTarget, FeedbackTarget.id == FeedbackAssignment.target_id)
-        .where(
-            FeedbackAssignment.reviewer_user_id == actor.id,
-            ReviewCycle.status == CycleStatus.OPEN,
-        )
+        .where(FeedbackAssignment.reviewer_user_id == actor.id)
         .order_by(FeedbackAssignment.due_at.asc().nullslast(), FeedbackTarget.label)
     )
     if not include_done:
         stmt = stmt.where(
+            ReviewCycle.status == CycleStatus.OPEN,
             FeedbackAssignment.status.in_(
                 [AssignmentStatus.PENDING, AssignmentStatus.IN_PROGRESS]
-            )
+            ),
         )
     rows = (await session.execute(stmt)).all()
     return [
@@ -629,6 +633,57 @@ async def submit_response(
             else "Thank you. Your feedback was submitted."
         )
     )
+
+
+@assignments_router.get("/{assignment_id}/response")
+async def get_my_response(
+    assignment_id: uuid.UUID, session: DbSession, actor: CurrentUser
+) -> dict[str, Any]:
+    """This reviewer's own submitted answers for one assignment — the
+    question-by-question detail behind "Reviews Given" on My Reviews.
+
+    Returns {"available": False} rather than 404 when no linked response
+    can be found. That's expected, not an error, for every anonymous
+    submission: submit_response deliberately leaves assignment_id and
+    reviewer_user_id both NULL on an anonymous FeedbackResponse, so there
+    is no join path back to it — same anonymity guarantee the page
+    promises everyone, applied even to the person who gave the answer.
+    """
+    assignment = (
+        await session.execute(
+            select(FeedbackAssignment).where(FeedbackAssignment.id == assignment_id)
+        )
+    ).scalar_one_or_none()
+    if assignment is None:
+        raise NotFound("That assignment does not exist.")
+    if assignment.reviewer_user_id != actor.id:
+        raise PermissionDenied("This assignment belongs to someone else.")
+
+    response = (
+        await session.execute(
+            select(FeedbackResponse).where(
+                FeedbackResponse.assignment_id == assignment_id,
+                FeedbackResponse.reviewer_user_id == actor.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if response is None:
+        return {"available": False}
+
+    version = (
+        await session.execute(
+            select(FeedbackTemplateVersion).where(
+                FeedbackTemplateVersion.id == response.template_version_id
+            )
+        )
+    ).scalar_one()
+    form = validate_definition(version.definition)
+    return {
+        "available": True,
+        "form": form_payload(form),
+        "answers": response.answers,
+        "comment": response.comment,
+    }
 
 
 @assignments_router.post("/{assignment_id}/decline", response_model=MessageResponse)

@@ -1,8 +1,8 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { IconCheck, IconClock, IconLock, IconShield } from '../components/icons'
-import { Banner, Card, EmptyState, Skeleton, Spinner } from '../components/ui'
+import { IconCheck, IconClock, IconLock  } from '../components/icons'
+import { Banner, Card, EmptyState, Modal, Skeleton, Spinner, StatTile } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus'
 import { PageHeader } from '../layout/AppShell'
@@ -27,6 +27,27 @@ function dueLabel(due: string | null): { text: string; tone: string } {
   return { text: `Due in ${days}d`, tone: 'text-ink-400' }
 }
 
+function submittedLabel(submittedAt: string | null): string {
+  if (!submittedAt) return 'Submitted'
+  return `Submitted ${new Date(submittedAt).toLocaleDateString()}`
+}
+
+interface SubmittedResponseData {
+  available: boolean
+  form?: FeedbackForm
+  answers?: Record<string, number | string | boolean>
+  comment?: string | null
+}
+
+function formatAnswer(question: FormQuestion, value: unknown, form: FeedbackForm): string {
+  if (value === undefined || value === null || value === '') return 'Not answered'
+  if (question.type === 'boolean') return value ? 'Yes' : 'No'
+  if (question.type === 'scale') {
+    const label = form.scale.labels[String(value)]
+    return label ? `${value} — ${label}` : String(value)
+  }
+  return String(value)
+}
 /**
  * The rating control.
  *
@@ -339,10 +360,19 @@ export function MyFeedback() {
   const [active, setActive] = useState<AssignmentForm | null>(null)
   const toast = useToast()
   const [opening, setOpening] = useState<string | null>(null)
+  // Which of the two summary cards' detail list is currently shown. Starts
+  // on 'pending' — Yet to Review is the default view, per request, rather
+  // than requiring a click before anything shows.
+  const [expandedSection, setExpandedSection] = useState<'pending' | 'submitted' | null>('pending')
 
   const load = () => {
     api
-      .get<Assignment[]>('/assignments/mine')
+      // include_done=true pulls everything this person has ever been
+      // assigned (pending, in progress, submitted, declined) in one call —
+      // reusing the same endpoint the page already called, rather than
+      // adding a second one just for the submitted list. Both summary
+      // cards' counts are derived from this single array below.
+      .get<Assignment[]>('/assignments/mine?include_done=true')
       .then(setAssignments)
       .catch((caught) =>
         toast.show(
@@ -355,6 +385,34 @@ export function MyFeedback() {
 
   useEffect(load, [])
   useRefetchOnFocus(load)
+
+  const pending = (assignments ?? []).filter(
+    (assignment) => assignment.status === 'pending' || assignment.status === 'in_progress',
+  )
+  const submitted = (assignments ?? []).filter((assignment) => assignment.status === 'submitted')
+
+  const [viewing, setViewing] = useState<{
+    assignment: Assignment
+    data: SubmittedResponseData | null
+    loading: boolean
+  } | null>(null)
+ 
+  const viewingData = viewing?.data ?? null
+
+  const viewResponse = async (assignment: Assignment) => {
+    setViewing({ assignment, data: null, loading: true })
+    try {
+      const data = await api.get<SubmittedResponseData>(`/assignments/${assignment.id}/response`)
+      setViewing({ assignment, data, loading: false })
+    } catch (caught) {
+      toast.show(
+        'critical',
+        'Could not load that review',
+        caught instanceof ApiError ? caught.message : undefined,
+      )
+      setViewing(null)
+    }
+  }
 
     const open = async (id: string) => {
     setOpening(id)
@@ -399,7 +457,18 @@ export function MyFeedback() {
           const submittedId = active.assignment.id
           setActive(null)
           toast.show('success', message)
-          setAssignments((current) => (current ? current.filter((a) => a.id !== submittedId) : current))
+          // Patched in place rather than removed — it still exists, just now
+          // in the "submitted" bucket, so it's reflected immediately in
+          // Reviews Given without waiting on a full refetch.
+          setAssignments((current) =>
+            current
+              ? current.map((a) =>
+                  a.id === submittedId
+                    ? { ...a, status: 'submitted', submitted_at: new Date().toISOString() }
+                    : a,
+                )
+              : current,
+          )
           if (assignmentId) navigate('/my-feedback', { replace: true })
         }}
       />
@@ -412,79 +481,205 @@ export function MyFeedback() {
         title="My Reviews"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Feedback you have been asked to give. Nothing here is visible to the person concerned until enough people have responded."
+        // description="Feedback you have been asked to give. Nothing here is visible to the person concerned until enough people have responded."
       />
 
-        {(!assignments || (assignmentId && opening === assignmentId)) ? (
+      {(!assignments || (assignmentId && opening === assignmentId)) ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, index) => (
             <Skeleton key={index} className="h-20 w-full rounded-lg" />
           ))}
         </div>
-      ) : assignments.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={<IconCheck width={19} height={19} />}
-            title="You are all caught up"
-            body="Nothing is waiting for your input. You will see requests here as soon as a review cycle opens."
-          />
-        </Card>
       ) : (
-        <div className="grid gap-3">
-          {assignments.map((assignment) => {
-            const due = dueLabel(assignment.due_at)
-            return (
-              <Card key={assignment.id} className="flex flex-wrap items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="flex flex-wrap items-center gap-2">
-                    <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
-                      {assignment.target_label}
-                    </span>
-                    {assignment.is_anonymous && assignment.relationship !== 'self' && (
-                      <span className="chip accent-soft-bg accent-text flex items-center gap-1">
-                        <IconLock width={10} height={10} />
-                        Anonymous
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-ink-500 dark:text-ink-400">
-                    <span>{assignment.cycle_name}</span>
-                    <span className={clsx('flex items-center gap-1', due.tone)}>
-                      <IconClock width={12} height={12} />
-                      {due.text}
-                    </span>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="btn-primary shrink-0 px-3 py-1.5 text-sm"
-                  disabled={opening === assignment.id}
-                  onClick={() => open(assignment.id)}
-                >
-                  {opening === assignment.id && <Spinner />}
-                  {assignment.status === 'in_progress' ? 'Continue' : 'Give feedback'}
-                </button>
+        <>
+          <div className="flex flex-wrap gap-3">
+            <StatTile
+              label="Yet to Review"
+              value={pending.length}
+              sub="Reviews waiting for your response"
+              tone="caution"
+              icon={<IconClock width={16} height={16} />}
+              compact
+              active={expandedSection === 'pending'}
+              className="w-[350px] max-w-full"
+              onClick={() =>
+                setExpandedSection((current) => (current === 'pending' ? null : 'pending'))
+              }
+            />
+            <StatTile
+              label="Reviews Given"
+              value={submitted.length}
+              sub="Reviews you have already submitted"
+              tone="accent"
+              icon={<IconCheck width={16} height={16} />}
+              compact
+              active={expandedSection === 'submitted'}
+              className="w-[350px] max-w-full"
+              onClick={() =>
+                setExpandedSection((current) => (current === 'submitted' ? null : 'submitted'))
+              }
+            />
+          </div>
+
+          {expandedSection === 'pending' &&
+            (pending.length === 0 ? (
+              <Card className="mt-3">
+                <EmptyState
+                  icon={<IconCheck width={19} height={19} />}
+                  title="You are all caught up"
+                  body="You have no reviews waiting for you."
+                />
               </Card>
-            )
-          })}
-        </div>
+            ) : (
+              <div className="mt-3 grid gap-3">
+                {pending.map((assignment) => {
+                  const due = dueLabel(assignment.due_at)
+                  return (
+                    <Card key={assignment.id} className="flex flex-nowrap items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-2">
+                          <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
+                            {assignment.target_label}
+                          </span>
+                          {assignment.is_anonymous && assignment.relationship !== 'self' && (
+                            <span className="chip accent-soft-bg accent-text flex items-center gap-1">
+                              <IconLock width={10} height={10} />
+                              Anonymous
+                            </span>
+                          )}
+                        </p>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-ink-500 dark:text-ink-400">
+                          <span>{assignment.cycle_name}</span>
+                          <span className={clsx('flex items-center gap-1', due.tone)}>
+                            <IconClock width={12} height={12} />
+                            {due.text}
+                          </span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-primary shrink-0 px-3 py-1.5 text-sm"
+                        disabled={opening === assignment.id}
+                        onClick={() => open(assignment.id)}
+                      >
+                        {opening === assignment.id && <Spinner />}
+                        {assignment.status === 'in_progress' ? 'Continue' : 'Give feedback'}
+                      </button>
+                    </Card>
+                  )
+                })}
+              </div>
+            ))}
+
+          {expandedSection === 'submitted' &&
+            (submitted.length === 0 ? (
+              <Card className="mt-3">
+                <EmptyState
+                  icon={<IconCheck width={19} height={19} />}
+                  title="No reviews given yet"
+                  body="You haven't submitted any reviews yet."
+                />
+              </Card>
+            ) : (
+              <div className="mt-3 grid gap-3">
+                {submitted.map((assignment) => (
+                  <Card key={assignment.id} className="flex items-center gap-4">
+
+                    <div className="min-w-0 flex-1">
+                      <p className="flex flex-wrap items-center gap-2">
+                        <span className="text-base font-semibold text-ink-900 dark:text-ink-50">
+                          {assignment.target_label}
+                        </span>
+                        {assignment.is_anonymous && assignment.relationship !== 'self' && (
+                          <span className="chip accent-soft-bg accent-text flex items-center gap-1">
+                            <IconLock width={10} height={10} />
+                            Anonymous
+                          </span>
+                        )}
+                      </p>
+                      <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-ink-500 dark:text-ink-400">
+                        <span>{assignment.cycle_name}</span>
+                        <span className="flex items-center gap-1">
+                          <IconCheck width={12} height={12} />
+                          {submittedLabel(assignment.submitted_at)}
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-secondary shrink-0 px-3 py-1.5 text-sm"
+                      disabled={viewing?.assignment.id === assignment.id && viewing.loading}
+                      onClick={() => void viewResponse(assignment)}
+                    >
+                      {viewing?.assignment.id === assignment.id && viewing.loading && <Spinner />}
+                      View Review
+                    </button>
+                  </Card>
+                ))}
+              </div>
+            ))}
+        </>
       )}
 
-      <Card className="mt-5" title="How your answers are handled">
-        <ul className="space-y-2 text-sm text-ink-600 dark:text-ink-300">
-          {[
-            'No one can trace an anonymous answer back to you — we dont save your name or which request was sent to you.',
-            
-            'A breakdown by direction is only shown when that direction on its own clears the same threshold.',
-            'Once submitted, a response cannot be edited or deleted by anyone, including an administrator.',
-          ].map((line) => (
-            <li key={line} className="flex items-start gap-2">
-              <IconShield width={14} height={14} className="mt-0.5 shrink-0 accent-text" />
-              {line}
-            </li>
-          ))}
-        </ul>
-      </Card>
+      {viewing && (
+        <Modal
+          title={viewing.assignment.target_label}
+          hint={`${viewing.assignment.cycle_name} · ${submittedLabel(viewing.assignment.submitted_at)}`}
+          onClose={() => setViewing(null)}
+        >
+          {viewing.loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : !viewingData || !viewingData.available ? (
+            <p className="text-sm text-ink-600 dark:text-ink-300">
+              This was an anonymous review. To keep that anonymity real — even for you —
+              the system never stored a link between your account and this specific set
+              of answers, so there is no way to display them here.
+            </p>
+          ) : (
+            <div className="space-y-5">
+              {(viewingData.form?.sections ?? []).map((section) => (
+                <div key={section.key}>
+                  <p className="mb-2 text-sm font-semibold text-ink-800 dark:text-ink-100">
+                    {section.title}
+                  </p>
+                  <div className="space-y-3">
+                    {section.questions.map((question) => (
+                      <div
+                        key={question.key}
+                        className="border-t border-ink-200 pt-3 first:border-t-0 first:pt-0 dark:border-ink-800"
+                      >
+                        <p className="text-sm text-ink-700 dark:text-ink-200">{question.text}</p>
+                        <p className="mt-1 text-sm font-medium text-ink-900 dark:text-ink-50">
+                          {viewingData.form &&
+                            formatAnswer(
+                              question,
+                              viewingData.answers?.[question.key],
+                              viewingData.form,
+                            )}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {viewingData.comment && (
+                <div className="border-t border-ink-200 pt-3 dark:border-ink-800">
+                  <p className="mb-1 text-sm font-semibold text-ink-800 dark:text-ink-100">
+                    {viewingData.form?.closing.comment_prompt || 'Comment'}
+                  </p>
+                  <p className="text-sm text-ink-700 dark:text-ink-200">{viewingData.comment}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </Modal>
+      )}
+
+      
     </>
   )
 }
