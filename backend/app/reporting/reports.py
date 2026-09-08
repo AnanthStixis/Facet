@@ -626,41 +626,41 @@ async def _query_delivery(
     return ReportPage(rows=[dict(row) for row in rows], total=total, window=window)
 
 
-DELIVERY_REPORT = register(
-    ReportDefinition(
-        key="campaign_delivery",
-        title="Feedback Cycle delivery",
-        # description=(
-        #     "Every external invitation: sent, opened, and submitted. Contains "
-        #     "no answers, so it is safe to share with whoever is chasing "
-        #     "responses."
-        # ),
-        columns=DELIVERY_COLUMNS,
-        query=_query_delivery,
-        min_role=UserRole.MANAGER,
-        default_sort="campaign",
-        filters_supported=["search", "severities"],
-    )
-)
+# DELIVERY_REPORT = register(
+#     ReportDefinition(
+#         key="campaign_delivery",
+#         title="Feedback Cycle delivery",
+#         # description=(
+#         #     "Every external invitation: sent, opened, and submitted. Contains "
+#         #     "no answers, so it is safe to share with whoever is chasing "
+#         #     "responses."
+#         # ),
+#         columns=DELIVERY_COLUMNS,
+#         query=_query_delivery,
+#         min_role=UserRole.MANAGER,
+#         default_sort="campaign",
+#         filters_supported=["search", "severities"],
+#     )
+# )
 
 
-RESULTS_REPORT = register(
-    ReportDefinition(
-        key="feedback_results",
-        title="Feedback results",
-        # description=(
-        #     "Average scores per person or item, per feedback round. Scores are "
-        #     "hidden until enough people have responded — the file always matches exactly what you "
-        #     "see on the screen."
-        # ),
-        columns=RESULT_COLUMNS,
-        query=_query_results,
-        min_role=UserRole.CLIENT_ADMIN,
-        anonymity_sensitive=True,
-        default_sort="cycle",
-        filters_supported=["search"],
-    )
-)
+# RESULTS_REPORT = register(
+#     ReportDefinition(
+#         key="feedback_results",
+#         title="Feedback results",
+#         # description=(
+#         #     "Average scores per person or item, per feedback round. Scores are "
+#         #     "hidden until enough people have responded — the file always matches exactly what you "
+#         #     "see on the screen."
+#         # ),
+#         columns=RESULT_COLUMNS,
+#         query=_query_results,
+#         min_role=UserRole.CLIENT_ADMIN,
+#         anonymity_sensitive=True,
+#         default_sort="cycle",
+#         filters_supported=["search"],
+#     )
+# )
 
 
 # --- Results overview (Results.tsx "Export" button) -------------------------

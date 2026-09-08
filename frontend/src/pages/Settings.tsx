@@ -132,7 +132,7 @@ function BrandingCard() {
       setPendingRemove(false)
       toast.show(
         'success',
-        'Branding saved',
+        'Logo saved',
         'Your dashboard, emails and feedback forms now reflect these changes.',
       )
     } catch (caught) {
@@ -171,11 +171,11 @@ function BrandingCard() {
 
   return (
     <Card
-      title="Branding"
+      title="Upload Logo"
       hint="Applied to your dashboard header, outgoing emails, and every feedback form your organization sends."
     >
       <div className="flex flex-wrap items-start gap-6">
-        <div>
+        <form onSubmit={saveColour}>
           <p className="mb-1.5 text-sm font-medium text-ink-700 dark:text-ink-200">Logo</p>
           <div className="flex h-20 w-40 items-center justify-center rounded-lg border border-dashed border-ink-300 bg-ink-50 dark:border-ink-700 dark:bg-ink-900">
             {effectiveLogoUrl ? (
@@ -199,19 +199,25 @@ function BrandingCard() {
               event.target.value = ''
             }}
           />
-          <button
-            type="button"
-            className="btn-secondary mt-2 flex items-center gap-1.5 px-3 py-1.5 text-sm"
-            disabled={busy}
-            onClick={() => fileInput.current?.click()}
-          >
-            <IconUpload width={14} height={14} />
-            {effectiveLogoUrl ? 'Replace logo' : 'Upload logo'}
-          </button>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-sm"
+              disabled={busy}
+              onClick={() => fileInput.current?.click()}
+            >
+              <IconUpload width={14} height={14} />
+              {effectiveLogoUrl ? 'Replace logo' : 'Upload logo'}
+            </button>
+            <button type="submit" className="btn-primary px-3 py-1.5 text-sm" disabled={busy}>
+              {busy && <Spinner />}
+              Save logo
+            </button>
+          </div>
           {effectiveLogoUrl && (
             <button
               type="button"
-              className="btn-ghost mt-2 ml-2 px-3 py-1.5 text-sm text-critical"
+              className="btn-ghost mt-2 px-3 py-1.5 text-sm text-critical"
               disabled={busy}
               onClick={stageRemoveLogo}
             >
@@ -221,7 +227,7 @@ function BrandingCard() {
           {pendingRemove && (
             <button
               type="button"
-              className="btn-ghost mt-2 ml-2 px-3 py-1.5 text-sm"
+              className="btn-ghost mt-2 px-3 py-1.5 text-sm"
               disabled={busy}
               onClick={undoRemoveLogo}
             >
@@ -233,47 +239,9 @@ function BrandingCard() {
           </p>
           {(pendingFile || pendingRemove) && (
             <p className="mt-1 max-w-[180px] text-2xs text-caution">
-              Not saved yet — click &quot;Save branding&quot; below to apply.
+              Not saved yet — click &quot;Save logo&quot; above to apply.
             </p>
           )}
-        </div>
-
-        <form onSubmit={saveColour} className="min-w-[240px] flex-1">
-          <div className="flex items-end gap-3">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-                Accent colour
-              </span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={HEX_RE.test(accent) ? accent.slice(0, 7) : '#2F6F62'}
-                  onChange={(event) => setAccent(event.target.value)}
-                  className="h-9 w-9 cursor-pointer rounded border border-ink-200 dark:border-ink-700"
-                />
-                <input
-                  className="field w-32 font-mono"
-                  value={accent}
-                  onChange={(event) => setAccent(event.target.value)}
-                  maxLength={7}
-                />
-              </div>
-            </label>
-          </div>
-
-          <Field
-            label="Email footer note (optional)"
-            className="mt-3"
-            value={footerNote}
-            onChange={(event) => setFooterNote(event.target.value)}
-            placeholder="e.g. a support contact or a compliance line"
-            maxLength={500}
-          />
-
-          <button type="submit" className="btn-primary mt-3 px-3 py-1.5 text-sm" disabled={busy}>
-            {busy && <Spinner />}
-            Save branding
-          </button>
         </form>
       </div>
     </Card>
@@ -342,7 +310,12 @@ function Toggle({
   )
 }
 
-function PolicyCard() {
+// Exported (though nothing currently imports it) specifically so it stays
+// exempt from the unused-declaration check now that its only usage below is
+// commented out — an unexported, uncalled function is exactly what that
+// check flags, and would break a real build the same way InviteAdminSection
+// once did. Keeps the whole component intact for easy restoration.
+export function PolicyCard() {
   const [data, setData] = useState<SettingsResponse | null>(null)
   const [draft, setDraft] = useState<OrgSettings | null>(null)
   const [busy, setBusy] = useState(false)
@@ -480,6 +453,14 @@ function PolicyCard() {
           </div>
         </section>
 
+        {/* Anonymity defaults section hidden -- neither field is actually
+            consulted anywhere: a new cycle/template's min_responses_to_reveal
+            comes from a value set on that cycle/template directly, never
+            from this org-level default, and upward_anonymous_by_default has
+            zero references anywhere outside its own schema definition.
+            draft.anonymity is left wired up in state and the save payload
+            untouched, so nothing else breaks; uncomment this whole block to
+            bring the controls back if that ever changes.
         <section>
           <h3 className="mb-3 text-sm font-semibold text-ink-900 dark:text-ink-50">
             Anonymity defaults
@@ -511,6 +492,7 @@ function PolicyCard() {
             />
           </div>
         </section>
+        */}
 
                 {/* AI section hidden — not used anywhere in this org's UI right now.
             draft.ai / floor.ai_min_responses_for_summary are left wired up
@@ -665,11 +647,16 @@ export function Settings() {
         title="Settings"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Branding applied to everything your organization sends, and the policy thresholds that govern reminders, anonymity and audit history."
+        // description="Branding applied to everything your organization sends, and the policy thresholds that govern reminders, anonymity and audit history."
       />
       <div className="space-y-5">
         <BrandingCard />
-        <PolicyCard />
+         {/* PolicyCard hidden per explicit request — includes working
+            features (reminders, audit retention, email subjects), not just
+            the dead Anonymity defaults fields. PolicyCard itself is left
+            fully intact below; uncomment this one line to bring the whole
+            card back. */}
+        {/* <PolicyCard /> */}
       </div>
     </>
   )
