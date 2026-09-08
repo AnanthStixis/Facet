@@ -312,7 +312,7 @@ function FeedbackFormView({
               <p className="mt-1.5 text-xs text-critical">{fieldErrors.closing_comment}</p>
             ) : (
               <p className="mt-1.5 text-xs text-ink-400">
-                Specific examples are far more useful than general praise.
+                
               </p>
             )}
           </Card>
@@ -527,7 +527,7 @@ export function MyFeedback() {
                 <EmptyState
                   icon={<IconCheck width={19} height={19} />}
                   title="You are all caught up"
-                  body="You have no reviews waiting for you."
+                  body="You have no reviews request waiting for you."
                 />
               </Card>
             ) : (

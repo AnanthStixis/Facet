@@ -426,7 +426,7 @@ async def submit_link(
         log.warning("post_submit_email_failed", cycle_id=str(cycle.id))
 
     return MessageResponse(
-        message="Thank you. Your feedback has been received."
+        message="Your feedback has been received."
     )
 
 
@@ -707,5 +707,5 @@ async def submit_assignment_link(
             log.warning("post_submit_email_failed", cycle_id=str(cycle.id))
 
     return MessageResponse(
-        message="Thank you. Your feedback has been received."
+        message="Your feedback has been received."
     )

@@ -384,16 +384,31 @@ function ResultsDetailModal({ row, onClose }: { row: FeedbackListItem; onClose: 
                   </div>
 
                   {response.answers.length > 0 && (
-                    <ul className="mt-3 space-y-1.5 border-t border-ink-100 pt-3 dark:border-ink-800">
-                      {response.answers.map((answer) => (
-                        <li
-                          key={answer.key}
-                          className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                        >
-                          <span className="text-ink-600 dark:text-ink-300">{answer.text}</span>
-                          <AnswerValue answer={answer} max={data.scale?.max ?? 5} />
-                        </li>
-                      ))}
+                    <ul className="mt-3 space-y-2.5 border-t border-ink-100 pt-3 dark:border-ink-800">
+                      {response.answers.map((answer) =>
+                        answer.type === 'text' ? (
+                          // Long free-text answers get their own block, not
+                          // squeezed onto the same line as the question —
+                          // the side-by-side layout below reads fine for a
+                          // star rating or Yes/No, but a paragraph of text
+                          // sitting right against the question with only an
+                          // 8px gap was rendering as one run-on sentence.
+                          <li key={answer.key} className="text-sm">
+                            <p className="text-ink-600 dark:text-ink-300">{answer.text}</p>
+                            <p className="mt-1.5 rounded-md bg-ink-50 px-3 py-2 leading-relaxed text-ink-800 dark:bg-ink-800/60 dark:text-ink-100">
+                              <AnswerValue answer={answer} max={data.scale?.max ?? 5} />
+                            </p>
+                          </li>
+                        ) : (
+                          <li
+                            key={answer.key}
+                            className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                          >
+                            <span className="text-ink-600 dark:text-ink-300">{answer.text}</span>
+                            <AnswerValue answer={answer} max={data.scale?.max ?? 5} />
+                          </li>
+                        ),
+                      )}
                     </ul>
                   )}
 
