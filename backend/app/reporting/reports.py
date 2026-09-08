@@ -216,6 +216,18 @@ ORG_COLUMNS = [
 ]
 
 
+# Raw values on Organization.registration_source (see OrgRegistrationSource)
+# aren't fit to show an administrator directly — this is the only place that
+# needs to know both the internal value and its friendly label, so the
+# mapping lives right next to where it's applied rather than in the enum
+# itself (which other code compares against the raw value, not this text).
+ORG_SOURCE_LABEL = {
+    "self_service": "Self-registered",
+    "provisioned": "Admin-created",
+    "paid_self_service": "Plan signup",
+}
+
+
 async def _query_orgs(
     session: AsyncSession, actor: Any, filters: FilterState, *, paginate: bool
 ) -> ReportPage:
@@ -257,7 +269,12 @@ async def _query_orgs(
     total = await _count(session, stmt)
     stmt = stmt.order_by(Organization.created_at.desc())
     rows = (await session.execute(_apply_pagination(stmt, filters, paginate))).mappings().all()
-    return ReportPage(rows=[dict(row) for row in rows], total=total, window=window)
+    result_rows = [dict(row) for row in rows]
+    for row in result_rows:
+        row["registration_source"] = ORG_SOURCE_LABEL.get(
+            row["registration_source"], row["registration_source"]
+        )
+    return ReportPage(rows=result_rows, total=total, window=window)
 
 
 ORG_REPORT = register(
