@@ -41,7 +41,7 @@ export function MyResults() {
         title="My results"
         backTo={cameFromDashboard ? '/' : undefined}
         backLabel="Dashboard"
-        description="Feedback other people have given about you, aggregated so no single response can be isolated."
+        description="Feedback other people have given about you."
       />
 
       {error && (
