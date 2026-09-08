@@ -76,7 +76,7 @@ export function Dashboard() {
         title={`Good to see you, ${firstName}`}
         description={
           isPlatform
-            ? 'Platform-wide view across every tenant on Facet.'
+            ? ''
             : `${organization?.name ?? ''} — activity, coverage, and Status.`
         }
       />
