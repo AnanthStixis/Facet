@@ -1,4 +1,5 @@
 import logoUrl from '../assets/logo_1.png'
+import darkLogoUrl from '../assets/logo_2.png'
 
 export function BrandLogo({ height = 28, className }: { height?: number; className?: string }) {
   return (
@@ -11,28 +12,16 @@ export function BrandLogo({ height = 28, className }: { height?: number; classNa
   )
 }
 
-/**
- * Same logo image used everywhere else, wrapped in a soft white backing
- * plate for permanently-dark surfaces (the sidebar rail). The raster logo's
- * "Facet" wordmark is set in navy, which disappears with nothing behind it
- * on a dark navy background — this keeps the original artwork untouched and
- * just gives it a light card to sit on so it stays legible.
- */
+/** logo_2 — the white-on-transparent wordmark, used only on the dashboard's
+ * dark navy sidebar. Every other surface keeps the original BrandLogo. */
 export function BrandLogoOnDark({ height = 22, className }: { height?: number; className?: string }) {
   return (
-    <span
+    <img
+      src={darkLogoUrl}
+      alt="Facet360"
+      style={{ height, width: 'auto' }}
       className={className}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        height: height + 12,
-        padding: '6px 10px',
-        borderRadius: 8,
-        background: 'rgba(255, 255, 255, 0.94)',
-      }}
-    >
-      <BrandLogo height={height} />
-    </span>
+    />
   )
 }
 
