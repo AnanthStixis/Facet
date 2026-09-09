@@ -33,11 +33,10 @@ const applyTheme = (theme: 'light' | 'dark') => {
   localStorage.setItem('facet-theme', theme)
 }
 
-const initialTheme = (): 'light' | 'dark' => {
-  const stored = localStorage.getItem('facet-theme')
-  if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
+// The light/dark toggle was removed from the top menu — the product now
+// ships one fixed look (light content surfaces, permanently-dark sidebar
+// styled directly in AppShell) rather than a user-switchable theme.
+const initialTheme = (): 'light' | 'dark' => 'light'
 
 export const useAuth = create<AuthState>((set, get) => ({
   phase: 'booting',

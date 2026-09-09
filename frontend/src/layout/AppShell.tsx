@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { BrandLogo } from '../components/Logo'
+import { BrandLogoOnDark } from '../components/Logo'
 import { Chip, Tooltip } from '../components/ui'
 import {
   IconArrowLeft,
@@ -14,12 +14,10 @@ import {
   IconLayers,
   IconLogout,
   IconMenu,
-  IconMoon,
   IconRefresh,
   IconSettings,
   IconShield,
   IconSpark,
-  IconSun,
   IconTag,
   IconUsers,
   IconX,
@@ -182,7 +180,7 @@ function Initials({ name }: { name: string }) {
 }
 
 export function AppShell() {
-  const { user, organization, logout, theme, setTheme } = useAuth()
+  const { user, organization, logout } = useAuth()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [railOpen, setRailOpen] = useState(false)
@@ -247,26 +245,25 @@ export function AppShell() {
         />
       )}
 
-      {/* Sidebar. Follows the app's light/dark theme like every other
-          surface, rather than staying permanently dark — a white rail in
-          light mode is what makes the workspace feel airy instead of
-          console-like. Static on desktop; an off-canvas drawer below lg. */}
+      {/* Sidebar is permanently dark navy regardless of the (now
+          non-switchable) app theme — matches the exec-cockpit reference,
+          where the rail reads as a fixed console strip and the content area
+          stays light. Static on desktop; an off-canvas drawer below lg. */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-40 flex w-56 flex-col border-r border-ink-200 bg-white',
-          'dark:border-ink-800 dark:bg-ink-900',
+          'fixed inset-y-0 left-0 z-40 flex w-56 flex-col border-r border-[#1D2A44] bg-[#0F1A30]',
           'transition-transform duration-200 ease-out lg:translate-x-0',
           railOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex h-14 items-center gap-2.5 border-b border-ink-200 px-4 dark:border-ink-800">
+        <div className="flex h-14 items-center gap-2.5 border-b border-[#1D2A44] px-4">
           <span className="flex-1">
-            <BrandLogo height={22} />
+            <BrandLogoOnDark height={22} />
           </span>
           <button
             type="button"
             onClick={() => setRailOpen(false)}
-            className="rounded-md p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-800 dark:hover:bg-ink-800 dark:hover:text-white lg:hidden"
+            className="rounded-md p-1.5 text-ink-400 hover:bg-[#16233D] hover:text-white lg:hidden"
             aria-label="Close menu"
           >
             <IconX width={16} height={16} />
@@ -276,7 +273,7 @@ export function AppShell() {
         <nav className="flex-1 overflow-y-auto px-2.5 py-4">
           {visible.map((group) => (
             <div key={group.section} className="mb-5">
-              <p className="px-2.5 pb-1.5 text-2xs font-semibold uppercase tracking-[0.1em] text-ink-400 dark:text-ink-500">
+              <p className="px-2.5 pb-1.5 text-2xs font-semibold uppercase tracking-[0.1em] text-ink-500">
                 {group.section}
               </p>
               {group.items.map((item) => {
@@ -285,11 +282,11 @@ export function AppShell() {
                 if (locked) {
                   return (
                     <Tooltip key={item.to} content="Upgrade to Standard or above to use this.">
-                      <div className="flex cursor-not-allowed items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-base text-ink-300 dark:text-ink-600">
+                      <div className="flex cursor-not-allowed items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-base text-ink-600">
                         <span className="flex items-center gap-2.5">
                           <span
                             className="h-2 w-2 shrink-0 rounded-full"
-                            style={{ background: '#B8BFC7' }}
+                            style={{ background: '#5A6472' }}
                             aria-hidden="true"
                           />
                           {item.label}
@@ -328,7 +325,7 @@ export function AppShell() {
                       'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-base transition-colors',
                       active
                         ? 'accent-soft-bg accent-text font-semibold'
-                        : 'text-ink-500 hover:bg-ink-100 hover:text-ink-800 dark:text-ink-400 dark:hover:bg-ink-800/60 dark:hover:text-ink-100',
+                        : 'text-ink-400 hover:bg-[#16233D] hover:text-ink-100',
                     )}
                   >
                     {item.icon ? (
@@ -352,14 +349,14 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="border-t border-ink-200 px-4 py-3 dark:border-ink-800">
-          <p className="text-2xs uppercase tracking-[0.1em] text-ink-400 dark:text-ink-500">
+        <div className="border-t border-[#1D2A44] px-4 py-3">
+          <p className="text-2xs uppercase tracking-[0.1em] text-ink-500">
             Signed in as
           </p>
-          <p className="truncate text-sm font-medium text-ink-900 dark:text-ink-100">
+          <p className="truncate text-sm font-medium text-ink-100">
             {user.full_name}
           </p>
-          <p className="truncate text-2xs text-ink-400 dark:text-ink-500">{user.email}</p>
+          <p className="truncate text-2xs text-ink-500">{user.email}</p>
           <div className="mt-1.5 flex items-center gap-1.5">
             <Chip value={user.role}>{ROLE_LABEL[user.role]}</Chip>
             {externalReviewLocked && (
@@ -417,15 +414,6 @@ export function AppShell() {
             >
               <IconRefresh />
             </button>
-            <button
-              type="button"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="btn-ghost p-2"
-              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            >
-              {theme === 'dark' ? <IconSun /> : <IconMoon />}
-            </button>
-
             <div className="relative">
               <button
                 type="button"

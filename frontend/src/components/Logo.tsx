@@ -12,6 +12,31 @@ export function BrandLogo({ height = 28, className }: { height?: number; classNa
 }
 
 /**
+ * Same logo image used everywhere else, wrapped in a soft white backing
+ * plate for permanently-dark surfaces (the sidebar rail). The raster logo's
+ * "Facet" wordmark is set in navy, which disappears with nothing behind it
+ * on a dark navy background — this keeps the original artwork untouched and
+ * just gives it a light card to sit on so it stays legible.
+ */
+export function BrandLogoOnDark({ height = 22, className }: { height?: number; className?: string }) {
+  return (
+    <span
+      className={className}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        height: height + 12,
+        padding: '6px 10px',
+        borderRadius: 8,
+        background: 'rgba(255, 255, 255, 0.94)',
+      }}
+    >
+      <BrandLogo height={height} />
+    </span>
+  )
+}
+
+/**
  * The Facet mark: three planes of a cut gem meeting at a point.
  *
  * It reads as a single object made of distinct faces, which is the product

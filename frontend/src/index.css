@@ -6,16 +6,16 @@
   :root {
     /* Overridden per tenant at runtime from their branding, which is what
        makes the whole app feel like the customer's own tool rather than ours. */
-    --accent: #2f6f62;
-    --accent-soft: rgba(47, 111, 98, 0.12);
+    --accent: #cc6e10;
+    --accent-soft: rgba(204, 110, 16, 0.12);
     color-scheme: light;
   }
 
   .dark {
-    /* Tenants without a custom branding color fall back to a lighter teal
-       that still holds contrast on the dark surfaces below. */
-    --accent: #4fa893;
-    --accent-soft: rgba(79, 168, 147, 0.16);
+    /* Exec-cockpit amber, tuned to hold contrast on the dark navy surfaces
+       below (the app's only theme now that the toggle is gone). */
+    --accent: #e8871e;
+    --accent-soft: rgba(232, 135, 30, 0.16);
     color-scheme: dark;
   }
 
@@ -29,7 +29,7 @@
   }
 
   body {
-    @apply bg-ink-50 text-ink-800 dark:bg-ink-950 dark:text-ink-100;
+    @apply bg-[#FAF8F5] text-ink-800 dark:bg-ink-950 dark:text-ink-100;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01', 'tnum' 0;
   }
 

@@ -26,20 +26,20 @@ export default {
           900: '#12161C',
           950: '#0B0E12',
         },
-        // Forest teal. Calmer than the old copper, reads as trust/growth
-        // rather than boutique-agency warmth, and still holds contrast on
-        // both ink-900 and white.
+        // Exec-cockpit amber. Reads as an alert/attention accent against the
+        // dark navy surfaces — matches the reference dashboard's orange
+        // bars/badges — while still holding contrast on ink-900 and white.
         teal: {
-          50: '#EAF3F1',
-          100: '#D3E6E1',
-          200: '#A9CDC4',
-          300: '#7BB2A6',
-          400: '#4FA893',
-          500: '#2F6F62',
-          600: '#265A50',
-          700: '#1E4F45',
-          800: '#173B34',
-          900: '#102822',
+          50: '#FDF3E9',
+          100: '#FBE4CB',
+          200: '#F5C58E',
+          300: '#EFA55A',
+          400: '#E8871E',
+          500: '#CC6E10',
+          600: '#A8590D',
+          700: '#7E430B',
+          800: '#5A2F08',
+          900: '#3A1E06',
         },
         // Semantic accents for the feedback graph, kept independent of the
         // brand accent so they never fight a tenant's custom color. Internal
