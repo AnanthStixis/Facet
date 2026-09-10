@@ -1,3 +1,4 @@
+import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PerspectiveRing } from '../components/PerspectiveRing'
@@ -16,6 +17,16 @@ import { PageHeader } from '../layout/AppShell'
 import { ApiError, api } from '../lib/api'
 import type { DashboardData } from '../lib/types'
 import { useAuth } from '../store/auth'
+
+// Left accent bar per row — mirrors the reference dashboard's colored strip
+// next to each account/list row (there, keyed off account type; here, off
+// the activity's own severity, which is the equivalent "what kind of row
+// is this" signal we already have).
+const SEVERITY_BAR: Record<string, string> = {
+  info: 'bg-teal-300',
+  notice: 'bg-caution',
+  alert: 'bg-critical',
+}
 
 const formatTime = (iso: string, timezone?: string) =>
   new Intl.DateTimeFormat('en-GB', {
@@ -105,6 +116,7 @@ export function Dashboard() {
             <StatTile
               label="Organizations"
               value={data.platform.orgs_total}
+              tone="info"
               sub={`${data.platform.orgs_active} active`}
               icon={<IconBuilding width={17} height={17} />}
               to="/organizations"
@@ -113,7 +125,7 @@ export function Dashboard() {
             <StatTile
               label="Awaiting approval"
               value={data.platform.orgs_pending}
-              tone={data.platform.orgs_pending > 0 ? 'caution' : 'neutral'}
+              tone={data.platform.orgs_pending > 0 ? 'caution' : 'positive'}
               sub="Self-registered tenants"
               icon={<IconClock width={17} height={17} />}
               to="/organizations?status=pending"
@@ -122,7 +134,7 @@ export function Dashboard() {
             <StatTile
               label="Suspended"
               value={data.platform.orgs_suspended}
-              tone={data.platform.orgs_suspended > 0 ? 'critical' : 'neutral'}
+              tone={data.platform.orgs_suspended > 0 ? 'critical' : 'positive'}
               sub="Access revoked"
               icon={<IconAlert width={17} height={17} />}
               to="/organizations?status=suspended"
@@ -131,6 +143,7 @@ export function Dashboard() {
             <StatTile
               label="Admins"
               value={data.platform.client_admins}
+              tone="accent"
               sub="Across all tenants"
               icon={<IconUsers width={17} height={17} />}
               to="/people?role=client_admin"
@@ -143,6 +156,7 @@ export function Dashboard() {
             <StatTile
               label="People"
               value={data.metrics.users_total}
+              tone="info"
               sub={`${data.metrics.users_active} active`}
               icon={<IconUsers width={17} height={17} />}
               to="/people"
@@ -151,7 +165,7 @@ export function Dashboard() {
             <StatTile
               label="Pending invitations"
               value={data.metrics.users_pending}
-              tone={data.metrics.users_pending > 0 ? 'caution' : 'neutral'}
+              tone={data.metrics.users_pending > 0 ? 'caution' : 'positive'}
               sub="Not yet activated"
               icon={<IconInbox width={17} height={17} />}
               to="/people?status=invited"
@@ -160,6 +174,7 @@ export function Dashboard() {
             <StatTile
               label="External contacts"
               value={data.metrics.contacts}
+              tone="accent"
               sub="Clients and prospects"
               icon={<IconSend width={17} height={17} />}
               to="/clients"
@@ -214,7 +229,7 @@ export function Dashboard() {
             <StatTile
               label="My Reviews"
               value={data.metrics.my_pending_feedback}
-              tone={data.metrics.my_pending_feedback > 0 ? 'accent' : 'neutral'}
+              tone={data.metrics.my_pending_feedback > 0 ? 'accent' : 'positive'}
               sub="Waiting for your response"
               icon={<IconInbox width={17} height={17} />}
               to="/my-feedback"
@@ -223,6 +238,7 @@ export function Dashboard() {
             <StatTile
              label="My Feedbacks"
               value={data.metrics.my_results}
+              tone="info"
               sub="Responses received about you"
               icon={<IconSpark width={17} height={17} />}
               to="/my-results"
@@ -337,13 +353,22 @@ export function Dashboard() {
               ) : (
                 <ul className="divide-y divide-ink-200 dark:divide-ink-800">
                   {data.recent_activity.map((entry) => (
-                    <li key={entry.id} className="flex items-start gap-3 px-5 py-2.5">
-                      <span className="mt-0.5 shrink-0">
-                        <Chip value={entry.severity} />
-                      </span>
+                    <li key={entry.id} className="relative flex items-start gap-3 py-2.5 pl-4 pr-5">
+                      <span
+                        className={clsx(
+                          'absolute inset-y-2.5 left-0 w-[3px] rounded-full',
+                          SEVERITY_BAR[entry.severity] ?? SEVERITY_BAR.info,
+                        )}
+                        aria-hidden="true"
+                      />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm text-ink-800 dark:text-ink-200">
-                          {entry.summary}
+                        <p className="flex items-center gap-2">
+                          <span className="truncate text-sm font-semibold text-[#158C9E] dark:text-ink-200">
+                            {entry.summary}
+                          </span>
+                          <span className="shrink-0">
+                            <Chip value={entry.severity} />
+                          </span>
                         </p>
                         <p className="text-2xs text-ink-400">
                           {entry.actor_name ?? 'System'} &middot;{' '}

@@ -18,13 +18,29 @@ export default {
           100: '#ECEEF1',
           200: '#DDE1E6',
           300: '#C2C8D0',
-          400: '#8A93A0',
-          500: '#5A6472',
+          // Row/list-item label text (sidebar section labels, table sub-
+          // text, list-item captions like "Recent activity"'s timestamp
+          // line) — retuned from a blue-gray to the teal-gray the
+          // reference uses consistently across every list in it, sampled
+          // as an average of 11 row-label swatches (~#6A7F82).
+          400: '#93A5A8',
+          500: '#6A7F82',
           600: '#39414D',
-          700: '#252C36',
-          800: '#181D25',
-          900: '#12161C',
-          950: '#0B0E12',
+          700: '#333B44',
+          // Body/list-item text (Recent activity rows, dropdown options,
+          // card titles) — must stay lighter than 900 so headings still
+          // read as the darkest tier; sampled from the same reference
+          // charcoal family as 900, one step up.
+          800: '#3A434D',
+          // Headings — softened to match the exec-cockpit reference's
+          // heading color (a charcoal-slate rather than near-black),
+          // sampled directly from the reference screenshot.
+          900: '#2B333A',
+          // Dark-theme page background — only ever used as a dark: surface
+          // (never as light-mode text), so retinted to the navy-black
+          // sampled from the dark exec-cockpit reference rather than a
+          // neutral near-black.
+          950: '#0A1F38',
         },
         // Exec-cockpit amber. Reads as an alert/attention accent against the
         // dark navy surfaces — matches the reference dashboard's orange

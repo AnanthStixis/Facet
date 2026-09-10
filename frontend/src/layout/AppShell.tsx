@@ -14,10 +14,12 @@ import {
   IconLayers,
   IconLogout,
   IconMenu,
+  IconMoon,
   IconRefresh,
   IconSettings,
   IconShield,
   IconSpark,
+  IconSun,
   IconTag,
   IconUsers,
   IconX,
@@ -180,7 +182,7 @@ function Initials({ name }: { name: string }) {
 }
 
 export function AppShell() {
-  const { user, organization, logout } = useAuth()
+  const { user, organization, logout, theme, setTheme } = useAuth()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [railOpen, setRailOpen] = useState(false)
@@ -245,25 +247,28 @@ export function AppShell() {
         />
       )}
 
-      {/* Sidebar is permanently dark navy regardless of the (now
-          non-switchable) app theme — matches the exec-cockpit reference,
-          where the rail reads as a fixed console strip and the content area
-          stays light. Static on desktop; an off-canvas drawer below lg. */}
+      {/* Sidebar is always dark, but a different dark in each theme: navy
+          blue in light mode (matches the light exec-cockpit reference),
+          near-black in dark mode (matches the dark reference, where the
+          rail reads noticeably darker than the content panels behind it —
+          not the same navy carried over). Static on desktop; an off-canvas
+          drawer below lg. */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-40 flex w-56 flex-col border-r border-[#1D2A44] bg-[#0F1A30]',
+          'fixed inset-y-0 left-0 z-40 flex w-56 flex-col border-r border-[#03204A] bg-[#052B5E]',
+          'dark:border-[#01070F] dark:bg-[#010D19]',
           'transition-transform duration-200 ease-out lg:translate-x-0',
           railOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex h-14 items-center gap-2.5 border-b border-[#1D2A44] px-4">
+        <div className="flex h-14 items-center gap-2.5 border-b border-[#03204A] px-4 dark:border-[#01070F]">
           <span className="flex-1">
             <BrandLogoOnDark height={22} />
           </span>
           <button
             type="button"
             onClick={() => setRailOpen(false)}
-            className="rounded-md p-1.5 text-ink-400 hover:bg-[#16233D] hover:text-white lg:hidden"
+            className="rounded-md p-1.5 text-ink-400 hover:bg-[#0C3A73] hover:text-white lg:hidden"
             aria-label="Close menu"
           >
             <IconX width={16} height={16} />
@@ -324,12 +329,16 @@ export function AppShell() {
                     className={clsx(
                       'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-base transition-colors',
                       active
-                        ? 'accent-soft-bg accent-text font-semibold'
-                        : 'text-ink-400 hover:bg-[#16233D] hover:text-ink-100',
+                        ? 'bg-[#1B4976] text-white font-semibold'
+                        : 'text-ink-400 hover:bg-[#0C3A73] hover:text-ink-100',
                     )}
                   >
                     {item.icon ? (
-                      <item.icon width={16} height={16} className="shrink-0" />
+                      <item.icon
+                        width={16}
+                        height={16}
+                        className={clsx('shrink-0', active && 'accent-text')}
+                      />
                     ) : (
                       <span
                         className="h-2 w-2 shrink-0 rounded-full"
@@ -337,11 +346,7 @@ export function AppShell() {
                         aria-hidden="true"
                       />
                     )}
-                    {item.to === '/results' ? (
-                      <span className="accent-text font-bold">{item.label}</span>
-                    ) : (
-                      item.label
-                    )}
+                    {item.label}
                   </NavLink>
                 )
               })}
@@ -349,7 +354,7 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="border-t border-[#1D2A44] px-4 py-3">
+        <div className="border-t border-[#03204A] px-4 py-3 dark:border-[#01070F]">
           <p className="text-2xs uppercase tracking-[0.1em] text-ink-500">
             Signed in as
           </p>
@@ -372,7 +377,7 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-56">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-ink-200 bg-white/85 px-4 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/85 sm:px-6">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-ink-200 bg-white/85 px-4 backdrop-blur-md dark:border-[#1B3A5C] dark:bg-[#0A1F38]/85 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -414,6 +419,15 @@ export function AppShell() {
             >
               <IconRefresh />
             </button>
+            <button
+              type="button"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="btn-ghost p-2"
+              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              {theme === 'dark' ? <IconSun /> : <IconMoon />}
+            </button>
+
             <div className="relative">
               <button
                 type="button"
@@ -426,7 +440,7 @@ export function AppShell() {
                 createPortal(
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                    <div className="fixed right-4 top-14 z-40 mt-1.5 w-60 rounded-lg border border-ink-200 bg-white p-1.5 shadow-lift dark:border-ink-700 dark:bg-ink-900 sm:right-6">
+                    <div className="fixed right-4 top-14 z-40 mt-1.5 w-60 rounded-lg border border-ink-200 bg-white p-1.5 shadow-lift dark:border-[#1B3A5C] dark:bg-[#0D2440] sm:right-6">
                       <div className="px-2.5 py-2">
                         <p className="text-sm font-medium text-ink-900 dark:text-ink-50">
                           {user.full_name}

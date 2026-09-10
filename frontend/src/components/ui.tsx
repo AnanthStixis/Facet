@@ -46,10 +46,16 @@ export function Card({
 }
 
 const TILE_BADGE_TONE: Record<string, string> = {
+  // 'neutral' is kept only as a fallback for callers that don't pass a
+  // tone — every StatTile in the app now picks a meaningful color instead
+  // (see Dashboard.tsx), matching the reference's colored icon badges
+  // rather than the flat gray-on-gray look this used to default to.
   neutral: 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',
   accent: 'accent-soft-bg accent-text',
   caution: 'bg-caution/12 text-caution',
   critical: 'bg-critical/12 text-critical',
+  positive: 'bg-positive/12 text-positive',
+  info: 'internal-soft-bg text-internal',
 }
 
 export function StatTile({
@@ -68,7 +74,7 @@ export function StatTile({
   label: string
   value: ReactNode
   sub?: ReactNode
-  tone?: 'neutral' | 'accent' | 'caution' | 'critical'
+  tone?: 'neutral' | 'accent' | 'caution' | 'critical' | 'positive' | 'info'
   icon?: ReactNode
   to?: string
   state?: Record<string, unknown>
@@ -194,18 +200,71 @@ export function StatTile({
   )
 }
 
+const TONE_POSITIVE = 'bg-positive/10 text-positive'
+const TONE_CAUTION = 'bg-caution/12 text-caution'
+const TONE_CRITICAL = 'bg-critical/10 text-critical'
+const TONE_NEUTRAL = 'bg-ink-200 text-ink-500 dark:bg-ink-800 dark:text-ink-400'
+const TONE_INFO = 'internal-soft-bg text-internal'
+
+// Every status/stage value that reaches a <Chip> anywhere in the app,
+// grouped by what it should read as at a glance — done/good (positive),
+// needs a decision or is in flight (caution), gone/failed/blocked
+// (critical), or just informational (info). Anything not listed here
+// (mostly free-form audit-log verbs) falls back to TONE_NEUTRAL rather than
+// silently inheriting whatever 'info' happens to mean, so adding a new
+// status elsewhere in the app doesn't accidentally recolor unrelated chips.
 const CHIP_TONES: Record<string, string> = {
-  active: 'bg-positive/10 text-positive',
-  published: 'bg-positive/10 text-positive',
-  pending: 'bg-caution/12 text-caution',
-  invited: 'bg-caution/12 text-caution',
-  suspended: 'bg-critical/10 text-critical',
-  rejected: 'bg-critical/10 text-critical',
-  disabled: 'bg-ink-200 text-ink-500 dark:bg-ink-800 dark:text-ink-400',
-  alert: 'bg-critical/10 text-critical',
-  notice: 'bg-caution/12 text-caution',
-  info: 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',
-  super_admin: 'internal-soft-bg text-internal',
+  // OrgStatus / generic active-disabled pattern (templates, categories,
+  // master data rows, contacts)
+  active: TONE_POSITIVE,
+  enabled: TONE_POSITIVE,
+  published: TONE_POSITIVE,
+  approved: TONE_POSITIVE,
+  reactivated: TONE_POSITIVE,
+  pending: TONE_CAUTION,
+  invited: TONE_CAUTION,
+  suspended: TONE_CRITICAL,
+  rejected: TONE_CRITICAL,
+  disabled: TONE_NEUTRAL,
+  unsubscribed: TONE_NEUTRAL,
+
+  // CycleStatus / campaign status — "open" reads as still awaiting
+  // responses (an outstanding action, like pending/invited) rather than
+  // merely informational, so it shares the caution tone; "closed" is the
+  // done state and stays positive.
+  draft: TONE_NEUTRAL,
+  open: TONE_CAUTION,
+  closed: TONE_POSITIVE,
+  cancelled: TONE_CRITICAL,
+
+  // ProposalStage
+  submitted: TONE_INFO,
+  shortlisted: TONE_CAUTION,
+  won: TONE_POSITIVE,
+  lost: TONE_CRITICAL,
+  withdrawn: TONE_NEUTRAL,
+
+  // RecipientStatus (external campaign delivery)
+  sent: TONE_INFO,
+  opened: TONE_CAUTION,
+  bounced: TONE_CRITICAL,
+  expired: TONE_NEUTRAL,
+  revoked: TONE_CRITICAL,
+
+  // AssignmentStatus
+  in_progress: TONE_CAUTION,
+  declined: TONE_CRITICAL,
+
+  // UserStatus
+  deleted: TONE_CRITICAL,
+
+  // Dashboard activity severity + generic fallback tag
+  alert: TONE_CRITICAL,
+  notice: TONE_CAUTION,
+  info: TONE_INFO,
+
+  // Roles
+  super_admin: TONE_INFO,
   client_admin: 'accent-soft-bg accent-text',
   manager: 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300',
   employee: 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',
@@ -214,7 +273,7 @@ const CHIP_TONES: Record<string, string> = {
 export function Chip({ value, children }: { value: string; children?: ReactNode }) {
   const key = String(value ?? '').toLowerCase()
   return (
-    <span className={clsx('chip', CHIP_TONES[key] ?? CHIP_TONES.info)}>
+    <span className={clsx('chip', CHIP_TONES[key] ?? TONE_NEUTRAL)}>
       {children ?? key.replace(/_/g, ' ')}
     </span>
   )

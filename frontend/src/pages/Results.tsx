@@ -133,10 +133,14 @@ function formatDateTime(value: string | null) {
 
 function ProgressBar({ total, responded }: { total: number; responded: number }) {
   const pct = total > 0 ? Math.round((responded / total) * 100) : 0
+  // Fully responded reads as done (positive teal-green); anything still
+  // outstanding stays in the accent orange so a glance down the column
+  // shows which rows still need chasing.
+  const fillClass = pct >= 100 ? 'bg-positive' : 'accent-bg'
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ink-200 dark:bg-ink-800">
-        <div className="accent-bg h-full" style={{ width: `${pct}%` }} />
+        <div className={clsx('h-full', fillClass)} style={{ width: `${pct}%` }} />
       </div>
       <span className="tabular text-xs text-ink-500 dark:text-ink-400">
         {responded}/{total}
