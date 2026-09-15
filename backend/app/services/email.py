@@ -471,10 +471,52 @@ async def send_assignment_notice(
     branding: Branding,
     external: bool = False,
     target_type: str | TargetType | None = None,
+    subject_template: str | None = None,
+    heading_override: str | None = None,
+    body_override: str | None = None,
 ) -> bool:
+    """Tell an internal reviewer they've been assigned.
+
+    `heading_override`/`body_override` work exactly as they do on
+    `send_feedback_request` — see that function's docstring. The due-date
+    clause, CTA/link, and footer are still always appended here, never
+    supplied by the template.
+    """
     first_name = _first_name(full_name)
     when = f" It closes on {due_at.strftime('%d %B')}." if due_at else ""
     noun = _person_review_noun(target_type)
+
+    if body_override is not None:
+        placeholders = {
+            "org_name": org_name,
+            "subject_label": subject_label,
+            "first_name": first_name,
+            "cycle_name": cycle_name,
+        }
+        subject = "Feedback Request"
+        if subject_template:
+            subject = _safe_format(subject_template, **placeholders)
+        heading = _safe_format(heading_override, **placeholders) if heading_override else ""
+        message = _safe_format(body_override, **placeholders)
+        closing = (
+            "It takes just a couple of minutes to complete — the link below "
+            "will sign you in automatically."
+            if external
+            else "It takes just a couple of minutes to complete."
+        )
+        body_html = (
+            f"{escape(message).replace(chr(10), '<br>')}{escape(when)}<br><br>{escape(closing)}"
+        )
+        body_text = f"{message}{when}\n\n{closing}"
+        return await send(
+            to=to,
+            subject=subject,
+            heading=heading,
+            body_html=body_html,
+            body_text=body_text,
+            branding=branding,
+            cta=("Give feedback", link),
+        )
 
     if noun is not None:
         opening_html = (

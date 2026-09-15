@@ -45,6 +45,7 @@ from app.models.user import User
 from app.services import campaigns as campaign_service
 from app.services import cycles as cycle_service
 from app.services import email as email_service
+from app.services import email_templates as email_template_service
 from app.core import security
 
 FeedbackKind = Literal[
@@ -147,6 +148,16 @@ def _org_branding(org: Organization) -> email_service.Branding:
     )
 
 
+_TARGET_TYPE_BY_KIND: dict[FeedbackKind, TargetType] = {
+    "employee": TargetType.EMPLOYEE,
+    "management": TargetType.MANAGER,
+    "client": TargetType.CLIENT,
+    "product": TargetType.PRODUCT,
+    "service": TargetType.SERVICE,
+    "proposal": TargetType.PROPOSAL,
+}
+
+
 async def _notify_new_assignments(
     session: AsyncSession,
     *,
@@ -154,6 +165,7 @@ async def _notify_new_assignments(
     cycle: ReviewCycle,
     assignments: list[FeedbackAssignment],
     subject_label: str,
+    kind: FeedbackKind,
 ) -> list[str]:
     """One "you have been asked" email per assignment, additional to — never
     instead of — the "My feedback" queue entry each one already has the
@@ -166,6 +178,12 @@ async def _notify_new_assignments(
     security property `campaign_recipients.token_hash` already gives
     external respondents, rather than trusting the assignment's plain
     database id to be secret.
+
+    `kind` resolves the org's active `EmailTemplate` (falling back to the
+    platform default) the same way campaigns.py does for external sends —
+    this is the internal-audience half of that same feature; without it, an
+    org's active template would only ever apply to external campaign
+    recipients, never to its own staff being assigned an internal review.
     """
     if not assignments:
         return []
@@ -179,6 +197,7 @@ async def _notify_new_assignments(
         )
     }
     branding = _org_branding(org)
+    template = await email_template_service.resolve(session, org_id=org.id, kind=kind)
     warnings: list[str] = []
     for assignment in assignments:
         reviewer = reviewers.get(assignment.reviewer_user_id)
@@ -195,6 +214,10 @@ async def _notify_new_assignments(
             link=f"{settings.public_app_url}/give-feedback/{raw_token}",
             due_at=cycle.closes_at,
             branding=branding,
+            target_type=_TARGET_TYPE_BY_KIND.get(kind),
+            subject_template=template.subject_template if template else None,
+            heading_override=template.heading if template else None,
+            body_override=template.body_text if template else None,
         )
         if not sent:
             warnings.append(f"Could not email {reviewer.full_name}.")
@@ -340,6 +363,7 @@ async def create_and_send(
                     cycle=cycle,
                     assignments=result.created_assignments,
                     subject_label=reviewee.full_name,
+                    kind=kind,
                 )
             )
 
@@ -410,7 +434,8 @@ async def create_and_send(
 
         warnings.extend(
             await _notify_new_assignments(
-                session, org=org, cycle=cycle, assignments=new_assignments, subject_label=label
+                session, org=org, cycle=cycle, assignments=new_assignments, subject_label=label,
+                kind=kind,
             )
         )
 
