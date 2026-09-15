@@ -25,6 +25,7 @@ import { Security } from './pages/Security'
 import { Settings } from './pages/Settings'
 import { Categories } from './pages/Categories'
 import { Templates } from './pages/Templates'
+import { EmailTemplates } from './pages/EmailTemplates'
 import { useAuth } from './store/auth'
 import { AssignmentFeedback } from './pages/AssignmentFeedback'
 
@@ -225,6 +226,7 @@ export default function App() {
         />
         <Route path="categories" element={<Categories />} />
         <Route path="templates" element={<Templates />} />
+        <Route path="email-templates" element={<EmailTemplates />} />
         <Route
           path="clients"
           element={

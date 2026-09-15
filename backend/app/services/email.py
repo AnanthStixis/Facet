@@ -69,6 +69,17 @@ def _hours_label(hours: int) -> str:
     is ever configured to 1 (as it currently is for local testing)."""
     return f"{hours} hour" if hours == 1 else f"{hours} hours"
 
+def _safe_format(template: str, **placeholders: str) -> str:
+    """`template.format(**placeholders)`, but a customer-authored template
+    containing a stray `{` or an unknown `{placeholder}` renders literally
+    instead of throwing — the same tolerance `subject_template` has always
+    had, extended to the heading/body a template can now also override."""
+    try:
+        return template.format(**placeholders)
+    except (KeyError, IndexError):
+        return template
+
+
 def _first_name(name: str) -> str:
     """First word of a name, capitalized if it wasn't already — a name
     stored all-lowercase (e.g. typed that way at signup) would otherwise
@@ -276,6 +287,38 @@ def render_preview(
     return {"subject": subject, "html": _shell(branding, heading, body_html, cta)}
 
 
+_PREVIEW_PLACEHOLDERS = {
+    "org_name": "",  # filled in per-call from branding.org_name
+    "subject_label": "Acme Renewal Q4",
+    "first_name": "Jordan",
+    "deadline": "30 September 2026",
+}
+
+
+def render_email_template_preview(
+    *,
+    branding: Branding,
+    subject_template: str,
+    heading: str,
+    body_text: str,
+) -> dict[str, str]:
+    """Render a draft `EmailTemplate` (saved or not) exactly as
+    `send_feedback_request` would, with sample recipient/subject-matter
+    names — so the Email Templates editor can show a live preview, including
+    of the fixed expiry/CTA/footer a template never controls."""
+    placeholders = {**_PREVIEW_PLACEHOLDERS, "org_name": branding.org_name}
+    subject = _safe_format(subject_template, **placeholders) if subject_template else "Feedback Request"
+    heading_rendered = _safe_format(heading, **placeholders) if heading else ""
+    message = _safe_format(body_text, **placeholders)
+    deadline = placeholders["deadline"]
+    body_html = (
+        f"{escape(message).replace(chr(10), '<br>')}<br><br>"
+        f"This link will expire on {escape(deadline)}."
+    )
+    cta = ("Give Feedback", "https://example.com/f/sample-token")
+    return {"subject": subject, "html": _shell(branding, heading_rendered, body_html, cta)}
+
+
 async def send_feedback_request(
     *,
     to: str,
@@ -287,6 +330,8 @@ async def send_feedback_request(
     branding: Branding,
     target_type: str | TargetType | None = None,
     subject_template: str | None = None,
+    heading_override: str | None = None,
+    body_override: str | None = None,
 ) -> bool:
     """Invite an external contact to give feedback.
 
@@ -295,14 +340,24 @@ async def send_feedback_request(
     gets deleted unread, which is the difference between a 40% response rate
     and a 4% one.
 
-    `target_type` picks the copy: `subject_label` is a *thing with which the
-    recipient has an experience* (a client relationship, a product, a
-    service) for most target types, but for employee, manager, team, and
-    department targets it names a *person or group being reviewed*, and the
-    wording switches accordingly. An unrecognised or missing target_type
-    falls back to the original client-style copy rather than raising, since a
-    caller passing a still-valid but newly-added TargetType should degrade
-    gracefully, not break the send.
+    `target_type` picks the default copy: `subject_label` is a *thing with
+    which the recipient has an experience* (a client relationship, a
+    product, a service) for most target types, but for employee, manager,
+    team, and department targets it names a *person or group being
+    reviewed*, and the wording switches accordingly. An unrecognised or
+    missing target_type falls back to the original client-style copy rather
+    than raising, since a caller passing a still-valid but newly-added
+    TargetType should degrade gracefully, not break the send.
+
+    `heading_override`/`body_override` come from the caller's resolved
+    `EmailTemplate` (see app/services/email_templates.py) and, when given,
+    replace the target-type-derived heading and message paragraph entirely
+    — the message is the whole body, salutation included if the author
+    wants one (`{first_name}` is offered as a placeholder for exactly that).
+    Only the expiry line, the CTA button and link, and the footer are still
+    always appended by this function, never by the template, so an org can
+    personalize the pitch without ever being able to drop the link or the
+    legal footer.
     """
     import re
 
@@ -310,9 +365,29 @@ async def send_feedback_request(
     deadline = expires_at.strftime("%d %B %Y")
     subject_label = re.sub(r"\s*\([^)]*\)\s*$", "", subject_label).strip()
 
+    placeholders = {
+        "org_name": org_name,
+        "subject_label": subject_label,
+        "first_name": first_name,
+        "deadline": deadline,
+    }
+
     noun = _person_review_noun(target_type)
 
-    if noun is not None:
+    if body_override is not None:
+        subject = "Feedback Request" if noun is not None else "Please Share Your Feedback"
+        if subject_template:
+            subject = _safe_format(subject_template, **placeholders)
+        heading = _safe_format(heading_override, **placeholders) if heading_override else ""
+        message = _safe_format(body_override, **placeholders)
+        body_html = (
+            f"{escape(message).replace(chr(10), '<br>')}<br><br>"
+            f"This link will expire on {escape(deadline)}."
+        )
+        body_text = (
+            f"{message}\n\nThis link will expire on {deadline}."
+        )
+    elif noun is not None:
         subject = "Feedback Request"
         if subject_template:
             try:

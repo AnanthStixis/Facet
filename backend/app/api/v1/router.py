@@ -9,6 +9,7 @@ from app.api.v1 import (
     catalog,
     cycles,
     dashboard,
+    email_templates,
     feedback,
     insights,
     lookup,
@@ -48,3 +49,4 @@ api_router.include_router(masters.products_router)
 api_router.include_router(masters.services_router)
 api_router.include_router(reports.router)
 api_router.include_router(settings_api.router)
+api_router.include_router(email_templates.router)

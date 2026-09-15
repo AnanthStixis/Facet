@@ -202,6 +202,13 @@ export const IconSend = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export const IconMail = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M4 5.5h16a1 1 0 0 1 1 1V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1Z" />
+    <path d="m3.5 6 8.5 6.5L20.5 6" />
+  </svg>
+)
+
 export const IconInbox = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M3 13h5l1.5 3h5L16 13h5" />

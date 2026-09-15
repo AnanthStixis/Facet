@@ -213,3 +213,29 @@ export interface Paged<T> {
   page: number
   page_size: number
 }
+
+export type EmailTemplateKind =
+  | 'client'
+  | 'employee'
+  | 'management'
+  | 'product'
+  | 'service'
+  | 'proposal'
+
+export interface EmailTemplateOut {
+  id: string
+  kind: EmailTemplateKind
+  scope: 'global' | 'org'
+  name: string
+  subject_template: string
+  heading: string
+  body_text: string
+  is_active: boolean
+  updated_at: string
+}
+
+export interface EmailTemplateLibrary {
+  kind: EmailTemplateKind
+  global_template: EmailTemplateOut
+  org_templates: EmailTemplateOut[]
+}

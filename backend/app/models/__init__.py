@@ -11,6 +11,7 @@ from app.models.analytics import AnalyticsModel
 from app.models.campaign import CampaignRecipient
 from app.models.insight import AiInsight
 from app.models.cycle import FeedbackAssignment, FeedbackResponse, ReviewCycle
+from app.models.email_template import EmailTemplate
 from app.models.catalog import (
     Category,
     Contact,
@@ -33,6 +34,7 @@ __all__ = [
     "Contact",
     "CycleName",
     "Department",
+    "EmailTemplate",
     "FeedbackAssignment",
     "FeedbackResponse",
     "FeedbackTarget",

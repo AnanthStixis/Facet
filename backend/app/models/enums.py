@@ -99,6 +99,24 @@ class TemplateScope(StrEnum):
     ORG = "org"         # authored or cloned by a client organization
 
 
+class EmailTemplateKind(StrEnum):
+    """Which review kind a feedback-request email's copy is for.
+
+    Deliberately the same six identifiers CreateFeedback.tsx and
+    feedback.py's `_kind_of()` already use for a review round, rather than
+    the finer-grained `TargetType` — an org customizes its invite copy per
+    kind of review it runs, not per internal TargetType distinction its
+    recipients never see.
+    """
+
+    CLIENT = "client"
+    EMPLOYEE = "employee"
+    MANAGEMENT = "management"
+    PRODUCT = "product"
+    SERVICE = "service"
+    PROPOSAL = "proposal"
+
+
 class CycleStatus(StrEnum):
     DRAFT = "draft"       # being set up, assignments editable
     OPEN = "open"         # reviewers can submit
@@ -337,6 +355,9 @@ class AuditAction(StrEnum):
 
     REPORT_EXPORTED = "report.exported"
     AI_INSIGHT_GENERATED = "ai.insight_generated"
+
+    EMAIL_TEMPLATE_UPDATED = "email_template.updated"
+    EMAIL_TEMPLATE_RESET = "email_template.reset"
 
 
 class AuditSeverity(StrEnum):

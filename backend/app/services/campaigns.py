@@ -16,16 +16,30 @@ from app.core.security import generate_token, hash_token
 from app.models.campaign import CampaignRecipient
 from app.models.catalog import Contact, FeedbackTarget
 from app.models.cycle import ReviewCycle
-from app.models.enums import CycleStatus, RecipientStatus
+from app.models.email_template import EmailTemplate
+from app.models.enums import CycleStatus, EmailTemplateKind, RecipientStatus
 from app.models.organization import Organization
 from app.schemas.settings import OrgSettings
 from app.services import email as email_service
+from app.services import email_templates as email_template_service
 
 log = get_logger("facet.campaigns")
 
 # Bulk sends are chunked so one enormous cohort cannot monopolise a worker or
 # trip a provider's per-connection limits.
 SEND_CHUNK = 50
+
+# Every target_type a campaign (i.e. an EXTERNAL-audience cycle) can carry —
+# mirrors feedback.py's own `_EXTERNAL_KIND_BY_TARGET_TYPE`, kept as a
+# separate copy here rather than a shared import because the two modules'
+# private mappings are already precedent for this in this codebase, and an
+# EmailTemplateKind import cycle isn't worth introducing to save four lines.
+_EMAIL_TEMPLATE_KIND_BY_TARGET_TYPE = {
+    "client": EmailTemplateKind.CLIENT,
+    "product": EmailTemplateKind.PRODUCT,
+    "service": EmailTemplateKind.SERVICE,
+    "proposal": EmailTemplateKind.PROPOSAL,
+}
 
 
 @dataclass(slots=True)
@@ -202,7 +216,16 @@ async def send_pending(
         ),
         footer_note=org.branding.email_footer_note if org.branding else None,
     )
+    # Only used when no EmailTemplate matches at all (kinds this mapping
+    # doesn't cover, or the row was somehow deactivated) — the pre-template
+    # per-org subject override this feature supersedes for every kind it
+    # does cover.
     feedback_request_subject = OrgSettings.load(org.settings).email.feedback_request_subject
+
+    # One lookup per kind actually present in this batch, not one per
+    # recipient — a campaign's targets are usually all the same kind, and
+    # even a mixed batch has at most four.
+    template_by_kind: dict[EmailTemplateKind, EmailTemplate | None] = {}
 
     sent = 0
     failed = 0
@@ -223,6 +246,15 @@ async def send_pending(
         recipient.token_hash = hash_token(raw_token)
         recipient.send_attempts += 1
 
+        email_kind = _EMAIL_TEMPLATE_KIND_BY_TARGET_TYPE.get(str(target.target_type))
+        template = None
+        if email_kind is not None:
+            if email_kind not in template_by_kind:
+                template_by_kind[email_kind] = await email_template_service.resolve(
+                    session, org_id=org.id, kind=email_kind
+                )
+            template = template_by_kind[email_kind]
+
         ok = await email_service.send_feedback_request(
             to=contact.email,
             full_name=contact.full_name,
@@ -232,7 +264,11 @@ async def send_pending(
             expires_at=recipient.expires_at,
             branding=branding,
             target_type=str(target.target_type),
-            subject_template=feedback_request_subject,
+            subject_template=(
+                template.subject_template if template else feedback_request_subject
+            ),
+            heading_override=template.heading if template else None,
+            body_override=template.body_text if template else None,
         )
         if ok:
             recipient.status = RecipientStatus.SENT
