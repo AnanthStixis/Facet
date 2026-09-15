@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { IconTrash } from '../components/icons'
 import { Banner, Card, Chip, ConfirmDialog, Modal, Skeleton, Spinner, Switch } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -45,35 +45,116 @@ function toDraft(source: EmailTemplateOut): Draft {
 
 const EMPTY_DRAFT: Draft = { name: '', subject_template: '', heading: '', body_text: '' }
 
-function TextAreaField({
-  label,
-  hint,
+
+// ---------------------------------------------------------------------------
+// Placeholder insert chips — friendly label in, correct {token} out.
+//
+// The admin never types a raw token (and so can't misspell one into a silent
+// send-time failure); they click a labelled chip and the exact token lands at
+// the cursor. Which chips appear depends on the review kind, because the two
+// send paths fill different context (verified against services/email.py):
+//   internal (employee, management):      first_name, org_name, subject_label, cycle_name
+//   external (client/product/service/proposal): first_name, org_name, subject_label, deadline
+//
+// TEMPORARY SOURCE. This is a second copy of a list the backend already holds
+// inline (in those two send dicts). It stays here only until the backend
+// exposes it as one source of truth (planned GET
+// /email-templates/{kind}/placeholders). When that lands, replace chipsForKind
+// with a fetch — nothing else here changes, since the UI below only ever
+// consumes {token,label} pairs.
+// ---------------------------------------------------------------------------
+interface PlaceholderChip {
+  token: string
+  label: string
+}
+
+// AFTER
+// The one place a placeholder token maps to its friendly label. Both the
+// insert chips and the read-only humanizer below read from this, so a label
+// is defined once and can't drift between the editor and the list views.
+const TOKEN_LABELS: Record<string, string> = {
+  '{first_name}': "Recipient's first name",
+  '{org_name}': 'Organization name',
+  '{subject_label}': 'Feedback topic',
+  '{cycle_name}': 'Name of this review round',
+  '{deadline}': 'Feedback deadline',
+}
+
+const chip = (token: string): PlaceholderChip => ({ token, label: TOKEN_LABELS[token] ?? token })
+
+// Replace every known {token} in read-only text with its friendly label, so
+// list/summary views never show raw {cycle_name} syntax to an admin. The
+// stored value is never changed — this is display-only.
+function humanizeTokens(text: string): string {
+  return text.replace(/\{[a-zA-Z_]+\}/g, (match) => {
+    const label = TOKEN_LABELS[match]
+    return label ? `[${label}]` : match
+  })
+}
+
+const SHARED_CHIPS: PlaceholderChip[] = [chip('{first_name}'), chip('{org_name}'), chip('{subject_label}')]
+const INTERNAL_KINDS: EmailTemplateKind[] = ['employee', 'management']
+
+function chipsForKind(kind: EmailTemplateKind): PlaceholderChip[] {
+  // {deadline} is intentionally not offered as a chip — the expiry date is
+  // always appended automatically below the message, so letting an admin
+  // insert it into the body would be redundant and contradictory.
+  return INTERNAL_KINDS.includes(kind)
+    ? [...SHARED_CHIPS, chip('{cycle_name}')]
+    : [...SHARED_CHIPS]
+}
+
+// Insert `token` at the field's caret (not the end), then restore focus with
+// the caret just past what was inserted. requestAnimationFrame is required:
+// the value change is a React state update, so at onClick time the DOM node
+// still holds the old text and selection — we reposition on the next frame,
+// after React has committed the new value.
+function insertToken(
+  el: HTMLInputElement | HTMLTextAreaElement | null,
+  value: string,
+  onChange: (next: string) => void,
+  token: string,
+) {
+  if (!el) {
+    onChange(value + token)
+    return
+  }
+  const start = el.selectionStart ?? value.length
+  const end = el.selectionEnd ?? value.length
+  onChange(value.slice(0, start) + token + value.slice(end))
+  const caret = start + token.length
+  requestAnimationFrame(() => {
+    el.focus()
+    el.setSelectionRange(caret, caret)
+  })
+}
+
+function PlaceholderChips({
+  kind,
+  getEl,
   value,
   onChange,
-  rows = 5,
-  maxLength,
 }: {
-  label: string
-  hint?: string
+  kind: EmailTemplateKind
+  getEl: () => HTMLInputElement | HTMLTextAreaElement | null
   value: string
-  onChange: (value: string) => void
-  rows?: number
-  maxLength?: number
+  onChange: (next: string) => void
 }) {
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-        {label}
-      </span>
-      <textarea
-        className="field resize-y"
-        rows={rows}
-        maxLength={maxLength}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      {hint && <span className="mt-1 block text-xs text-ink-400">{hint}</span>}
-    </label>
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="text-xs text-ink-400">Insert:</span>
+      {chipsForKind(kind).map((chip) => (
+        <button
+          key={chip.token}
+          type="button"
+          title={`Inserts ${chip.token}`}
+          onClick={() => insertToken(getEl(), value, onChange, chip.token)}
+          className="rounded-full border border-ink-200 px-2 py-0.5 text-xs text-ink-600 transition hover:border-ink-300 hover:bg-ink-50 dark:border-ink-700 dark:text-ink-300 dark:hover:bg-ink-800"
+        >
+          + {chip.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -93,6 +174,21 @@ function TemplateForm({
   const toast = useToast()
   const [previewing, setPreviewing] = useState(false)
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null)
+  const subjectRef = useRef<HTMLInputElement>(null)
+  const headingRef = useRef<HTMLInputElement>(null)
+  const messageRef = useRef<HTMLTextAreaElement>(null)
+  const [touched, setTouched] = useState<{ name: boolean; subject: boolean; body: boolean }>({
+    name: false,
+    subject: false,
+    body: false,
+  })
+  const markTouched = (field: 'name' | 'subject' | 'body') =>
+    setTouched((prev) => ({ ...prev, [field]: true }))
+  const errors = {
+    name: touched.name && !draft.name.trim() ? 'Template name is required' : '',
+    subject: touched.subject && !draft.subject_template.trim() ? 'Subject is required' : '',
+    body: touched.body && !draft.body_text.trim() ? 'Message is required' : '',
+  }
 
   const runPreview = async () => {
     setPreviewing(true)
@@ -128,62 +224,109 @@ function TemplateForm({
         {meta.label}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         {!readOnly && (
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-              Template name
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+              Template name <span className="text-red-500">*</span>
             </span>
             <input
-              className="field"
+              className={`field${errors.name ? ' border-red-400' : ''}`}
               maxLength={150}
               value={draft.name}
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+              onBlur={() => markTouched('name')}
+              aria-invalid={errors.name ? true : undefined}
               placeholder="e.g. Formal pitch"
             />
+            {errors.name && (
+              <span className="mt-1 block text-xs text-red-500">{errors.name}</span>
+            )}
           </label>
         )}
 
         <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-            Subject
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Subject <span className="text-red-500">*</span>
           </span>
           <input
-            className="field"
+            className={`field${errors.subject ? ' border-red-400' : ''}`}
             maxLength={200}
+            ref={subjectRef}
+            placeholder="e.g. Please share your feedback"
             value={draft.subject_template}
             disabled={readOnly}
             onChange={(event) => setDraft({ ...draft, subject_template: event.target.value })}
+            onBlur={() => markTouched('subject')}
+            aria-invalid={errors.subject ? true : undefined}
           />
-          <span className="mt-1 block text-xs text-ink-400">
-            Placeholders: {'{org_name}'}, {'{subject_label}'}
-          </span>
+          {errors.subject && (
+            <span className="mt-1 block text-xs text-red-500">{errors.subject}</span>
+          )}
+          {!readOnly && (
+            <PlaceholderChips
+              kind={kind}
+              getEl={() => subjectRef.current}
+              value={draft.subject_template}
+              onChange={(next) => setDraft({ ...draft, subject_template: next })}
+            />
+          )}
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
             Heading (optional)
           </span>
           <input
             className="field"
             maxLength={200}
+            ref={headingRef}
+            placeholder="e.g. Share your feedback"
             value={draft.heading}
             disabled={readOnly}
             onChange={(event) => setDraft({ ...draft, heading: event.target.value })}
           />
+          {!readOnly && (
+            <PlaceholderChips
+              kind={kind}
+              getEl={() => headingRef.current}
+              value={draft.heading}
+              onChange={(next) => setDraft({ ...draft, heading: next })}
+            />
+          )}
         </label>
 
-        <TextAreaField
-          label="Message"
-          hint={
-            'Placeholders: {org_name}, {subject_label}, {first_name}. ' +
-            'The link, expiry date, and footer are always added automatically below this.'
-          }
-          rows={6}
-          maxLength={4000}
-          value={draft.body_text}
-          onChange={(value) => setDraft({ ...draft, body_text: value })}
-        />
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Message <span className="text-red-500">*</span>
+          </span>
+          <textarea
+            className={`field resize-y${errors.body ? ' border-red-400' : ''}`}
+            rows={6}
+            maxLength={4000}
+            ref={messageRef}
+            placeholder="Type the email message here…"
+            value={draft.body_text}
+            disabled={readOnly}
+            onChange={(event) => setDraft({ ...draft, body_text: event.target.value })}
+            onBlur={() => markTouched('body')}
+            aria-invalid={errors.body ? true : undefined}
+          />
+          {errors.body && (
+            <span className="mt-1 block text-xs text-red-500">{errors.body}</span>
+          )}
+          <span className="mt-1 block text-xs text-ink-400">
+            The link, expiry date, and footer are always added automatically below this.
+          </span>
+          {!readOnly && (
+            <PlaceholderChips
+              kind={kind}
+              getEl={() => messageRef.current}
+              value={draft.body_text}
+              onChange={(next) => setDraft({ ...draft, body_text: next })}
+            />
+          )}
+        </label>
       </div>
 
       <div className="mt-4">
@@ -203,7 +346,7 @@ function TemplateForm({
           title="Email preview"
           hint={`Subject: ${preview.subject}`}
           onClose={() => setPreview(null)}
-          className="max-w-xl"
+          className="max-w-2xl"
         >
           <iframe
             title="Email preview"
@@ -398,7 +541,7 @@ function SuperAdminView() {
                       </span>
                     </td>
                     <td className="max-w-sm truncate text-ink-500 dark:text-ink-400">
-                      {source.subject_template}
+                      {humanizeTokens(source.subject_template)}
                     </td>
                     <td>
                       <div className="flex items-center justify-end">
@@ -454,7 +597,6 @@ function OrgAdminView() {
   useEffect(load, [kind])
 
   const anyOrgActive = (library?.org_templates ?? []).some((t) => t.is_active)
-  const currentlyActive = (library?.org_templates ?? []).find((t) => t.is_active) ?? null
 
   // Deactivating never affects another row, so it applies immediately.
   // Activating replaces whichever template was active — that side effect
@@ -517,8 +659,8 @@ function OrgAdminView() {
     <>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-ink-700 dark:text-ink-200">
-            Review kind
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Review Type
           </span>
           <select
             className="field w-64"
@@ -574,7 +716,7 @@ function OrgAdminView() {
                   </span>
                 </td>
                 <td className="max-w-sm truncate text-ink-500 dark:text-ink-400">
-                  {library.global_template.subject_template}
+                  {humanizeTokens(library.global_template.subject_template)}
                 </td>
                 <td>
                   <Chip value={anyOrgActive ? 'disabled' : 'active'}>
@@ -598,7 +740,7 @@ function OrgAdminView() {
                 <tr key={template.id}>
                   <td className="font-medium text-ink-900 dark:text-ink-50">{template.name}</td>
                   <td className="max-w-sm truncate text-ink-500 dark:text-ink-400">
-                    {template.subject_template}
+                    {humanizeTokens(template.subject_template)}
                   </td>
                   <td>
                     <div className="flex items-center gap-2">
@@ -638,7 +780,7 @@ function OrgAdminView() {
               {library.org_templates.length === 0 && (
                 <tr>
                   <td colSpan={4} className="py-6 text-center text-sm text-ink-400">
-                    No templates of your own for this kind yet — "Add template" to create one.
+                    No templates of your own for this type yet — "Add template" to create one.
                   </td>
                 </tr>
               )}
@@ -669,13 +811,7 @@ function OrgAdminView() {
       {activating && (
         <ConfirmDialog
           title="Activate this template?"
-          body={
-            currentlyActive
-              ? `"${activating.name}" will become the active ${KIND_META[kind].label} template. ` +
-                `"${currentlyActive.name}" is currently active and will be deactivated.`
-              : `"${activating.name}" will become the active ${KIND_META[kind].label} template, ` +
-                'replacing the platform default for your organization.'
-          }
+          body="Are you sure you want to activate this template?"
           confirmLabel="Activate"
           busy={busyId === activating.id}
           onConfirm={confirmActivate}
@@ -686,7 +822,7 @@ function OrgAdminView() {
       {deleting && (
         <Modal title="Delete template?" onClose={() => setDeleting(null)} className="max-w-sm" centered>
           <p className="text-sm text-ink-600 dark:text-ink-300">
-            Delete "{deleting.name}"? {deleting.is_active && 'It is currently active — sends will fall back to the platform default.'}
+            Are you sure you want to delete this template?
           </p>
           <div className="mt-5 flex items-center justify-end gap-2">
             <button type="button" className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setDeleting(null)}>
@@ -718,8 +854,8 @@ export function EmailTemplates() {
         title="Email Templates"
         description={
           isPlatform
-            ? 'The default invite email sent for each kind of review. Every organization starts from these until it customizes its own.'
-            : "Pick a review kind to see the platform default and your organization's own templates for it. Only one of your templates can be active per kind — activating one deactivates whichever was active before."
+            ? ''
+            : "Select a review type to view its templates. Only one template can be active at a time"
         }
       />
       {isPlatform ? <SuperAdminView /> : <OrgAdminView />}
