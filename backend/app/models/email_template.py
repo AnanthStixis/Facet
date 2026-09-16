@@ -10,7 +10,7 @@ app/services/email_templates.py). Activating one row is what deactivates
 whichever other org row for the same kind was active, enforced by the
 partial unique index rather than trusted to the API layer alone.
 
-Only the subject, heading, and message body are stored and editable here.
+The subject, heading, message body, and an optional signature are stored and editable here.
 The CTA button/link, expiry line, and footer/legal notice are never part of
 this row — `app/services/email.py` always renders those itself, so an org
 can personalize the pitch without ever being able to break the link or drop
@@ -64,6 +64,12 @@ class EmailTemplate(UUIDPrimaryKey, Timestamped, Base):
     subject_template: Mapped[str] = mapped_column(String(200), nullable=False)
     heading: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     body_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    # Optional sign-off rendered after the body and before the CTA button
+    # (e.g. "Regards, The Team"). Empty means no sign-off. Like the body it
+    # can use {placeholders}; unlike the CTA/expiry/footer the author controls
+    # it. See app/services/email.py.
+    signature: Mapped[str] = mapped_column(String(500), nullable=False, default="")
 
     # For an org row: whether this is the one a send actually uses (see
     # module docstring — enforced as "at most one" by a DB index, not just

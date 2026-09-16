@@ -18,6 +18,7 @@ class EmailTemplateOut(BaseModel):
     subject_template: str
     heading: str
     body_text: str
+    signature: str
     is_active: bool
     updated_at: datetime
 
@@ -33,6 +34,7 @@ class EmailTemplateContent(BaseModel):
     subject_template: str = Field(min_length=1, max_length=200)
     heading: str = Field(default="", max_length=200)
     body_text: str = Field(min_length=1, max_length=4000)
+    signature: str = Field(default="", max_length=500)
 
 
 class EmailTemplateCreateRequest(EmailTemplateContent):
@@ -43,6 +45,7 @@ class EmailTemplatePreviewRequest(BaseModel):
     subject_template: str = Field(default="", max_length=200)
     heading: str = Field(default="", max_length=200)
     body_text: str = Field(default="", max_length=4000)
+    signature: str = Field(default="", max_length=500)
 
 
 class EmailTemplateLibrary(BaseModel):

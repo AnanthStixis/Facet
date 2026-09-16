@@ -230,6 +230,7 @@ export interface EmailTemplateOut {
   subject_template: string
   heading: string
   body_text: string
+  signature: string
   is_active: boolean
   updated_at: string
 }

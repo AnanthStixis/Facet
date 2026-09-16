@@ -93,6 +93,7 @@ async def update_global_template(
     row.subject_template = payload.subject_template
     row.heading = payload.heading
     row.body_text = payload.body_text
+    row.signature = payload.signature
     await session.flush()
     await session.refresh(row)
 
@@ -154,6 +155,7 @@ async def create_org_template(
         subject_template=payload.subject_template,
         heading=payload.heading,
         body_text=payload.body_text,
+        signature=payload.signature, 
         is_active=False,
         created_by_id=actor.id,
     )
@@ -193,6 +195,7 @@ async def update_org_template(
     row.subject_template = payload.subject_template
     row.heading = payload.heading
     row.body_text = payload.body_text
+    row.signature = payload.signature
     await session.flush()
     await session.refresh(row)
 
@@ -351,4 +354,5 @@ async def preview_email_template(
         subject_template=payload.subject_template,
         heading=payload.heading,
         body_text=payload.body_text,
+        signature=payload.signature,
     )

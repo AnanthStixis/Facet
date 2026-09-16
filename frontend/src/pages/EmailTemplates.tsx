@@ -32,6 +32,7 @@ interface Draft {
   subject_template: string
   heading: string
   body_text: string
+  signature: string
 }
 
 function toDraft(source: EmailTemplateOut): Draft {
@@ -40,10 +41,11 @@ function toDraft(source: EmailTemplateOut): Draft {
     subject_template: source.subject_template,
     heading: source.heading,
     body_text: source.body_text,
+    signature: source.signature,
   }
 }
 
-const EMPTY_DRAFT: Draft = { name: '', subject_template: '', heading: '', body_text: '' }
+const EMPTY_DRAFT: Draft = { name: '', subject_template: '', heading: '', body_text: '', signature: '' }
 
 
 // ---------------------------------------------------------------------------
@@ -177,6 +179,7 @@ function TemplateForm({
   const subjectRef = useRef<HTMLInputElement>(null)
   const headingRef = useRef<HTMLInputElement>(null)
   const messageRef = useRef<HTMLTextAreaElement>(null)
+  const signatureRef = useRef<HTMLTextAreaElement>(null)
   const [touched, setTouched] = useState<{ name: boolean; subject: boolean; body: boolean }>({
     name: false,
     subject: false,
@@ -199,6 +202,7 @@ function TemplateForm({
           subject_template: draft.subject_template,
           heading: draft.heading,
           body_text: draft.body_text,
+          signature: draft.signature,
         },
       )
       setPreview(rendered)
@@ -324,6 +328,33 @@ function TemplateForm({
               getEl={() => messageRef.current}
               value={draft.body_text}
               onChange={(next) => setDraft({ ...draft, body_text: next })}
+            />
+          )}
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Signature
+          </span>
+          <textarea
+            className="field resize-y"
+            rows={3}
+            maxLength={500}
+            ref={signatureRef}
+            placeholder="e.g. Regards, the {org_name} team"
+            value={draft.signature}
+            disabled={readOnly}
+            onChange={(event) => setDraft({ ...draft, signature: event.target.value })}
+          />
+          {/* <span className="mt-1 block text-xs text-ink-400">
+            A sign-off shown after the message, before the button.
+          </span> */}
+          {!readOnly && (
+            <PlaceholderChips
+              kind={kind}
+              getEl={() => signatureRef.current}
+              value={draft.signature}
+              onChange={(next) => setDraft({ ...draft, signature: next })}
             />
           )}
         </label>

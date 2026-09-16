@@ -98,7 +98,7 @@ class Branding:
     footer_note: str | None = None
 
 
-def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str] | None) -> str:
+def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str] | None, signature: str = "") -> str:
     """Minimal, table-based HTML.
 
     Corporate mail clients remain the least capable rendering targets in
@@ -130,10 +130,17 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
              padding:12px 22px;border-radius:6px;display:inline-block">{escape(label)}</a>
         </td></tr>
         <tr><td style="font:400 12px Helvetica,Arial,sans-serif;color:#8A93A0;padding-top:10px">
-          Or copy the link below:<br>
-          <span style="color:#5A6472;word-break:break-all">{escape(url)}</span>
+          Or Click the link below:<br>
+          <a href="{escape(url)}" style="color:#5A6472;word-break:break-all;text-decoration:underline">{escape(url)}</a>
         </td></tr>"""
 
+    signature_block = ""
+    if signature:
+        signature_block = (
+            '<tr><td style="font:400 14px/1.6 Helvetica,Arial,sans-serif;'
+            'color:#39414D;padding-top:16px">'
+            f'{escape(signature).replace(chr(10), "<br>")}</td></tr>'
+        )
     footer = escape(branding.footer_note) if branding.footer_note else ""
     return f"""<!doctype html>
 <html><body style="margin:0;background:#F6F7F9;padding:28px 12px">
@@ -147,6 +154,7 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
     <tr><td style="font:400 14px/1.6 Helvetica,Arial,sans-serif;color:#39414D">
         {body_html}</td></tr>
     {cta_block}
+    {signature_block}
     <tr><td style="padding-top:26px;border-top:1px solid #DDE1E6;
         font:400 11px/1.5 Helvetica,Arial,sans-serif;color:#8A93A0">
         {footer}{'<br>' if footer else ''}
@@ -157,8 +165,10 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
 </table></body></html>"""
 
 
-def _plain(heading: str, body_text: str, cta: tuple[str, str] | None) -> str:
+def _plain(heading: str, body_text: str, cta: tuple[str, str] | None, signature: str = "") -> str:
     parts = [heading, "", body_text] if heading else [body_text]
+    if signature:
+        parts += ["", signature]
     if cta:
         parts += ["", f"{cta[0]}: {cta[1]}"]
     return "\n".join(parts)
@@ -173,6 +183,7 @@ async def send(
     body_text: str,
     branding: Branding,
     cta: tuple[str, str] | None = None,
+    signature: str = "",
 ) -> bool:
     message = EmailMessage()
     message["Subject"] = subject
@@ -180,8 +191,8 @@ async def send(
     message["To"] = to
     message["Date"] = datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S +0000")
     message["Message-ID"] = f"<{uuid.uuid4()}@facet>"
-    message.set_content(_plain(heading, body_text, cta))
-    message.add_alternative(_shell(branding, heading, body_html, cta), subtype="html")
+    message.set_content(_plain(heading, body_text, cta, signature))
+    message.add_alternative(_shell(branding, heading, body_html, cta, signature), subtype="html")
 
     backend = settings.email_backend
 
@@ -301,6 +312,7 @@ def render_email_template_preview(
     subject_template: str,
     heading: str,
     body_text: str,
+    signature: str = "",
 ) -> dict[str, str]:
     """Render a draft `EmailTemplate` (saved or not) exactly as
     `send_feedback_request` would, with sample recipient/subject-matter
@@ -310,13 +322,14 @@ def render_email_template_preview(
     subject = _safe_format(subject_template, **placeholders) if subject_template else "Feedback Request"
     heading_rendered = _safe_format(heading, **placeholders) if heading else ""
     message = _safe_format(body_text, **placeholders)
+    signature_rendered = _safe_format(signature, **placeholders) if signature else ""
     deadline = placeholders["deadline"]
     body_html = (
         f"{escape(message).replace(chr(10), '<br>')}<br><br>"
         f"This link will expire on {escape(deadline)}."
     )
     cta = ("Give Feedback", "https://example.com/f/sample-token")
-    return {"subject": subject, "html": _shell(branding, heading_rendered, body_html, cta)}
+    return {"subject": subject, "html": _shell(branding, heading_rendered, body_html, cta, signature_rendered)}
 
 
 async def send_feedback_request(
@@ -332,6 +345,7 @@ async def send_feedback_request(
     subject_template: str | None = None,
     heading_override: str | None = None,
     body_override: str | None = None,
+    signature: str = "",
 ) -> bool:
     """Invite an external contact to give feedback.
 
@@ -371,6 +385,9 @@ async def send_feedback_request(
         "first_name": first_name,
         "deadline": deadline,
     }
+    signature_resolved = (
+        _safe_format(signature, **placeholders) if (signature and body_override is not None) else ""
+    )
 
     noun = _person_review_noun(target_type)
 
@@ -456,6 +473,7 @@ async def send_feedback_request(
         body_text=body_text,
         branding=branding,
         cta=("Give Feedback", link),
+        signature=signature_resolved,
     )
 
 
@@ -474,6 +492,7 @@ async def send_assignment_notice(
     subject_template: str | None = None,
     heading_override: str | None = None,
     body_override: str | None = None,
+    signature: str = "",
 ) -> bool:
     """Tell an internal reviewer they've been assigned.
 
@@ -493,6 +512,7 @@ async def send_assignment_notice(
             "first_name": first_name,
             "cycle_name": cycle_name,
         }
+        signature_resolved = _safe_format(signature, **placeholders) if signature else ""
         subject = "Feedback Request"
         if subject_template:
             subject = _safe_format(subject_template, **placeholders)
@@ -516,6 +536,7 @@ async def send_assignment_notice(
             body_text=body_text,
             branding=branding,
             cta=("Give feedback", link),
+            signature=signature_resolved,
         )
 
     if noun is not None:
