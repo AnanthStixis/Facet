@@ -739,7 +739,7 @@ async def _query_results_overview(
             "reviewed_by": ", ".join(item.recipients) if item.recipients else None,
             "reviewed_to": item.target_label,
             "sent_on": item.sent_at,
-            "progress": f"{item.responded}/{item.total}",
+            "progress": f"{item.responded} of {item.total}",
             "status": item.status,
         }
         for item in page

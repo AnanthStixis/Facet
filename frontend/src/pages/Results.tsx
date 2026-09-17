@@ -213,7 +213,7 @@ function DeliveryFunnel({
             type="button"
             className="btn-secondary px-2.5 py-1 text-xs"
             disabled={sending}
-            onClick={() => send(hasPending)}
+            onClick={() => send(!hasPending)}
             title={
               hasPending
                 ? undefined
@@ -932,7 +932,7 @@ export function Results() {
           <EmptyState
             icon={<IconSearch width={19} height={19} />}
             title="Nothing here yet"
-            body={filtersActive ? 'Nothing matches these filters.' : 'Create some feedback to see it show up here.'}
+            body={filtersActive ? 'Nothing matches these filters.' : 'Create some feedback to see it  here.'}
           />
         </Card>
       ) : (

@@ -120,7 +120,7 @@ def render_csv(context: ExportContext, rows: list[dict[str, Any]]) -> Iterator[s
         buffer.seek(0)
         buffer.truncate(0)
         return value
-
+    yield "\ufeff"
     # Provenance header. Without it an exported file is unattributable.
     writer.writerow([f"{settings.product_name} - {context.report.title}"])
     writer.writerow(["Organization", context.org_name])

@@ -756,6 +756,7 @@ async def send_org_rejected(
             f"best in your future endeavors."
         ),
         branding=branding,
+        signature=f"Regards,\n{settings.product_name}", 
     )
 
 
@@ -797,6 +798,7 @@ async def send_org_suspended(
             f"unavailable until the organization is reactivated."
         ),
         branding=branding,
+        signature=f"Regards,\n{settings.product_name}",
     )
 
 
@@ -832,6 +834,7 @@ async def send_organization_reactivated(
             f"platform."
         ),
         branding=branding,
+        signature=f"Regards,\n{settings.product_name}",
     )
 
 
@@ -896,6 +899,7 @@ async def send_invitation(
             ),
             branding=branding,
             cta=("Activate Your Account", invite_url),
+            signature=f"Regards,\n{settings.product_name}", 
         )
 
     if kind == "user":
@@ -929,6 +933,7 @@ async def send_invitation(
             ),
             branding=branding,
             cta=("Set Your Password", invite_url),
+            signature=f"Regards,\n{settings.product_name}"
         )
 
     # Default: "invitation" — Client Admin account, recipient did not
@@ -960,6 +965,7 @@ async def send_invitation(
         ),
         branding=branding,
         cta=("Set your password", invite_url),
+        signature=f"Regards,\n{settings.product_name}",
     )
 
 
@@ -1032,6 +1038,7 @@ async def send_thank_you(
         body_html=body_html,
         body_text=body_text,
         branding=branding,
+        signature=f"Regards,\n{org_name}"
     )
 
 
