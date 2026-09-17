@@ -23,5 +23,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
+# localhost resolves to ::1 first in this image's /etc/hosts, and nginx only
+# binds IPv4 — wget doesn't fall back, so target 127.0.0.1 explicitly.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -q -O- http://localhost/ >/dev/null || exit 1
+    CMD wget -q -O- http://127.0.0.1/ >/dev/null || exit 1

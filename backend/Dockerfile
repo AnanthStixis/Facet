@@ -48,8 +48,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 EXPOSE 8010
 
+# See frontend/Dockerfile for why 127.0.0.1 is used instead of localhost.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -fsS http://localhost:8010/health || exit 1
+    CMD curl -fsS http://127.0.0.1:8010/health || exit 1
 
 # Migrations run as a separate one-shot step (see docker-compose), not on
 # every container start — running them from inside a scaled-out API replica

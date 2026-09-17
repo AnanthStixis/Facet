@@ -1,0 +1,99 @@
+# Facet — deployment stack.
+#
+# Production (and this repo's default `docker compose up`) points DATABASE_URL/
+# ALEMBIC_DATABASE_URL at a managed Postgres instance (Azure), so `db` is NOT
+# started by default — it lives behind the "local-db" profile for local/dev
+# use only, so a plain `up` never pulls pgvector/pgvector.
+#
+#   Local dev (spins up Postgres too):
+#     docker compose --env-file .env.docker --profile local-db up --build
+#
+#   Production / any external-Postgres env:
+#     docker compose --env-file .env.docker up --build
+#     docker compose --env-file .env.docker run --rm migrate   # one-off, when you need to apply migrations
+#
+# infra/bootstrap.sql creates the facet_app role and extensions the first
+# time the db volume is empty; it is safe to re-run (idempotent guards).
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    profiles: ["local-db"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-facet}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./infra/bootstrap.sql:/docker-entrypoint-initdb.d/01-bootstrap.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-facet}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Not part of the default `up` — run explicitly (see header) against
+  # whichever ALEMBIC_DATABASE_URL is set in .env.docker, local or external.
+  migrate:
+    build:
+      context: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      ALEMBIC_DATABASE_URL: ${ALEMBIC_DATABASE_URL:-postgresql+psycopg://postgres:postgres123@db:5432/facet}
+    env_file:
+      - .env.docker
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://facet_app:facet_app_local_password@db:5432/facet}
+      ALEMBIC_DATABASE_URL: ${ALEMBIC_DATABASE_URL:-postgresql+psycopg://postgres:postgres123@db:5432/facet}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    volumes:
+      - backend_var:/app/var
+    depends_on:
+      redis:
+        condition: service_started
+    ports:
+      - "${BACKEND_PORT:-8010}:8010"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8010/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-5174}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  db_data:
+  redis_data:
+  backend_var:
