@@ -671,7 +671,7 @@ function MasterSelectPicker({
 
   useEffect(() => {
     if (!open) return
-    const query = new URLSearchParams({ page_size: '200' })
+    const query = new URLSearchParams({ page_size: '200', include_unsubscribed: 'false' })
     if (search) query.set('q', search)
     api
       .get<{ items: MasterTextOption[] }>(`${path}?${query}`)
@@ -876,7 +876,7 @@ function ContactPicker({
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   const load = () => {
-    const query = new URLSearchParams({ page_size: '200' })
+    const query = new URLSearchParams({ page_size: '200', include_unsubscribed: 'false' })
     if (search) query.set('search', search)
     if (company) query.set('company', company)
     api

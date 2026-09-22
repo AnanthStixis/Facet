@@ -567,6 +567,7 @@ async def list_contacts(
     actor: ManagerUser,
     search: str | None = None,
     company: str | None = None,
+    include_unsubscribed: bool = True,
     page: int = 1,
     page_size: int = 50,
 ) -> Page[ContactDetail]:
@@ -583,6 +584,8 @@ async def list_contacts(
     # to that organisation only, the same way `/users?department=` does.
     if company:
         stmt = stmt.where(Contact.company == company)
+    if not include_unsubscribed:                         
+        stmt = stmt.where(Contact.unsubscribed_at.is_(None))  
     total = int(
         (
             await session.execute(
@@ -625,7 +628,11 @@ async def list_contact_companies(
     is a real narrowing only for a Super Admin's cross-org session — for
     anyone else it is a harmless no-op, same as elsewhere in this app.
     """
-    stmt = select(Contact.company).where(Contact.company.isnot(None), Contact.company != "")
+    stmt = select(Contact.company).where(
+        Contact.company.isnot(None),
+        Contact.company != "",
+        Contact.unsubscribed_at.is_(None),
+    )
     if org_id is not None:
         stmt = stmt.where(Contact.org_id == org_id)
     stmt = stmt.distinct().order_by(Contact.company)
