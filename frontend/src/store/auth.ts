@@ -28,15 +28,21 @@ interface AuthState {
  * instead of hunting down every call site again. */
 const applyBranding = (_organization: Organization | null) => {}
 
+// Bumped to v2 when the default theme switched to dark, so browsers that
+// already had "light" saved under the old key don't get stuck on it —
+// they fall through to the new default instead of requiring a manual
+// localStorage clear on every machine.
+const THEME_STORAGE_KEY = 'facet-theme-v2'
+
 const applyTheme = (theme: 'light' | 'dark') => {
   document.documentElement.classList.toggle('dark', theme === 'dark')
-  localStorage.setItem('facet-theme', theme)
+  localStorage.setItem(THEME_STORAGE_KEY, theme)
 }
 
 const initialTheme = (): 'light' | 'dark' => {
-  const stored = localStorage.getItem('facet-theme')
+  const stored = localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'dark'
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
