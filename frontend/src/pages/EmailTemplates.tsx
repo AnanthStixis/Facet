@@ -495,7 +495,7 @@ function RichTextField({
               }}
               role="textbox"
               aria-multiline="true"
-              className="w-full overflow-auto px-3 py-2 text-sm text-ink-900 outline-none dark:text-ink-50 [&_a]:text-blue-600 [&_a]:underline [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-2 [&_blockquote]:border-ink-300 [&_blockquote]:pl-3 [&_hr]:my-2"
+              className="w-full overflow-auto rounded-b-md bg-white px-3 py-2 text-sm text-ink-900 outline-none [&_a]:text-blue-600 [&_a]:underline [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-2 [&_blockquote]:border-ink-300 [&_blockquote]:pl-3 [&_hr]:my-2"
               style={{ minHeight: `${rows * 1.8}rem` }}
             />
           </div>
