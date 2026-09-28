@@ -64,6 +64,8 @@ class EmailTemplate(UUIDPrimaryKey, Timestamped, Base):
     subject_template: Mapped[str] = mapped_column(String(200), nullable=False)
     heading: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     body_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    body_format: Mapped[str] = mapped_column(String(4), nullable=False, default="text")
+    signature_format: Mapped[str] = mapped_column(String(4), nullable=False, default="text")
 
     # Optional sign-off rendered after the body and before the CTA button
     # (e.g. "Regards, The Team"). Empty means no sign-off. Like the body it

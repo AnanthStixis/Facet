@@ -270,6 +270,8 @@ async def send_pending(
             heading_override=template.heading if template else None,
             body_override=template.body_text if template else None,
             signature=template.signature if template else "",
+            body_format=template.body_format if template else "text",
+            signature_format=template.signature_format if template else "text",
         )
         if ok:
             recipient.status = RecipientStatus.SENT

@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.message import EmailMessage
 from html import escape
-
+import nh3
+import re
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.enums import TargetType
@@ -98,7 +99,36 @@ class Branding:
     footer_note: str | None = None
 
 
-def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str] | None, signature: str = "") -> str:
+# Tags an org author may use in an HTML-mode body/signature — exactly what the
+# formatting toolbar emits. Everything else (script, style, img, iframe, event
+# handlers…) is stripped by nh3 before it is rendered into an email going to an
+# external inbox.
+_ALLOWED_TAGS = {
+    "b", "strong", "i", "em", "u", "s", "a", "br", "p", "span",
+    "ul", "ol", "li", "h1", "h2", "h3", "blockquote", "hr", "img",
+}
+_ALLOWED_ATTRS = {
+    "a": {"href", "title"},
+    "span": {"style"},
+    "img": {"src", "alt"},
+}
+
+
+def _render_rich(text: str, fmt: str) -> str:
+    """Body/signature → email-safe HTML.
+
+    fmt == "html": collapse block elements (<p>, <div>) to <br> first — email
+    clients add a default margin to every <p>, which shows up as big gaps
+    between signature/body lines — then sanitize against the allow-list.
+    Otherwise ("text", the default): escape and turn newlines into <br>.
+    """
+    if fmt == "html":
+        collapsed = re.sub(r"</(p|div)>", "<br>", text, flags=re.IGNORECASE)
+        collapsed = re.sub(r"<(p|div)[^>]*>", "", collapsed, flags=re.IGNORECASE)
+        return nh3.clean(collapsed, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS)
+    return escape(text).replace(chr(10), "<br>")
+
+def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str] | None, signature: str = "", signature_format: str = "text") -> str:
     """Minimal, table-based HTML.
 
     Corporate mail clients remain the least capable rendering targets in
@@ -139,11 +169,15 @@ def _shell(branding: Branding, heading: str, body_html: str, cta: tuple[str, str
         signature_block = (
             '<tr><td style="font:400 14px/1.6 Helvetica,Arial,sans-serif;'
             'color:#39414D;padding-top:16px">'
-            f'{escape(signature).replace(chr(10), "<br>")}</td></tr>'
+            f'{_render_rich(signature, signature_format)}</td></tr>'
         )
     footer = escape(branding.footer_note) if branding.footer_note else ""
     return f"""<!doctype html>
-<html><body style="margin:0;background:#F6F7F9;padding:28px 12px">
+<html><head><meta charset="utf-8"><style>
+p,h1,h2,h3,ul,ol,li,blockquote{{margin:0;padding:0}}
+ul,ol{{padding-left:22px}}
+h1{{font-size:22px;font-weight:700}}h2{{font-size:18px;font-weight:700}}h3{{font-size:16px;font-weight:600}}
+</style></head><body style="margin:0;background:#F6F7F9;padding:28px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
  <tr><td align="center">
   <table role="presentation" width="560" cellpadding="0" cellspacing="0"
@@ -184,6 +218,7 @@ async def send(
     branding: Branding,
     cta: tuple[str, str] | None = None,
     signature: str = "",
+    signature_format: str = "text",
 ) -> bool:
     message = EmailMessage()
     message["Subject"] = subject
@@ -192,7 +227,7 @@ async def send(
     message["Date"] = datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S +0000")
     message["Message-ID"] = f"<{uuid.uuid4()}@facet>"
     message.set_content(_plain(heading, body_text, cta, signature))
-    message.add_alternative(_shell(branding, heading, body_html, cta, signature), subtype="html")
+    message.add_alternative(_shell(branding, heading, body_html, cta, signature, signature_format), subtype="html")
 
     backend = settings.email_backend
 
@@ -313,6 +348,8 @@ def render_email_template_preview(
     heading: str,
     body_text: str,
     signature: str = "",
+    body_format: str = "text",
+    signature_format: str = "text",
 ) -> dict[str, str]:
     """Render a draft `EmailTemplate` (saved or not) exactly as
     `send_feedback_request` would, with sample recipient/subject-matter
@@ -325,11 +362,11 @@ def render_email_template_preview(
     signature_rendered = _safe_format(signature, **placeholders) if signature else ""
     deadline = placeholders["deadline"]
     body_html = (
-        f"{escape(message).replace(chr(10), '<br>')}<br><br>"
+        f"{_render_rich(message, body_format)}<br><br>"
         f"This link will expire on {escape(deadline)}."
     )
     cta = ("Give Feedback", "https://example.com/f/sample-token")
-    return {"subject": subject, "html": _shell(branding, heading_rendered, body_html, cta, signature_rendered)}
+    return {"subject": subject, "html": _shell(branding, heading_rendered, body_html, cta, signature_rendered, signature_format)}
 
 
 async def send_feedback_request(
@@ -346,6 +383,8 @@ async def send_feedback_request(
     heading_override: str | None = None,
     body_override: str | None = None,
     signature: str = "",
+    body_format: str = "text",
+    signature_format: str = "text",
 ) -> bool:
     """Invite an external contact to give feedback.
 
@@ -398,7 +437,7 @@ async def send_feedback_request(
         heading = _safe_format(heading_override, **placeholders) if heading_override else ""
         message = _safe_format(body_override, **placeholders)
         body_html = (
-            f"{escape(message).replace(chr(10), '<br>')}<br><br>"
+            f"{_render_rich(message, body_format)}<br><br>"
             f"This link will expire on {escape(deadline)}."
         )
         body_text = (
@@ -474,6 +513,7 @@ async def send_feedback_request(
         branding=branding,
         cta=("Give Feedback", link),
         signature=signature_resolved,
+        signature_format=signature_format,
     )
 
 
@@ -493,6 +533,8 @@ async def send_assignment_notice(
     heading_override: str | None = None,
     body_override: str | None = None,
     signature: str = "",
+    body_format: str = "text",
+    signature_format: str = "text",
 ) -> bool:
     """Tell an internal reviewer they've been assigned.
 
@@ -525,7 +567,7 @@ async def send_assignment_notice(
             else "It takes just a couple of minutes to complete."
         )
         body_html = (
-            f"{escape(message).replace(chr(10), '<br>')}{escape(when)}<br><br>{escape(closing)}"
+            f"{_render_rich(message, body_format)}{escape(when)}<br><br>{escape(closing)}"
         )
         body_text = f"{message}{when}\n\n{closing}"
         return await send(
@@ -537,6 +579,7 @@ async def send_assignment_notice(
             branding=branding,
             cta=("Give feedback", link),
             signature=signature_resolved,
+            signature_format=signature_format,
         )
 
     if noun is not None:

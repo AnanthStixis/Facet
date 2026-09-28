@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-
+from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.enums import EmailTemplateKind, TemplateScope
@@ -18,7 +18,9 @@ class EmailTemplateOut(BaseModel):
     subject_template: str
     heading: str
     body_text: str
+    body_format: Literal["text", "html"]
     signature: str
+    signature_format: Literal["text", "html"]
     is_active: bool
     updated_at: datetime
 
@@ -31,10 +33,12 @@ class EmailTemplateContent(BaseModel):
     identity (kind), which a create sets once and an update never changes."""
 
     name: str = Field(min_length=1, max_length=150)
-    subject_template: str = Field(min_length=1, max_length=200)
-    heading: str = Field(default="", max_length=200)
-    body_text: str = Field(min_length=1, max_length=4000)
-    signature: str = Field(default="", max_length=500)
+    subject_template: str = Field(min_length=1, max_length=2000)
+    heading: str = Field(default="", max_length=2000)
+    body_text: str = Field(min_length=1, max_length=200000)
+    body_format: Literal["text", "html"] = "text"
+    signature: str = Field(default="", max_length=400000)
+    signature_format: Literal["text", "html"] = "text"
 
 
 class EmailTemplateCreateRequest(EmailTemplateContent):
@@ -42,10 +46,12 @@ class EmailTemplateCreateRequest(EmailTemplateContent):
 
 
 class EmailTemplatePreviewRequest(BaseModel):
-    subject_template: str = Field(default="", max_length=200)
-    heading: str = Field(default="", max_length=200)
-    body_text: str = Field(default="", max_length=4000)
-    signature: str = Field(default="", max_length=500)
+    subject_template: str = Field(default="", max_length=2000)
+    heading: str = Field(default="", max_length=2000)
+    body_text: str = Field(default="", max_length=200000)
+    body_format: Literal["text", "html"] = "text"
+    signature: str = Field(default="", max_length=400000)
+    signature_format: Literal["text", "html"] = "text"
 
 
 class EmailTemplateLibrary(BaseModel):

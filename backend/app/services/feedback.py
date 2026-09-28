@@ -219,6 +219,8 @@ async def _notify_new_assignments(
             heading_override=template.heading if template else None,
             body_override=template.body_text if template else None,
             signature=template.signature if template else "",
+            body_format=template.body_format if template else "text",
+            signature_format=template.signature_format if template else "text",
         )
         if not sent:
             warnings.append(f"Could not email {reviewer.full_name}.")
